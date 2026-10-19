@@ -16,6 +16,18 @@ export function sumarDias(dias: number, base = new Date()) {
   return toISO(d);
 }
 
+/**
+ * Suma meses de calendario a una fecha (yyyy-mm-dd): del 19 de octubre al 19 de
+ * noviembre. Si el mes siguiente no tiene ese día, queda el último (31 de enero → 28 de febrero).
+ */
+export function sumarMeses(meses: number, base = new Date()) {
+  const dia = base.getDate();
+  const d = new Date(base.getFullYear(), base.getMonth() + meses, 1);
+  const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(dia, ultimo));
+  return toISO(d);
+}
+
 /** días que faltan hasta la fecha (negativo si ya pasó) */
 export function diasHasta(iso: string) {
   const hoy = parseISO(hoyISO());

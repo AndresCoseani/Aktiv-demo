@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Mail, Send, Trash2 } from "lucide-react";
+import { Copy, KeyRound, Mail, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -18,9 +17,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ErrorHttp } from "@/lib/api";
+import { APP_URL } from "@/lib/config";
 import { formatFecha } from "@/lib/format";
 import { LIMITES, emailOpcional, validar } from "@/lib/schemas";
-import { actualizarAlumno, eliminarAlumno, invitarAlumno } from "@/lib/store";
+import { actualizarAlumno, eliminarAlumno, entregarCredenciales, invitarAlumno } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Alumno } from "@/lib/types";
 
@@ -37,10 +37,15 @@ function mensajeDeError(e: unknown) {
   return e instanceof ErrorHttp ? e.message : "No se pudo enviar la invitación. Probá de nuevo.";
 }
 
-/** Acceso del alumno a su cuenta: estado y envío (o reenvío) de la invitación por email */
-export function AccesoCard({ alumno }: { alumno: Alumno }) {
+/**
+ * Acceso del alumno a su cuenta. Dos formas de dárselo: invitación por email (el alumno elige su
+ * contraseña) o credenciales con contraseña aleatoria que el profe copia y le pasa (por WhatsApp).
+ * Con la cuenta ya activa no se muestra nada.
+ */
+export function AccesoAlumno({ alumno }: { alumno: Alumno }) {
   const acceso = alumno.acceso ?? { estado: "sin_cuenta" as const, expiraEn: null };
   const [abierto, setAbierto] = useState(false);
+  const [credenciales, setCredenciales] = useState(false);
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -87,32 +92,30 @@ export function AccesoCard({ alumno }: { alumno: Alumno }) {
 
   return (
     <>
-      <Card className="gap-3 py-4">
-        <CardHeader className="px-4">
-          <CardDescription>Acceso a su cuenta</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 px-4">
-          <div className="space-y-1">
-            <Badge variant="outline" className={cn("gap-1.5 border-transparent px-2.5 py-3 text-sm", estado.clase)}>
-              <KeyRound className="size-3.5" />
+      {acceso.estado !== "activo" && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <>
+            <Badge variant="outline" className={cn("gap-1.5 border-transparent px-2", estado.clase)}>
+              <KeyRound className="size-3" />
               {estado.texto}
             </Badge>
-            <p className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {acceso.estado === "sin_cuenta" && "Todavía no puede entrar a ver su plan."}
               {acceso.estado === "invitado" &&
                 `Tiene hasta el ${formatFecha((acceso.expiraEn ?? "").slice(0, 10), { conAnio: true })} para elegir su contraseña.`}
               {acceso.estado === "invitacion_vencida" && "El enlace venció: mandale uno nuevo."}
-              {acceso.estado === "activo" && "Entra con su email y su contraseña."}
-            </p>
-          </div>
-          {acceso.estado !== "activo" && (
-            <Button variant="outline" onClick={abrir}>
+            </span>
+            <Button size="sm" variant="outline" onClick={abrir}>
               <Send data-icon="inline-start" />
               {yaInvitado ? "Reenviar invitación" : "Invitar por email"}
             </Button>
-          )}
-        </CardContent>
-      </Card>
+            <Button size="sm" variant="outline" onClick={() => setCredenciales(true)}>
+              <Copy data-icon="inline-start" />
+              Copiar credenciales
+            </Button>
+          </>
+        </div>
+      )}
 
       <Dialog open={abierto} onOpenChange={setAbierto}>
         <DialogContent className="sm:max-w-md">
@@ -160,7 +163,133 @@ export function AccesoCard({ alumno }: { alumno: Alumno }) {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={credenciales} onOpenChange={setCredenciales}>
+        <DialogContent className="sm:max-w-md">
+          {credenciales && <CredencialesForm alumno={alumno} onClose={() => setCredenciales(false)} />}
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+/** Genera la contraseña aleatoria, la muestra UNA vez y deja copiar un mensaje listo para WhatsApp */
+function CredencialesForm({ alumno, onClose }: { alumno: Alumno; onClose: () => void }) {
+  const tieneCuenta = (alumno.acceso?.estado ?? "sin_cuenta") !== "sin_cuenta";
+  const [email, setEmail] = useState(alumno.email);
+  const [error, setError] = useState("");
+  const [generando, setGenerando] = useState(false);
+  const [entregadas, setEntregadas] = useState<{ email: string; clave: string } | null>(null);
+
+  async function generar() {
+    if (!tieneCuenta) {
+      const v = validar(emailOpcional, email.trim());
+      if (!v.ok || !v.datos) {
+        setError(v.ok ? "Escribí el email del alumno" : v.error);
+        return;
+      }
+      if (v.datos !== alumno.email) actualizarAlumno(alumno.id, { email: v.datos });
+    }
+    setGenerando(true);
+    setError("");
+    try {
+      setEntregadas(await entregarCredenciales(alumno.id));
+    } catch (err) {
+      setError(err instanceof ErrorHttp ? err.message : "No se pudieron generar las credenciales. Probá de nuevo.");
+    } finally {
+      setGenerando(false);
+    }
+  }
+
+  async function copiar(texto: string, aviso: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      toast.success(aviso);
+    } catch {
+      toast.error("No se pudo copiar. Seleccioná el texto y copialo a mano.");
+    }
+  }
+
+  if (entregadas) {
+    const mensaje = [
+      `Hola ${alumno.nombre.split(" ")[0]}! Ya tenés tu acceso a Aktiv 💪`,
+      `Entrá en: ${APP_URL}`,
+      `Email: ${entregadas.email}`,
+      `Contraseña: ${entregadas.clave}`,
+      "Podés cambiarla desde el menú de tu cuenta (arriba a la derecha).",
+    ].join("\n");
+    return (
+      <div className="space-y-4">
+        <DialogHeader>
+          <DialogTitle>Acceso de {alumno.nombre}</DialogTitle>
+          <DialogDescription>
+            Copiá el mensaje y mandáselo. <strong className="font-medium text-foreground">Por seguridad la contraseña no se vuelve a
+            mostrar</strong>: si la perdés, generás una nueva.
+          </DialogDescription>
+        </DialogHeader>
+        <dl className="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-muted-foreground">Email</dt>
+            <dd className="min-w-0 truncate font-medium">{entregadas.email}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-muted-foreground">Contraseña</dt>
+            <dd className="font-mono text-base font-semibold tracking-wide select-all">{entregadas.clave}</dd>
+          </div>
+        </dl>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Listo
+          </Button>
+          <Button onClick={() => copiar(mensaje, "Mensaje copiado. Pegalo en WhatsApp")}>
+            <Copy data-icon="inline-start" />
+            Copiar mensaje
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Copiar credenciales</DialogTitle>
+        <DialogDescription>
+          {tieneCuenta
+            ? `Se genera una contraseña aleatoria para ${alumno.nombre} y la copiás para pasársela (sirve si el mail no llegó). El enlace de invitación anterior deja de funcionar.`
+            : `Se crea la cuenta de ${alumno.nombre} con una contraseña aleatoria y la copiás para pasársela, sin mandar ningún mail.`}
+        </DialogDescription>
+      </DialogHeader>
+      {!tieneCuenta && (
+        <div className="space-y-2">
+          <Label htmlFor="cred-email">Email del alumno</Label>
+          <Input
+            id="cred-email"
+            type="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError("");
+            }}
+            maxLength={LIMITES.email}
+            autoComplete="off"
+          />
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button onClick={generar} disabled={generando}>
+          {generando ? "Generando…" : "Generar credenciales"}
+        </Button>
+      </DialogFooter>
+    </div>
   );
 }
 

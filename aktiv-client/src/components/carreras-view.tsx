@@ -507,9 +507,12 @@ function CarreraForm({ editando, onClose }: { editando: Carrera | null; onClose:
 export function CarrerasDeAlumno({
   alumno,
   puedeAsignar,
+  propia = false,
 }: {
   alumno: Alumno;
   puedeAsignar: boolean;
+  /** lo está viendo el propio alumno (cambia los textos: "anotarme" en vez de "asignar") */
+  propia?: boolean;
 }) {
   const { carreras, inscripciones } = useStore();
   const [asignar, setAsignar] = useState(false);
@@ -557,7 +560,7 @@ export function CarrerasDeAlumno({
         <div className="flex justify-end">
           <Button onClick={() => setAsignar(true)}>
             <Plus data-icon="inline-start" />
-            Asignar a una carrera
+            {propia ? "Anotarme a una carrera" : "Asignar a una carrera"}
           </Button>
         </div>
       )}
@@ -566,9 +569,9 @@ export function CarrerasDeAlumno({
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-12 text-center">
           <Flag className="size-8 text-muted-foreground/60" />
           <p className="text-sm text-muted-foreground">
-            {puedeAsignar
-              ? "Todavía no está anotado en ninguna carrera."
-              : "Todavía no estás anotado en ninguna carrera. Tu profe te va a asignar."}
+            {propia
+              ? "Todavía no estás anotado en ninguna carrera. Anotate en una del calendario de tu profe."
+              : "Todavía no está anotado en ninguna carrera."}
           </p>
         </div>
       ) : (
@@ -580,7 +583,7 @@ export function CarrerasDeAlumno({
 
       <Dialog open={asignar} onOpenChange={setAsignar}>
         <DialogContent className="sm:max-w-md">
-          {asignar && <AsignarForm alumno={alumno} onClose={() => setAsignar(false)} />}
+          {asignar && <AsignarForm alumno={alumno} propia={propia} onClose={() => setAsignar(false)} />}
         </DialogContent>
       </Dialog>
 
@@ -721,7 +724,7 @@ function InscripcionItem({
   );
 }
 
-function AsignarForm({ alumno, onClose }: { alumno: Alumno; onClose: () => void }) {
+function AsignarForm({ alumno, propia, onClose }: { alumno: Alumno; propia: boolean; onClose: () => void }) {
   const { carreras, inscripciones } = useStore();
   const hoy = hoyISO();
 
@@ -784,17 +787,23 @@ function AsignarForm({ alumno, onClose }: { alumno: Alumno; onClose: () => void 
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Asignar a una carrera</DialogTitle>
+          <DialogTitle>{propia ? "Anotarme a una carrera" : "Asignar a una carrera"}</DialogTitle>
           <DialogDescription>
-            No hay carreras disponibles para {alumno.nombre}.
+            {propia ? "No hay carreras disponibles." : `No hay carreras disponibles para ${alumno.nombre}.`}
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Primero cargá la carrera en{" "}
-          <Link href="/carreras" className="font-medium text-primary underline underline-offset-2">
-            Carreras
-          </Link>{" "}
-          y después asignala desde acá.
+          {propia ? (
+            "Tu profe todavía no cargó carreras nuevas en el calendario."
+          ) : (
+            <>
+              Primero cargá la carrera en{" "}
+              <Link href="/carreras" className="font-medium text-primary underline underline-offset-2">
+                Carreras
+              </Link>{" "}
+              y después asignala desde acá.
+            </>
+          )}
         </p>
         <DialogFooter>
           <Button onClick={onClose}>Entendido</Button>
@@ -806,9 +815,11 @@ function AsignarForm({ alumno, onClose }: { alumno: Alumno; onClose: () => void 
   return (
     <form onSubmit={enviar} className="space-y-4">
       <DialogHeader>
-        <DialogTitle>Asignar a una carrera</DialogTitle>
+        <DialogTitle>{propia ? "Anotarme a una carrera" : "Asignar a una carrera"}</DialogTitle>
         <DialogDescription>
-          Elegí una carrera ya cargada y la distancia que va a correr {alumno.nombre}.
+          {propia
+            ? "Elegí una carrera del calendario de tu profe y la distancia que vas a correr."
+            : `Elegí una carrera ya cargada y la distancia que va a correr ${alumno.nombre}.`}
         </DialogDescription>
       </DialogHeader>
 
@@ -893,7 +904,7 @@ function AsignarForm({ alumno, onClose }: { alumno: Alumno; onClose: () => void 
         <Button type="button" variant="ghost" onClick={onClose}>
           Cancelar
         </Button>
-        <Button type="submit">Asignar</Button>
+        <Button type="submit">{propia ? "Anotarme" : "Asignar"}</Button>
       </DialogFooter>
     </form>
   );

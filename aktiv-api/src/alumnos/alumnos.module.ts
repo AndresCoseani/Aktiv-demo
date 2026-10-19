@@ -84,17 +84,6 @@ export class AlumnosService {
     }) as Record<string, unknown>;
     const db = this.supa.delUsuario(u.token);
 
-    // el plan activo tiene que ser un plan de este mismo alumno (la base no tiene FK a propósito)
-    if (typeof dto.planActivoId === "string") {
-      const { data, error } = await db
-        .from("planes")
-        .select("id")
-        .eq("id", dto.planActivoId)
-        .eq("alumno_id", id)
-        .maybeSingle();
-      lanzarSiError(error);
-      if (!data) throw reglaDeNegocio("plan_invalido", "El plan activo tiene que ser un plan de este alumno.");
-    }
     await actualizarUno(db, "alumnos", "id", id, columnasAlumno(dto), "El alumno");
     return RESPUESTA_ID(id);
   }

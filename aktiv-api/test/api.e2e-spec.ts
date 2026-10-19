@@ -254,6 +254,38 @@ describe("API de Aktiv (contra Supabase local)", () => {
       expect(a.planes[0].ejercicios.map((e: { nombre: string }) => e.nombre)).toEqual(["Sentadilla búlgara", "Plancha"]);
     });
 
+    it("los ejercicios van en bloques: entrada en calor, entrenamiento y vuelta a la calma", async () => {
+      const [calor, base, calma] = [uuid(), uuid(), uuid()];
+      const ej = (id: string, extra: object) => A.post(`/api/planes/${planId}/ejercicios`, { id, nombre: "Movilidad de cadera", series: 1, repeticiones: "30 s", ...extra });
+      expect((await ej(calor, { bloque: "Calentamiento" })).status).toBe(201);
+      expect((await ej(base, {})).status).toBe(201); // sin bloque: queda en "Entrenamiento"
+      expect((await ej(calma, { bloque: "Enfriamiento" })).status).toBe(201);
+      expect((await ej(uuid(), { bloque: "Postre" })).status).toBe(400);
+      const lista = (await A.get("/api/datos")).body.alumnos.flatMap((a: { planes: { id: string; ejercicios: { id: string; bloque: string }[] }[] }) => a.planes).find((p: { id: string }) => p.id === planId).ejercicios;
+      const bloqueDe = (id: string) => lista.find((e: { id: string }) => e.id === id).bloque;
+      expect([bloqueDe(calor), bloqueDe(base), bloqueDe(calma)]).toEqual(["Calentamiento", "Entrenamiento", "Enfriamiento"]);
+      // el profe puede mover un ejercicio de bloque
+      expect((await A.patch(`/api/ejercicios/${base}`, { bloque: "Enfriamiento" })).status).toBe(200);
+      expect((await A.patch(`/api/ejercicios/${base}`, { bloque: "Nada" })).status).toBe(400);
+      for (const id of [calor, base, calma]) await A.delete(`/api/ejercicios/${id}`);
+    });
+
+    it("el descanso es texto libre, opcional y solo lo edita el profe", async () => {
+      const id = uuid();
+      expect((await A.post(`/api/planes/${planId}/ejercicios`, { id, nombre: "Sentadilla", series: 3, repeticiones: "10", descanso: "90 s" })).status).toBe(201);
+      const leer = async () => (await A.get("/api/datos")).body.alumnos.flatMap((a: { planes: { ejercicios: { id: string; descanso: string }[] }[] }) => a.planes.flatMap((p) => p.ejercicios)).find((e: { id: string }) => e.id === id).descanso;
+      expect(await leer()).toBe("90 s");
+      expect((await A.patch(`/api/ejercicios/${id}`, { descanso: "2 min" })).status).toBe(200);
+      expect(await leer()).toBe("2 min");
+      expect((await A.patch(`/api/ejercicios/${id}`, { descanso: "x".repeat(31) })).status).toBe(400);
+      expect((await A.patch(`/api/ejercicios/${id}`, { descanso: "" })).status).toBe(200); // se puede vaciar
+      // sin descanso en el alta: queda vacío
+      const otro = uuid();
+      expect((await A.post(`/api/planes/${planId}/ejercicios`, { id: otro, nombre: "Plancha", series: 3, repeticiones: "30 s" })).status).toBe(201);
+      await A.delete(`/api/ejercicios/${id}`);
+      await A.delete(`/api/ejercicios/${otro}`);
+    });
+
     it("edita un ejercicio y valida series, repeticiones y peso", async () => {
       expect((await A.patch(`/api/ejercicios/${ejId}`, { series: 4, peso: "12,5", pesoFecha: "2026-10-01" })).status).toBe(200);
       expect((await A.patch(`/api/ejercicios/${ejId}`, { series: 100 })).status).toBe(400);
@@ -262,13 +294,25 @@ describe("API de Aktiv (contra Supabase local)", () => {
       expect((await A.patch(`/api/ejercicios/${ejId}`, { repeticiones: "x".repeat(31) })).status).toBe(400);
     });
 
-    it("el plan activo tiene que ser un plan del mismo alumno", async () => {
-      expect((await A.patch(`/api/alumnos/${id}`, { planActivoId: planId })).status).toBe(200);
-      const ajeno = uuid();
-      await A.post(`/api/alumnos/${alumnoA2}/planes`, { id: ajeno, nombre: "Plan de otro" });
-      const r = await A.patch(`/api/alumnos/${id}`, { planActivoId: ajeno });
-      expect(r.status).toBe(422);
-      expect(r.body.codigo).toBe("plan_invalido");
+    it("planes por tipo: un activo por tipo, el tipo no cambia y el alumno no los toca", async () => {
+      const [r1, r2, f1] = [uuid(), uuid(), uuid()];
+      expect((await A.post(`/api/alumnos/${alumnoA2}/planes`, { id: r1, nombre: "Running 1", tipo: "Running", activo: true })).status).toBe(201);
+      expect((await A.post(`/api/alumnos/${alumnoA2}/planes`, { id: r2, nombre: "Running 2", tipo: "Running" })).status).toBe(201);
+      expect((await A.post(`/api/alumnos/${alumnoA2}/planes`, { id: f1, nombre: "Fuerza 1", tipo: "Fuerza", activo: true })).status).toBe(201);
+      const estado = async () => {
+        const planes = (await A.get("/api/datos")).body.alumnos.find((x: { id: string }) => x.id === alumnoA2).planes;
+        return Object.fromEntries(planes.map((p: { id: string; activo: boolean }) => [p.id, p.activo]));
+      };
+      expect(await estado()).toMatchObject({ [r1]: true, [r2]: false, [f1]: true });
+      // activar el segundo de running desactiva el primero, pero NO toca el de fuerza
+      expect((await A.patch(`/api/planes/${r2}`, { activo: true })).status).toBe(200);
+      expect(await estado()).toMatchObject({ [r1]: false, [r2]: true, [f1]: true });
+      // validaciones
+      expect((await A.post(`/api/alumnos/${alumnoA2}/planes`, { id: uuid(), nombre: "x", tipo: "Natación" })).status).toBe(400);
+      expect((await A.patch(`/api/planes/${r2}`, { tipo: "Fuerza" })).status).toBe(400); // el tipo no se cambia
+      expect((await A.patch(`/api/planes/${r2}`, {})).status).toBe(400);
+      expect((await A.patch(`/api/planes/${r2}`, { activo: "si" })).status).toBe(400);
+      expect((await B.patch(`/api/planes/${r2}`, { activo: false })).status).toBe(404); // de otro profe
     });
 
     it("pone un tope de ejercicios por plan", async () => {
@@ -386,14 +430,28 @@ describe("API de Aktiv (contra Supabase local)", () => {
       expect(datos.inscripciones.some((i: { id: string }) => i.id === inscId)).toBe(false);
     });
 
-    it("catálogo de ejercicios del profe: alta, duplicado y baja", async () => {
+    it("catálogo de ejercicios del profe: alta, edición, duplicado y baja", async () => {
       const id = uuid();
+      const otro = uuid();
+      expect((await A.post("/api/catalogo/ejercicios", { id: otro, nombre: "Remo", categoria: "Fuerza" })).status).toBe(201);
       expect((await A.post("/api/catalogo/ejercicios", { id, nombre: "Burpees", categoria: "Fuerza" })).status).toBe(201);
       expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "burpees", categoria: "Fuerza" })).status).toBe(409);
       expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "x".repeat(121), categoria: "Fuerza" })).status).toBe(400);
       expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "Trote", categoria: "Inventada" })).status).toBe(400);
       expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "Trote" })).status).toBe(400); // la categoría es obligatoria
+      // edición: renombrar, cambiar de categoría, duplicado, parche vacío, campos de más
+      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { nombre: "Burpees completos" })).status).toBe(200);
+      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { categoria: "Movilidad" })).status).toBe(200);
+      const editado = (await A.get("/api/datos")).body.ejerciciosCustom.find((e: { id: string }) => e.id === id);
+      expect(editado).toMatchObject({ nombre: "Burpees completos", categoria: "Movilidad" });
+      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { nombre: "remo" })).status).toBe(409);
+      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, {})).status).toBe(400);
+      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { coach_id: uuid() })).status).toBe(400);
+      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { categoria: "Inventada" })).status).toBe(400);
+      expect((await A.patch(`/api/catalogo/ejercicios/${uuid()}`, { nombre: "Nada" })).status).toBe(404);
+      expect((await B.patch(`/api/catalogo/ejercicios/${id}`, { nombre: "Ajeno" })).status).toBe(404); // de otro profe
       expect((await A.delete(`/api/catalogo/ejercicios/${id}`)).status).toBe(204);
+      expect((await A.delete(`/api/catalogo/ejercicios/${otro}`)).status).toBe(204);
     });
   });
 
@@ -466,14 +524,15 @@ describe("API de Aktiv (contra Supabase local)", () => {
       expect(a.notasAlumno).toBe("me duele la rodilla");
     });
 
-    it("no puede crear ni borrar alumnos, planes, carreras ni inscripciones", async () => {
+    it("no puede crear ni borrar alumnos, planes ni carreras", async () => {
       expect((await S1.post("/api/alumnos", ALUMNO_VALIDO())).status).toBe(403);
       expect((await S1.delete(`/api/alumnos/${alumnoA1}`)).status).toBe(403);
       expect((await S1.post(`/api/alumnos/${alumnoA1}/planes`, { id: uuid(), nombre: "x", categoria: "Fuerza" })).status).toBe(403);
+      expect((await S1.patch(`/api/catalogo/ejercicios/${uuid()}`, { nombre: "x" })).status).toBe(403);
       expect((await S1.delete(`/api/planes/${planId}`)).status).toBe(403);
       expect((await S1.post("/api/carreras", { id: uuid(), nombre: "x", fecha: "2030-01-01", lugar: "", distanciasKm: [5], notas: "" })).status).toBe(403);
-      expect((await S1.post(`/api/alumnos/${alumnoA1}/inscripciones`, { id: uuid(), carreraId, distanciaKm: 5, objetivoSeg: null })).status).toBe(403);
-      expect((await S1.delete(`/api/inscripciones/${inscId}`)).status).toBe(403);
+      expect((await S1.patch(`/api/carreras/${carreraId}`, { nombre: "x" })).status).toBe(403);
+      expect((await S1.delete(`/api/carreras/${carreraId}`)).status).toBe(403);
       expect((await S1.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "x" })).status).toBe(403);
     });
 
@@ -481,13 +540,35 @@ describe("API de Aktiv (contra Supabase local)", () => {
       expect((await S1.patch(`/api/ejercicios/${ejId}`, { peso: "20", pesoFecha: "2026-10-18" })).status).toBe(200);
       expect((await S1.patch(`/api/ejercicios/${ejId}`, { nombre: "Otro" })).status).toBe(403);
       expect((await S1.patch(`/api/ejercicios/${ejId}`, { series: 9 })).status).toBe(403);
+      expect((await S1.patch(`/api/ejercicios/${ejId}`, { bloque: "Enfriamiento" })).status).toBe(403); // el bloque lo arma el profe
+      expect((await S1.patch(`/api/ejercicios/${ejId}`, { descanso: "5 min" })).status).toBe(403); // el descanso también
       expect((await S1.patch(`/api/ejercicios/${ejId}`, { peso: "mucho" })).status).toBe(400);
     });
 
-    it("puede cargar objetivo y resultado de su inscripción, pero no distancia ni carrera", async () => {
+    it("maneja su inscripción: objetivo, resultado y distancia, pero no la carrera ni el alumno", async () => {
       expect((await S1.patch(`/api/inscripciones/${inscId}`, { objetivoSeg: 2900, resultadoSeg: 3100 })).status).toBe(200);
-      expect((await S1.patch(`/api/inscripciones/${inscId}`, { distanciaKm: 5 })).status).toBe(403);
-      expect((await S1.patch(`/api/inscripciones/${inscId}`, { carreraId: uuid() })).status).toBe(403);
+      expect((await S1.patch(`/api/inscripciones/${inscId}`, { distanciaKm: 5 })).status).toBe(200);
+      expect((await S1.patch(`/api/inscripciones/${inscId}`, { distanciaKm: 42 })).status).toBe(422); // la carrera no la ofrece
+      expect((await S1.patch(`/api/inscripciones/${inscId}`, { distanciaKm: 10 })).status).toBe(200);
+      expect((await S1.patch(`/api/inscripciones/${inscId}`, { carreraId: uuid() })).status).toBe(400);
+      expect((await S1.patch(`/api/inscripciones/${inscId}`, { alumnoId: uuid() })).status).toBe(400);
+    });
+
+    it("puede anotarse a una carrera de su profe y salirse, pero no tocar el calendario ni anotar a otros", async () => {
+      const otraCarrera = uuid();
+      await A.post("/api/carreras", { id: otraCarrera, nombre: "5K del club", fecha: "2030-12-15", lugar: "", distanciasKm: [5, 10], notas: "" });
+      env.carreras.push(otraCarrera);
+      const nueva = uuid();
+      expect((await S1.post(`/api/alumnos/${alumnoA1}/inscripciones`, { id: nueva, carreraId: otraCarrera, distanciaKm: 5, objetivoSeg: null })).status).toBe(201);
+      expect((await S1.post(`/api/alumnos/${alumnoA1}/inscripciones`, { id: uuid(), carreraId: otraCarrera, distanciaKm: 10, objetivoSeg: null })).status).toBe(409); // ya está anotado
+      expect((await S1.post(`/api/alumnos/${alumnoA1}/inscripciones`, { id: uuid(), carreraId: uuid(), distanciaKm: 5, objetivoSeg: null })).status).toBeGreaterThanOrEqual(400);
+      // no puede anotar a otro alumno (ni siquiera del mismo profe)
+      expect((await S1.post(`/api/alumnos/${alumnoA2}/inscripciones`, { id: uuid(), carreraId: otraCarrera, distanciaKm: 5, objetivoSeg: null })).status).toBe(404);
+      // lo ve el profe y puede salirse
+      const visto = (await A.get("/api/datos")).body.inscripciones.some((i: { id: string }) => i.id === nueva);
+      expect(visto).toBe(true);
+      expect((await S1.delete(`/api/inscripciones/${nueva}`)).status).toBe(204);
+      expect((await S1.delete(`/api/inscripciones/${nueva}`)).status).toBe(404);
     });
 
     it("completa su ficha, sus lesiones y sus marcas", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,12 @@ import {
 import { CATEGORIAS, EJERCICIOS_CATALOGO } from "@/lib/dominio";
 import { useRol } from "@/lib/guards";
 import { LIMITES, crearEjercicioCustomDto, validar } from "@/lib/schemas";
-import { crearEjercicioPersonalizado, eliminarEjercicioPersonalizado, useStore } from "@/lib/store";
+import {
+  crearEjercicioPersonalizado,
+  editarEjercicioPersonalizado,
+  eliminarEjercicioPersonalizado,
+  useStore,
+} from "@/lib/store";
 import type { CategoriaEjercicio, EjercicioCustom } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +44,8 @@ export default function EjerciciosPage() {
   const { ejerciciosCustom, alumnos } = useStore();
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState<CategoriaEjercicio | "todas">("todas");
-  const [nuevoAbierto, setNuevoAbierto] = useState(false);
+  /** "nuevo", un ejercicio propio que se edita, o cerrado */
+  const [dialogo, setDialogo] = useState<"nuevo" | EjercicioCustom | null>(null);
   const [aBorrar, setABorrar] = useState<EjercicioCustom | null>(null);
   const [error, setError] = useState("");
   const [categoriaNueva, setCategoriaNueva] = useState<CategoriaEjercicio>("Fuerza");
@@ -78,13 +84,23 @@ export default function EjerciciosPage() {
       setError(v.error);
       return;
     }
+    if (dialogo !== null && dialogo !== "nuevo") {
+      const problema = editarEjercicioPersonalizado(dialogo.id, v.datos);
+      if (problema) {
+        setError(problema);
+        return;
+      }
+      setDialogo(null);
+      toast.success(`“${v.datos.nombre}” se actualizó`);
+      return;
+    }
     const yaEstaba = filas.some((f) => f.nombre.toLowerCase() === v.datos.nombre.toLowerCase());
     if (yaEstaba) {
       setError("Ese ejercicio ya está en la lista");
       return;
     }
     crearEjercicioPersonalizado(v.datos.nombre, v.datos.categoria);
-    setNuevoAbierto(false);
+    setDialogo(null);
     setError("");
     setCategoria("todas");
     setBusqueda("");
@@ -111,7 +127,7 @@ export default function EjerciciosPage() {
           onClick={() => {
             setError("");
             setCategoriaNueva(categoria === "todas" ? "Fuerza" : categoria);
-            setNuevoAbierto(true);
+            setDialogo("nuevo");
           }}
         >
           <Plus data-icon="inline-start" />
@@ -184,6 +200,19 @@ export default function EjerciciosPage() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
+                            aria-label={`Editar ${f.nombre}`}
+                            onClick={() => {
+                              setError("");
+                              setCategoriaNueva(f.propio!.categoria);
+                              setDialogo(f.propio!);
+                            }}
+                            className="text-muted-foreground"
+                          >
+                            <Pencil />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             aria-label={`Eliminar ${f.nombre}`}
                             onClick={() => setABorrar(f.propio!)}
                             className="text-muted-foreground hover:text-destructive"
@@ -192,7 +221,7 @@ export default function EjerciciosPage() {
                           </Button>
                         </>
                       ) : (
-                        <span className="w-[3.25rem]" aria-hidden />
+                        <span className="w-[5.75rem]" aria-hidden />
                       )}
                     </div>
                   ))}
@@ -203,13 +232,19 @@ export default function EjerciciosPage() {
         </div>
       )}
 
-      <Dialog open={nuevoAbierto} onOpenChange={setNuevoAbierto}>
+      <Dialog open={dialogo !== null} onOpenChange={(o) => !o && setDialogo(null)}>
         <DialogContent className="sm:max-w-md">
-          <form onSubmit={crear} className="space-y-4">
+          <form
+            key={dialogo === null ? "cerrado" : dialogo === "nuevo" ? "nuevo" : dialogo.id}
+            onSubmit={crear}
+            className="space-y-4"
+          >
             <DialogHeader>
-              <DialogTitle>Nuevo ejercicio</DialogTitle>
+              <DialogTitle>{dialogo === "nuevo" || dialogo === null ? "Nuevo ejercicio" : "Editar ejercicio"}</DialogTitle>
               <DialogDescription>
-                Se suma a tu lista y ya lo podés elegir en los planes. En los de fuerza el alumno anota el peso.
+                {dialogo === "nuevo" || dialogo === null
+                  ? "Se suma a tu lista y ya lo podés elegir en los planes. En los de fuerza el alumno anota el peso."
+                  : "Si lo renombrás, los planes que ya lo usan también cambian."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
@@ -219,6 +254,7 @@ export default function EjerciciosPage() {
                 name="nombre"
                 required
                 autoFocus
+                defaultValue={dialogo !== null && dialogo !== "nuevo" ? dialogo.nombre : ""}
                 maxLength={LIMITES.nombre}
                 autoComplete="off"
                 placeholder="Ej: Hip thrust"
@@ -249,10 +285,10 @@ export default function EjerciciosPage() {
               </p>
             )}
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setNuevoAbierto(false)}>
+              <Button type="button" variant="ghost" onClick={() => setDialogo(null)}>
                 Cancelar
               </Button>
-              <Button type="submit">Agregar</Button>
+              <Button type="submit">{dialogo === "nuevo" || dialogo === null ? "Agregar" : "Guardar"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

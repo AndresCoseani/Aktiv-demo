@@ -107,23 +107,24 @@ Flujo de un dato: formulario (recorta y valida con el DTO con `validar(dto, dato
 - **Dashboard** (deliberadamente simple, **no agregarle más tarjetas**): "Hola, {nombre}!", métricas (activos con barra, inactivos, pagos próximos, pagos vencidos), lista de alumnos con "Ver todos" y "Próximos pagos".
 - **Alumnos:** DataTable con búsqueda, filtros (estado, nivel, pagos), orden, paginación, filas clickeables. "Nuevo alumno".
 - **Detalle del alumno**, con pestañas **Resumen · Ficha médica · Marcas · Carreras** (la de ficha muestra un punto de aviso si el certificado falta, está vencido o por vencer):
-  - *Resumen:* cabecera, **Estado** (switch) y **Próximo pago** (+ "Registrar pago" suma 30 días), **Semana de entrenamiento** (7 días × correr/fuerza), **"Lesiones o apuntes"** (privado del profe) y **Plan**.
-  - *Plan:* varios planes por alumno, uno **activo** (el que ve el alumno). Cada ejercicio con combobox sobre el catálogo (los 27 base + los que cree el profe, con su categoría), series, repeticiones (texto libre) y **peso en kg** (solo fuerza y ejercicios creados a mano).
-  - *Carreras:* las carreras del alumno y **"Asignar a una carrera"**: elige una carrera **ya creada**, la **distancia** (entre las que ofrece esa carrera) y un tiempo objetivo opcional. Puede cambiar la distancia, quitarlo de la carrera y anotar el resultado.
+  - *Resumen:* cabecera, **Estado** (switch) y **Próximo pago** (+ "Registrar pago" suma **un mes de calendario**: desde la fecha de pago si todavía no venció, o desde hoy si ya venció o no había; el 31 de enero pasa al 28 de febrero), **Semana de entrenamiento** (7 días × correr/fuerza), **"Lesiones o apuntes"** (privado del profe) y **Plan**.
+  - *Plan:* cada plan es de **Running** o de **Fuerza** (selector arriba); por tipo puede haber varios, pero **uno activo** (el que ve el alumno); el primero que se crea queda activo y activar otro desactiva el anterior del mismo tipo. El combobox de ejercicios se filtra por tipo (running: series y ritmo, técnica, movilidad; fuerza: fuerza, movilidad). Series, repeticiones (texto libre) y **peso en kg** (solo ejercicios de fuerza). Cada ejercicio lleva también **descanso** entre series (texto libre: "60 s", "2 min"), entre repeticiones y peso; el alumno lo ve pero no lo edita. Cada plan se arma en **bloques**: *Calentamiento* (movilidad, activación, técnica), *Entrenamiento* (lo principal) y *Enfriamiento* (enfriamiento y estiramiento), cada uno con su botón "Agregar"; los dos opcionales pueden quedar vacíos.
+  - *Carreras:* las carreras del alumno y **"Asignar a una carrera"**: elige una carrera **ya creada**, la **distancia** (entre las que ofrece esa carrera) y un tiempo objetivo opcional. Puede cambiar la distancia, quitarlo de la carrera y anotar el resultado (el alumno puede hacer lo mismo con las suyas).
+  - *Acceso (debajo del nombre):* solo aparece si el alumno todavía no entró: **Reenviar invitación** y **Copiar credenciales** (contraseña aleatoria que se copia en un mensaje para WhatsApp; se muestra una sola vez). Con el acceso confirmado no se muestra nada.
 - **Carreras** (página aparte, **calendario del profe**): se carga la carrera **una vez** con **nombre, fecha, ubicación, kms disponibles y notas**. Próximas / pasadas, editar, eliminar. **No se muestran nombres de alumnos bajo cada carrera**: solo "N alumnos anotados" y, al tocar, la lista. No se puede sacar una distancia que ya eligió algún alumno.
-- **Ejercicios** (página aparte): la lista de ejercicios (base + los del profe) agrupada por categoría, con **búsqueda**, filtro por categoría, **Nuevo ejercicio** (nombre + categoría) y sacar los propios (los planes que ya lo usan lo conservan). Al armar un plan se buscan y eligen de esa lista; si no está, se crea al vuelo eligiendo la categoría.
+- **Ejercicios** (página aparte): la lista de ejercicios (base + los del profe) agrupada por categoría, con **búsqueda**, filtro por categoría, **Nuevo ejercicio** (nombre + categoría), **editar** los propios (renombrar o cambiar de categoría; los planes que lo usan se renombran también) y sacarlos (los planes que ya lo usan lo conservan). Los 27 base vienen en el código y no se editan. Al armar un plan se buscan y eligen de esa lista; si no está, se crea al vuelo eligiendo la categoría.
 - **Certificados** (página aparte): resumen (vigentes, por vencer, vencidos, sin cargar), filtro por estado, ordenado por urgencia, abre el archivo y muestra el **contacto familiar** (teléfono con link para llamar).
 
 ### Alumno
-- **Mi plan:** saludo, próxima carrera, próximo pago, aviso si el certificado falta/vence, **Mi semana** (solo lectura), plan (tabs si hay varios), **peso usado** por ejercicio de fuerza y **Mis notas**.
+- **Mi plan:** saludo, próxima carrera, próximo pago, aviso si el certificado falta/vence, **Mi semana** (solo lectura), el **plan activo de cada tipo** (una tarjeta "Plan de running" y otra "Plan de fuerza"), cada una dividida en sus bloques en orden (solo los que tienen ejercicios), **peso usado** por ejercicio de fuerza y **Mis notas**.
 - **Marcas:** mejores marcas por distancia (con ritmo, fecha y carrera), historial con filtro y badge "MEJOR", alta/edición/baja.
-- **Carreras:** **Mis carreras** (las que el profe le asignó; puede editar su objetivo y anotar su resultado, no asignarse ni quitarse) y **Calendario** (todas las del profe, marcando "Vas a correr 10K").
+- **Carreras:** **Mis carreras** (puede **anotarse** a una del calendario de su profe, cambiar la distancia, editar su objetivo, anotar su resultado y **salirse**; no puede crear ni editar las carreras del calendario) y **Calendario** (todas las del profe, marcando "Vas a correr 10K").
 - **Ficha:** completa lo mismo que ve el profe.
 
 ### Ficha médica (profe y alumno la completan)
 - **Datos personales:** fecha de nacimiento (muestra la edad), lugar de nacimiento, enfermedades y condiciones.
-- **Lesiones:** descripción, fecha y estado (activa / recuperada).
-- **Certificado médico:** PDF o imagen, **hasta 5 MB**, con **fecha de vencimiento** editable (por defecto +1 año). Estado: `vigente`, `por-vencer` (≤ 30 días), `vencido`, `sin-certificado`.
+- (Las **lesiones** ya no están en la ficha: el dato sigue en el contrato y la API, pero no hay pantalla; el profe anota lesiones y molestias en "Lesiones o apuntes".)
+- **Certificado médico:** PDF o imagen, **hasta 5 MB**, con **vista previa dentro de la tarjeta** (imagen o PDF en un visor embebido, con URL firmada de 2 min) y **fecha de vencimiento** editable (por defecto +1 año). La tarjeta ocupa las dos filas de la derecha; a la izquierda van Datos personales y Contacto familiar. Estado: `vigente`, `por-vencer` (≤ 30 días), `vencido`, `sin-certificado`.
 - **Contacto familiar (opcional):** nombre, parentesco y teléfono.
 
 ### Marcas y carreras
@@ -176,7 +177,7 @@ No alcanza con que compile. Se prueba en un navegador real, en **escritorio y ce
 | Dashboard | Deliberadamente simple: lo nuevo va en páginas aparte y en el menú. |
 
 ## Pendiente / próximos pasos
-1. Reemplazar el isotipo por el SVG oficial del logo.
+1. El isotipo (`logo.tsx`, `icon.svg`, `apple-icon.png`) está **vectorizado a partir de la imagen original** del logo (un solo polígono, calza casi pixel por pixel). Si aparece el SVG oficial, reemplazar el `d` del path.
 2. Sumar Playwright como dependencia de desarrollo (hoy los tests de navegador viven fuera del repo).
 3. Plantillas de plan reutilizables (hoy cada plan se arma de cero).
 
@@ -187,4 +188,4 @@ No alcanza con que compile. Se prueba en un navegador real, en **escritorio y ce
 - No editar `src/contrato` a mano (se sincroniza desde `aktiv-api`).
 - No tocar `src/components/ui/*` a mano salvo que sea imprescindible; para agregar componentes usar el CLI de shadcn.
 - El dashboard del profe se mantiene simple.
-- Hay un `next dev` del usuario que puede estar corriendo en el puerto 3000: no matarlo; usar otro puerto (3100/3101) para pruebas.
+- **Los puertos 3000 y 4000 son del usuario** (su `next dev` y su API): nunca matar procesos ahí ni dejar mis servidores en esos puertos. Para pruebas usar la API en el **4100** (`PORT=4100`) y el frontend en el **3101**, compilado con `API_URL=http://localhost:4100`, y al terminar apagar **solo** esos dos (por PID o por puerto 3101/4100).

@@ -18,22 +18,32 @@ export function EjercicioCombobox({
   value,
   onChange,
   id,
+  categorias,
 }: {
   value: string;
   onChange: (nombre: string) => void;
   id?: string;
+  /** si se indica, solo se ofrecen (y se pueden crear) ejercicios de estas categorías */
+  categorias?: CategoriaEjercicio[];
 }) {
   const { ejerciciosCustom } = useStore();
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
-  const nombres = useMemo(
+  const todos = useMemo(
     () => catalogoCompleto(ejerciciosCustom).map((e) => e.nombre),
     [ejerciciosCustom],
   );
+  const nombres = useMemo(() => {
+    const lista = catalogoCompleto(ejerciciosCustom)
+      .filter((e) => !categorias || categorias.includes(e.categoria))
+      .map((e) => e.nombre);
+    // lo que ya está elegido siempre se muestra, aunque sea de otra categoría
+    return value && !lista.includes(value) ? [value, ...lista] : lista;
+  }, [ejerciciosCustom, categorias, value]);
 
   const q = busqueda.trim().toLowerCase();
-  const hayExacto = nombres.some((n) => n.toLowerCase() === q);
+  const hayExacto = todos.some((n) => n.toLowerCase() === q);
   const puedeCrear = q.length > 0 && !hayExacto;
 
   function crear(categoria: CategoriaEjercicio) {
@@ -79,7 +89,7 @@ export function EjercicioCombobox({
               </span>
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {CATEGORIAS.map((c) => (
+              {(categorias ?? CATEGORIAS).map((c) => (
                 <button
                   key={c}
                   type="button"

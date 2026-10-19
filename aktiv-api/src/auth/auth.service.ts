@@ -111,6 +111,42 @@ export class AuthService {
     return { usuario, tokens };
   }
 
+  /**
+   * Cambia la contraseña de quien tiene la sesión iniciada. Pide la actual (también protege de
+   * una sesión abierta en una compu ajena) y cuenta los errores como intentos de login.
+   * La contraseña nueva se escribe con el propio token del usuario: no hace falta la clave de servidor.
+   */
+  async cambiarClave(u: Usuario, accessToken: string, actual: string, nueva: string, ip: string) {
+    this.verificarLimiteLogin(ip, u.email);
+    if (actual === nueva) {
+      throw new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "clave_igual", "La contraseña nueva tiene que ser distinta de la actual.");
+    }
+    const { error } = await this.supa.anonimo().auth.signInWithPassword({ email: u.email, password: actual });
+    if (error) {
+      this.registrarFallo(ip, u.email);
+      // 422 y no 401: un 401 haría que el navegador crea que se cerró la sesión
+      throw new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "clave_actual_incorrecta", "La contraseña actual no es correcta.");
+    }
+    this.limpiarFallos(ip, u.email);
+    const r = await fetch(`${this.env.SUPABASE_URL}/auth/v1/user`, {
+      method: "PUT",
+      headers: {
+        apikey: this.env.SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ password: nueva }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!r.ok) {
+      throw new ErrorApi(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        "clave_rechazada",
+        "Esa contraseña no se aceptó. Elegí una más larga o menos común.",
+      );
+    }
+  }
+
   /** Revoca la sesión en Supabase (mejor esfuerzo; las cookies se borran igual) */
   async cerrarSesion(accessToken: string | undefined) {
     if (!accessToken) return;

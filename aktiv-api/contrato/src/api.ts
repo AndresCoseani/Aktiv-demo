@@ -33,9 +33,7 @@ const fechaHastaManana = fechaISO.refine((f) => f <= sumarDiasISO(1), "La fecha 
 export const altaAlumnoApi = crearAlumnoDto.extend({ id: uuidSchema }).strict();
 
 /** Lo que puede editar el profe */
-export const parcheAlumnoProfeApi = actualizarAlumnoDto
-  .extend({ planActivoId: uuidSchema.nullable().optional() })
-  .strict();
+export const parcheAlumnoProfeApi = actualizarAlumnoDto.strict();
 
 /** Lo único que puede editar el alumno en su propia fila */
 export const parcheAlumnoAlumnoApi = alumnoSchema.pick({ notasAlumno: true }).partial().strict();
@@ -72,10 +70,20 @@ export const parcheMarcaApi = marcaSchema
 
 /* ───────────── Planes y ejercicios ───────────── */
 
-export const altaPlanApi = planSchema.pick({ nombre: true }).extend({ id: uuidSchema }).strict();
-export const parchePlanApi = planSchema.pick({ nombre: true }).strict();
+/** `tipo` y `activo` son opcionales: sin tipo es "Running" y sin activo queda inactivo */
+export const altaPlanApi = planSchema
+  .pick({ nombre: true, tipo: true, activo: true })
+  .partial({ tipo: true, activo: true })
+  .extend({ id: uuidSchema })
+  .strict();
+/** El tipo no se cambia después de crear el plan; activar uno desactiva el de su mismo tipo */
+export const parchePlanApi = planSchema.pick({ nombre: true, activo: true }).partial().strict();
 
-export const altaEjercicioApi = ejercicioSchema.extend({ id: uuidSchema }).strict();
+/** `bloque` y `descanso` son opcionales: sin bloque queda en "Entrenamiento" y sin descanso, vacío */
+export const altaEjercicioApi = ejercicioSchema
+  .extend({ id: uuidSchema })
+  .partial({ bloque: true, descanso: true })
+  .strict();
 /** Lo que puede editar el profe de un ejercicio */
 export const parcheEjercicioProfeApi = ejercicioSchema.omit({ id: true }).partial().strict();
 /** Lo único que puede editar el alumno de un ejercicio */
@@ -100,7 +108,7 @@ export const altaInscripcionApi = z
   })
   .strict();
 
-/** Lo que puede editar el profe de una inscripción */
+/** Lo que se puede editar de una inscripción (lo mismo para el profe y para el alumno dueño) */
 export const parcheInscripcionProfeApi = z
   .object({
     distanciaKm: distanciaKmSchema,
@@ -110,20 +118,16 @@ export const parcheInscripcionProfeApi = z
   .partial()
   .strict();
 
-/** Lo único que puede editar el alumno de su inscripción */
-export const parcheInscripcionAlumnoApi = z
-  .object({
-    objetivoSeg: tiempoSegSchema.nullable(),
-    resultadoSeg: tiempoSegSchema.nullable(),
-  })
-  .partial()
-  .strict();
-
-export const CAMPOS_INSCRIPCION_EDITABLES_POR_ALUMNO = ["objetivoSeg", "resultadoSeg"] as const;
 
 /* ───────────── Catálogo ───────────── */
 
 export const altaEjercicioCustomApi = ejercicioCustomSchema.extend({ id: uuidSchema }).strict();
+
+/** Renombrar un ejercicio del profe o cambiarle la categoría */
+export const parcheEjercicioCustomApi = ejercicioCustomSchema
+  .pick({ nombre: true, categoria: true })
+  .partial()
+  .strict();
 
 /* ───────────── Invitaciones ───────────── */
 
@@ -151,6 +155,20 @@ export const invitacionEnviadaSchema = z.object({
   enviadoA: z.string(),
   expiraEn: z.string(),
 });
+
+/** Entregar el acceso sin mail: la API genera una contraseña aleatoria y se la muestra UNA vez al profe */
+export const credencialesEntregadasSchema = z.object({
+  email: z.string(),
+  clave: z.string(),
+});
+
+/** Cambio de contraseña de quien tiene la sesión iniciada (profe o alumno) */
+export const cambiarClaveApi = z
+  .object({
+    claveActual: z.string().min(1, "Escribí tu contraseña actual").max(200),
+    claveNueva: claveNuevaSchema,
+  })
+  .strict();
 
 /** Lo que ve quien abre el enlace antes de elegir su contraseña */
 export const invitacionConsultaSchema = z.object({
@@ -180,6 +198,7 @@ export const errorApiSchema = z.object({
 });
 
 export type DatosApi = z.output<typeof datosApiSchema>;
+export type CredencialesEntregadas = z.output<typeof credencialesEntregadasSchema>;
 export type InvitacionEnviada = z.output<typeof invitacionEnviadaSchema>;
 export type InvitacionConsulta = z.output<typeof invitacionConsultaSchema>;
 export type ErrorApi = z.output<typeof errorApiSchema>;

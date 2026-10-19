@@ -11,12 +11,11 @@ import {
 } from "@nestjs/common";
 import { z } from "zod";
 import {
-  CAMPOS_INSCRIPCION_EDITABLES_POR_ALUMNO,
   altaCarreraApi,
   altaEjercicioCustomApi,
+  parcheEjercicioCustomApi,
   altaInscripcionApi,
   parcheCarreraApi,
-  parcheInscripcionAlumnoApi,
   parcheInscripcionProfeApi,
   uuidSchema,
 } from "@aktiv/contrato";
@@ -103,11 +102,8 @@ export class CarrerasService {
   }
 
   async parchearInscripcion(u: Usuario, id: string, body: unknown) {
-    const dto = parchePorRol(u, body, {
-      profe: parcheInscripcionProfeApi,
-      alumno: parcheInscripcionAlumnoApi,
-      camposAlumno: CAMPOS_INSCRIPCION_EDITABLES_POR_ALUMNO,
-    }) as Record<string, unknown>;
+    // el profe y el alumno dueño pueden lo mismo; la base impone que no se mueva a otro alumno o carrera
+    const dto = validarOLanzar(parcheInscripcionProfeApi, body) as Record<string, unknown>;
     await actualizarUno(
       this.supa.delUsuario(u.token),
       "inscripciones",
@@ -132,6 +128,12 @@ export class CarrerasService {
       .insert({ id: dto.id, coach_id: u.id, nombre: dto.nombre, categoria: dto.categoria });
     lanzarSiError(error);
     return RESPUESTA_ID(dto.id);
+  }
+
+  async parchearEjercicioCustom(u: Usuario, id: string, dto: z.output<typeof parcheEjercicioCustomApi>) {
+    if (Object.keys(dto).length === 0) throw new ErrorApi(400, "sin_cambios", "No hay cambios para guardar.");
+    await actualizarUno(this.supa.delUsuario(u.token), "ejercicios_custom", "id", id, dto, "El ejercicio");
+    return RESPUESTA_ID(id);
   }
 
   async eliminarEjercicioCustom(u: Usuario, id: string) {
@@ -164,7 +166,6 @@ export class CarrerasController {
     return this.carreras.eliminar(u, id);
   }
 
-  @Roles("coach")
   @Post("alumnos/:id/inscripciones")
   inscribir(
     @UsuarioActual() u: Usuario,
@@ -179,7 +180,6 @@ export class CarrerasController {
     return this.carreras.parchearInscripcion(u, id, body);
   }
 
-  @Roles("coach")
   @Delete("inscripciones/:id")
   @HttpCode(204)
   quitarInscripcion(@UsuarioActual() u: Usuario, @Param("id", idParam()) id: string) {
@@ -193,6 +193,16 @@ export class CarrerasController {
     @Body(new ZodPipe(altaEjercicioCustomApi)) dto: z.output<typeof altaEjercicioCustomApi>,
   ) {
     return this.carreras.crearEjercicioCustom(u, dto);
+  }
+
+  @Roles("coach")
+  @Patch("catalogo/ejercicios/:id")
+  parchearEjercicioCustom(
+    @UsuarioActual() u: Usuario,
+    @Param("id", idParam()) id: string,
+    @Body(new ZodPipe(parcheEjercicioCustomApi)) dto: z.output<typeof parcheEjercicioCustomApi>,
+  ) {
+    return this.carreras.parchearEjercicioCustom(u, id, dto);
   }
 
   @Roles("coach")

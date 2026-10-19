@@ -56,7 +56,7 @@ describe("alumno", () => {
     const dia = { correr: false, fuerza: false };
     const entidad = {
       id: "a1", ...base, activo: true, proximoPago: null, altaEn: "2026-01-01", planes: [],
-      planActivoId: null, semana: Array(6).fill(dia), marcas: [], notasProfe: "", notasAlumno: "",
+      semana: Array(6).fill(dia), marcas: [], notasProfe: "", notasAlumno: "",
       ficha: { fechaNacimiento: null, lugarNacimiento: "", enfermedades: "", lesiones: [], certificado: null, contacto: { nombre: "", parentesco: "", telefono: "" } },
     };
     expect(ok(validar(alumnoSchema, entidad))).toBe(false);

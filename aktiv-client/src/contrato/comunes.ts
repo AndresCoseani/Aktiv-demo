@@ -31,6 +31,7 @@ export const LIMITES = {
   lesion: 1_000,
   parentesco: 60,
   repeticiones: 30,
+  descanso: 30,
   peso: 10,
   series: { min: 0, max: 99 },
   certificadoNombre: 200,

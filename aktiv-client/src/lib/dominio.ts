@@ -1,5 +1,7 @@
 import type {
+  Bloque,
   CategoriaEjercicio,
+  TipoPlan,
   Certificado,
   DiaEntrenamiento,
   FichaMedica,
@@ -59,6 +61,22 @@ export const EJERCICIOS_CATALOGO: { nombre: string; categoria: CategoriaEjercici
 const CATEGORIA_POR_NOMBRE = new Map(
   EJERCICIOS_CATALOGO.map((e) => [e.nombre, e.categoria]),
 );
+
+/** Las partes de una sesión, en el orden en que se hacen, con una pista de qué va en cada una */
+export const BLOQUES: { bloque: Bloque; pista: string }[] = [
+  { bloque: "Calentamiento", pista: "Movilidad, activación y técnica" },
+  { bloque: "Entrenamiento", pista: "Lo principal de la sesión" },
+  { bloque: "Enfriamiento", pista: "Vuelta a la calma y estiramiento" },
+];
+
+/** los dos tipos de plan: el alumno ve el plan ACTIVO de cada uno */
+export const TIPOS_PLAN: TipoPlan[] = ["Running", "Fuerza"];
+
+/** qué categorías de ejercicio tienen sentido en cada tipo de plan (Movilidad va en ambos) */
+export const CATEGORIAS_POR_TIPO: Record<TipoPlan, CategoriaEjercicio[]> = {
+  Running: ["Series y ritmo", "Técnica de carrera", "Movilidad"],
+  Fuerza: ["Fuerza", "Movilidad"],
+};
 
 /** orden en que se muestran las categorías */
 export const CATEGORIAS: CategoriaEjercicio[] = [

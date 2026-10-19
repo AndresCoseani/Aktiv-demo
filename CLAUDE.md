@@ -27,10 +27,10 @@ Navegador ──► aktiv-client (Next) ──/api/*──► aktiv-api (NestJS)
 - **No hacer `git commit` / `push` sin que Andrés lo pida.** No ejecutar nada contra el Supabase **real** sin que lo pida: las pruebas se hacen con Supabase **local** (Docker).
 - Los secretos van en `.env*` (ignorados por git; solo se versionan los `*.example`). Nunca inventar credenciales ni mails reales.
 - Un cambio que cruza las dos carpetas (un campo nuevo, un endpoint) se hace **primero en `aktiv-api`** (contrato, DTO, migración, tests) y después se sincroniza el contrato en `aktiv-client`.
-- Hay un `next dev` del usuario que puede estar corriendo en el puerto 3000: no matarlo; para pruebas usar otro puerto (3100/3101). La API de prueba va en el 4000.
+- **Los puertos 3000 y 4000 son del usuario** (su `next dev` y su API): nunca matar procesos ahí ni dejar mis servidores en esos puertos. Para pruebas usar la API en el **4100** (`PORT=4100`) y el frontend en el **3101**, compilado con `API_URL=http://localhost:4100`, y al terminar apagar **solo** esos dos (por PID o por puerto 3101/4100).
 
 ## Estado y pendientes generales
-1. **Aplicar las migraciones 4 y 5 al Supabase real** (SQL Editor o `npx supabase db push`) **antes** de desplegar el código nuevo de la API.
+1. **Aplicar la migración 27 (`plan_descanso`) al Supabase real** (SQL Editor) **antes** del push: es compatible con el código viejo (la 24, 25 y 26 ya están aplicadas).
 2. En Render: cargar `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY` y `MAIL_FROM` y hacer *Manual sync* del blueprint (ahora usa `rootDir: aktiv-api`).
 3. En Vercel: **Root Directory = `aktiv-client`** y `API_URL` apuntando a Render.
 4. Probar Resend de verdad invitando a un alumno real (hasta ahora solo se probó con la consola de la API).

@@ -19,11 +19,11 @@ export default function CarrerasPage() {
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Carreras</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {esProfe
-            ? "El calendario de carreras. Asigná a cada alumno desde su perfil."
-            : "Las carreras en las que estás anotado y el calendario del club."}
-        </p>
+        {!esProfe && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Las carreras en las que estás anotado y el calendario del club.
+          </p>
+        )}
       </header>
 
       {esProfe ? (
@@ -39,7 +39,7 @@ export default function CarrerasPage() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="mias">
-            <CarrerasDeAlumno alumno={alumno} puedeAsignar={false} />
+            <CarrerasDeAlumno alumno={alumno} puedeAsignar propia />
           </TabsContent>
           <TabsContent value="calendario">
             <CalendarioCarreras alumnoId={alumno.id} />

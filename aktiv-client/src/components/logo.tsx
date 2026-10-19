@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Isotipo de Aktiv redibujado en SVG a partir del logo (dos piezas blancas
- * con un corte diagonal). Si más adelante hay un SVG oficial, alcanza con
- * reemplazar los paths de este componente.
+ * Isotipo de Aktiv: un solo polígono, vectorizado a partir del logo original
+ * (trazado sobre la imagen y simplificado a sus vértices). Si hay un SVG oficial,
+ * alcanza con reemplazar el `d` de este path.
  */
 export function LogoMark({
   className,
@@ -14,17 +14,13 @@ export function LogoMark({
 }) {
   return (
     <svg
-      viewBox="60 50 630 570"
+      viewBox="71 55 612 560"
       role="img"
       aria-label={title}
       className={cn("size-8", className)}
       fill="currentColor"
     >
-      <path d="M372 70 672 598H408L452 515H535L322 150Z" />
-      <path
-        fillRule="evenodd"
-        d="M275 235 452 515 318 598 80 572ZM280 385 202 515H312Z"
-      />
+      <path d="M366 70 L672 598 L404 598 L281 384 L199 520 L270 521 L313 598 L113 598 L81 566 L278 227 L452 521 L537 521 L322 144Z" />
     </svg>
   );
 }
@@ -34,11 +30,11 @@ export function LogoBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-grid size-9 shrink-0 place-items-center rounded-full bg-black text-white ring-1 ring-white/10",
+        "inline-grid size-9 shrink-0 place-items-center rounded-full bg-black text-white ring-1 ring-primary/40",
         className,
       )}
     >
-      <LogoMark className="size-[55%]" />
+      <LogoMark className="size-[52%]" />
     </span>
   );
 }

@@ -109,14 +109,18 @@ export function desdeFilas(crudas: FilasCrudas, userId: string): Datos {
       .map((p) => ({
         id: p.id,
         nombre: p.nombre,
+        tipo: p.tipo,
+        activo: p.activo,
         ejercicios: pe
           .filter((e) => e.plan_id === p.id)
           .sort((x, y) => x.orden - y.orden)
           .map((e) => ({
             id: e.id,
+            bloque: e.bloque,
             nombre: e.nombre,
             series: e.series,
             repeticiones: e.repeticiones,
+            descanso: e.descanso,
             ...(e.peso != null ? { peso: e.peso } : {}),
             ...(e.peso_fecha != null ? { pesoFecha: e.peso_fecha } : {}),
           })),
@@ -160,7 +164,6 @@ export function desdeFilas(crudas: FilasCrudas, userId: string): Datos {
       proximoPago: a.proximo_pago,
       altaEn: a.alta_en,
       planes,
-      planActivoId: a.plan_activo_id,
       semana: a.semana.length === 7 ? a.semana : semanaVacia(),
       ficha,
       marcas: ma
@@ -230,7 +233,6 @@ export const columnasAlumno = (p: Record<string, unknown>) =>
     nivel: "nivel",
     activo: "activo",
     proximoPago: "proximo_pago",
-    planActivoId: "plan_activo_id",
     semana: "semana",
     notasProfe: "notas_profe",
     notasAlumno: "notas_alumno",
@@ -256,13 +258,15 @@ export const columnasLesion = (p: Record<string, unknown>) =>
 export const columnasMarca = (p: Record<string, unknown>) =>
   aColumnas(p, { distanciaKm: "distancia_km", tiempoSeg: "tiempo_seg", fecha: "fecha", carrera: "carrera" });
 
-export const columnasPlan = (p: Record<string, unknown>) => aColumnas(p, { nombre: "nombre" });
+export const columnasPlan = (p: Record<string, unknown>) => aColumnas(p, { nombre: "nombre", activo: "activo" });
 
 export const columnasEjercicio = (p: Record<string, unknown>) =>
   aColumnas(p, {
+    bloque: "bloque",
     nombre: "nombre",
     series: "series",
     repeticiones: "repeticiones",
+    descanso: "descanso",
     peso: "peso",
     pesoFecha: "peso_fecha",
   });

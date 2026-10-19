@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardList,
@@ -9,10 +10,12 @@ import {
   Flag,
   HeartPulse,
   House,
+  KeyRound,
   LogOut,
   Timer,
   Users,
 } from "lucide-react";
+import { CambiarClaveDialog } from "@/components/cambiar-clave";
 import { LogoBadge } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -48,6 +51,7 @@ const NAV_ALUMNO = [
 export function Navbar({ session }: { session: Session }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [cambiandoClave, setCambiandoClave] = useState(false);
   const items = session.role === "coach" ? NAV_PROFE : NAV_ALUMNO;
   const nombreCompleto =
     session.role === "coach" ? `${session.nombre} · Profe` : `${session.nombre} · Alumno`;
@@ -115,6 +119,10 @@ export function Navbar({ session }: { session: Session }) {
                 <DropdownMenuLabel>{nombreCompleto}</DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setCambiandoClave(true)}>
+                <KeyRound />
+                Cambiar contraseña
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={salir}>
                 <LogOut />
                 Cerrar sesión
@@ -123,6 +131,7 @@ export function Navbar({ session }: { session: Session }) {
           </DropdownMenu>
         </div>
       </div>
+      <CambiarClaveDialog abierto={cambiandoClave} onCerrar={() => setCambiandoClave(false)} />
     </header>
   );
 }

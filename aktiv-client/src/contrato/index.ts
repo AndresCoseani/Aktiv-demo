@@ -28,7 +28,7 @@ import type {
   lesionSchema,
 } from "./ficha";
 import type { marcaSchema } from "./marca";
-import type { categoriaEjercicioSchema, ejercicioSchema, planSchema } from "./plan";
+import type { bloqueSchema, categoriaEjercicioSchema, ejercicioSchema, planSchema, tipoPlanSchema } from "./plan";
 import type { ejercicioCustomSchema, rolSchema, sessionSchema } from "./sesion";
 
 export * from "./fechas";
@@ -49,6 +49,8 @@ export type Nivel = z.infer<typeof nivelSchema>;
 export type CategoriaEjercicio = z.infer<typeof categoriaEjercicioSchema>;
 export type Ejercicio = z.infer<typeof ejercicioSchema>;
 export type Plan = z.infer<typeof planSchema>;
+export type TipoPlan = z.infer<typeof tipoPlanSchema>;
+export type Bloque = z.infer<typeof bloqueSchema>;
 export type EstadoLesion = z.infer<typeof estadoLesionSchema>;
 export type Lesion = z.infer<typeof lesionSchema>;
 export type Certificado = z.infer<typeof certificadoSchema>;

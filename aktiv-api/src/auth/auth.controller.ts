@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { loginDto, type Session } from "@aktiv/contrato";
+import { cambiarClaveApi, loginDto, type Session } from "@aktiv/contrato";
 import { Inject } from "@nestjs/common";
 import { ENV, type Env } from "../config/env";
 import { noAutenticado } from "../common/errores";
@@ -73,6 +73,15 @@ export class AuthController {
   async logout(@Req() req: RequestConUsuario, @Res({ passthrough: true }) res: Response) {
     await this.auth.cerrarSesion(req.cookies?.[COOKIE_ACCESO] as string | undefined);
     this.borrarCookies(res);
+  }
+
+  /** Cambiar la propia contraseña (profe o alumno) */
+  @Post("clave")
+  @HttpCode(204)
+  async cambiarClave(@Body() body: unknown, @Req() req: RequestConUsuario) {
+    const { claveActual, claveNueva } = validarOLanzar(cambiarClaveApi, body);
+    const token = req.cookies?.[COOKIE_ACCESO] as string;
+    await this.auth.cambiarClave(req.usuario, token, claveActual, claveNueva, req.ip ?? "desconocida");
   }
 
   @Get("me")

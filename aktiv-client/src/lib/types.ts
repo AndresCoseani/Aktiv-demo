@@ -21,6 +21,8 @@ export type {
   Marca,
   Nivel,
   Plan,
+  Bloque,
+  TipoPlan,
   Role,
   Session,
 } from "./schemas";

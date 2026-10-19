@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { categoriaEjercicioSchema, estadoLesionSchema, nivelSchema, semanaSchema } from "@aktiv/contrato";
+import { bloqueSchema, categoriaEjercicioSchema, estadoLesionSchema, nivelSchema, semanaSchema, tipoPlanSchema } from "@aktiv/contrato";
 
 /**
  * Forma exacta de cada tabla de Supabase (snake_case), tal como la devuelve
@@ -24,7 +24,6 @@ export const filaAlumnoSchema = z.object({
   activo: z.boolean(),
   proximo_pago: fecha.nullable(),
   alta_en: fecha,
-  plan_activo_id: id.nullable(),
   semana: semanaSchema,
   notas_profe: z.string(),
   notas_alumno: z.string(),
@@ -35,15 +34,19 @@ export const filaPlanSchema = z.object({
   alumno_id: id,
   nombre: z.string(),
   orden: z.number().int(),
+  tipo: tipoPlanSchema,
+  activo: z.boolean(),
 });
 
 export const filaPlanEjercicioSchema = z.object({
   id,
   plan_id: id,
   orden: z.number().int(),
+  bloque: bloqueSchema,
   nombre: z.string(),
   series: z.number().int(),
   repeticiones: z.string(),
+  descanso: z.string(),
   peso: z.string().nullable(),
   peso_fecha: fecha.nullable(),
 });

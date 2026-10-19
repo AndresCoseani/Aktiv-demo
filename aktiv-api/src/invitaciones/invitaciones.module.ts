@@ -18,6 +18,7 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   aceptarInvitacionApi,
   invitarAlumnoApi,
+  type CredencialesEntregadas,
   tokenInvitacionSchema,
   uuidSchema,
   type InvitacionConsulta,
@@ -80,20 +81,7 @@ export class InvitacionesService {
     const alumno = existe(data, "El alumno");
 
     // freno a las ráfagas: ni mails de más ni gasto de la cuota de Resend
-    const hace1h = new Date(Date.now() - 3_600_000).toISOString();
-    const { count, error: eCount } = await db
-      .from("invitaciones")
-      .select("id", { count: "exact", head: true })
-      .eq("alumno_id", alumnoId)
-      .gte("creada_en", hace1h);
-    lanzarSiError(eCount);
-    if ((count ?? 0) >= this.env.INVITACIONES_POR_HORA) {
-      throw new ErrorApi(
-        HttpStatus.TOO_MANY_REQUESTS,
-        "demasiadas_invitaciones",
-        "Ya se mandaron varias invitaciones a este alumno. Probá de nuevo en un rato.",
-      );
-    }
+    await this.verificarTope(db, alumnoId);
 
     const sb = this.admin.admin(); // 503 si no está configurada la clave de servidor
 
@@ -150,6 +138,86 @@ export class InvitacionesService {
     }
     this.log.log(`Invitación enviada: alumno ${alumnoId} → ${email}`);
     return { enviadoA: email, expiraEn: expira.toISOString() };
+  }
+
+  /** Tope por alumno y por hora: cuenta invitaciones y entregas de credenciales */
+  private async verificarTope(db: ReturnType<SupabaseService["delUsuario"]>, alumnoId: string) {
+    const hace1h = new Date(Date.now() - 3_600_000).toISOString();
+    const { count, error } = await db
+      .from("invitaciones")
+      .select("id", { count: "exact", head: true })
+      .eq("alumno_id", alumnoId)
+      .gte("creada_en", hace1h);
+    lanzarSiError(error);
+    if ((count ?? 0) >= this.env.INVITACIONES_POR_HORA) {
+      throw new ErrorApi(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "demasiadas_invitaciones",
+        "Ya se generaron varios accesos para este alumno. Probá de nuevo en un rato.",
+      );
+    }
+  }
+
+  /**
+   * Entrega el acceso SIN mail: crea la cuenta del alumno (o le restablece la contraseña si ya
+   * tiene una) con una contraseña aleatoria y se la devuelve al profe UNA vez, para que se la
+   * pase por WhatsApp. La contraseña no se guarda ni se loguea: queda solo en Supabase Auth, hasheada.
+   * Los enlaces de invitación pendientes se invalidan para que no se pise esta contraseña.
+   */
+  async entregarCredenciales(u: Usuario, alumnoId: string): Promise<CredencialesEntregadas> {
+    const db = this.supa.delUsuario(u.token);
+    const base = await asegurarAlumno(db, alumnoId);
+    if (base.coach_id !== u.id) throw new ErrorApi(HttpStatus.FORBIDDEN, "sin_permiso", "No tenés permiso para hacer esto.");
+
+    const { data, error } = await db.from("alumnos").select("nombre, email, user_id").eq("id", alumnoId).single();
+    lanzarSiError(error);
+    const alumno = existe(data, "El alumno");
+    await this.verificarTope(db, alumnoId);
+
+    const sb = this.admin.admin();
+    const clave = this.cuentas.claveLegible();
+
+    // 1. el registro en la base va ANTES de tocar la cuenta: si algo falla acá, la contraseña del
+    //    alumno no cambia (no queda una contraseña nueva que el profe nunca llegó a ver).
+    //    Los enlaces pendientes quedan sin efecto y se deja una marca que cuenta para el tope.
+    //    El vencimiento de la marca es a un día (no a segundos) para que no choque con el CHECK
+    //    expira_en > creada_en cuando el reloj de la API y el de la base no coinciden.
+    const ahora = new Date().toISOString();
+    const { error: eInvalidar } = await sb
+      .from("invitaciones")
+      .update({ invalidada_en: ahora })
+      .eq("alumno_id", alumnoId)
+      .is("usada_en", null)
+      .is("invalidada_en", null);
+    lanzarSiError(eInvalidar);
+    const { error: eMarca } = await sb.from("invitaciones").insert({
+      alumno_id: alumnoId,
+      token_hash: hashToken(randomBytes(32).toString("base64url")), // no corresponde a ningún enlace
+      expira_en: new Date(Date.now() + 86_400_000).toISOString(),
+      usada_en: ahora,
+      invalidada_en: ahora,
+    });
+    lanzarSiError(eMarca);
+
+    // 2. recién ahora la cuenta
+    let email: string;
+    if (alumno.user_id) {
+      const actual = await this.cuentas.emailDe(alumno.user_id as string);
+      if (!actual) throw new ErrorApi(HttpStatus.BAD_GATEWAY, "cuenta_no_disponible", "No se pudo leer la cuenta del alumno.");
+      email = actual;
+      await this.cuentas.establecerClave(alumno.user_id as string, clave);
+    } else {
+      email = (alumno.email as string).trim();
+      if (!email) throw reglaDeNegocio("sin_email", "Cargale un email al alumno para poder darle acceso.");
+      const userId = await this.cuentas.crearCuentaAlumno(email, alumno.nombre as string, clave);
+      if (!(await this.cuentas.vincular(alumnoId, userId))) {
+        await this.cuentas.eliminarCuenta(userId);
+        throw new ErrorApi(HttpStatus.CONFLICT, "ya_existe", "Ese alumno ya tiene una cuenta.");
+      }
+    }
+
+    this.log.log(`Credenciales entregadas al profe: alumno ${alumnoId}`); // la contraseña NUNCA se loguea
+    return { email, clave };
   }
 
   /* ───────────── el alumno abre el enlace ───────────── */
@@ -245,6 +313,21 @@ export class InvitacionesController {
   @Get("auth/invitacion/:token")
   consultar(@Param("token", new ZodPipe(tokenInvitacionSchema)) token: string, @Req() req: RequestConUsuario) {
     return this.invitaciones.consultar(token, req.ip ?? "desconocida");
+  }
+
+  /** El profe le da el acceso a un alumno con una contraseña aleatoria (se muestra una sola vez) */
+  @Roles("coach")
+  @Post("alumnos/:id/credenciales")
+  @HttpCode(200)
+  credenciales(
+    @UsuarioActual() u: Usuario,
+    @Param("id", new ZodPipe(uuidSchema)) id: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    validarOLanzar(invitarAlumnoApi, body ?? {});
+    res.setHeader("Cache-Control", "no-store"); // la contraseña no se guarda en ninguna caché
+    return this.invitaciones.entregarCredenciales(u, id);
   }
 
   /** El alumno elige su contraseña y queda con la sesión iniciada */

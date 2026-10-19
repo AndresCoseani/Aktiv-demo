@@ -28,7 +28,7 @@ import {
   borrarUno,
   parchePorRol,
 } from "../common/bd";
-import { lanzarSiError, noEncontrado, reglaDeNegocio } from "../common/errores";
+import { ErrorApi, lanzarSiError, noEncontrado, reglaDeNegocio } from "../common/errores";
 import type { Usuario } from "../common/tipos";
 import { ZodPipe, validarOLanzar } from "../common/zod.pipe";
 import { columnasEjercicio, columnasPlan } from "../datos/mapeo";
@@ -55,13 +55,21 @@ export class PlanesService {
     }
     const { error } = await db
       .from("planes")
-      .insert({ id: dto.id, alumno_id: alumnoId, nombre: dto.nombre, orden: count ?? 0 });
+      .insert({
+        id: dto.id,
+        alumno_id: alumnoId,
+        nombre: dto.nombre,
+        orden: count ?? 0,
+        ...(dto.tipo ? { tipo: dto.tipo } : {}),
+        ...(dto.activo !== undefined ? { activo: dto.activo } : {}),
+      });
     lanzarSiError(error);
     return RESPUESTA_ID(dto.id);
   }
 
   async parchearPlan(u: Usuario, id: string, body: unknown) {
     const dto = validarOLanzar(parchePlanApi, body) as Record<string, unknown>;
+    if (Object.keys(dto).length === 0) throw new ErrorApi(400, "sin_cambios", "No hay cambios para guardar.");
     await actualizarUno(this.supa.delUsuario(u.token), "planes", "id", id, columnasPlan(dto), "El plan");
     return RESPUESTA_ID(id);
   }
@@ -101,6 +109,8 @@ export class PlanesService {
       repeticiones: dto.repeticiones,
       peso: dto.peso ?? null,
       peso_fecha: dto.pesoFecha ?? null,
+      ...(dto.bloque ? { bloque: dto.bloque } : {}),
+      ...(dto.descanso !== undefined ? { descanso: dto.descanso } : {}),
     });
     lanzarSiError(error);
     return RESPUESTA_ID(dto.id);

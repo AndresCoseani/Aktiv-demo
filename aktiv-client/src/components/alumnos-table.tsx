@@ -112,19 +112,20 @@ const columnas: ColumnDef<Alumno>[] = [
   },
   {
     id: "plan",
-    accessorFn: (a) => a.planes.find((p) => p.id === a.planActivoId)?.nombre ?? "",
+    accessorFn: (a) => a.planes.filter((p) => p.activo).map((p) => p.nombre).join(" "),
     header: "Plan actual",
     enableSorting: false,
     meta: { className: "hidden md:table-cell" } satisfies Meta,
     cell: ({ row }) => {
       const a = row.original;
-      const plan = a.planes.find((p) => p.id === a.planActivoId);
-      return plan ? (
-        <div className="leading-tight">
-          <p className="text-sm">{plan.nombre}</p>
-          <p className="text-xs text-muted-foreground">
-            {a.planes.length > 1 ? `${a.planes.length} planes` : "1 plan"}
-          </p>
+      const activos = a.planes.filter((p) => p.activo);
+      return activos.length ? (
+        <div className="space-y-0.5 leading-tight">
+          {activos.map((p) => (
+            <p key={p.id} className="text-sm">
+              <span className="text-xs text-muted-foreground">{p.tipo}</span> {p.nombre || "Sin nombre"}
+            </p>
+          ))}
         </div>
       ) : (
         <span className="text-sm text-muted-foreground">Sin plan</span>

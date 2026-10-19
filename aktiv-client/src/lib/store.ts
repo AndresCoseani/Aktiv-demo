@@ -35,6 +35,8 @@ import type {
   Marca,
   Plan,
   Session,
+  Bloque,
+  TipoPlan,
 } from "./types";
 
 /**
@@ -227,6 +229,20 @@ export async function invitarAlumno(alumnoId: string) {
   return r;
 }
 
+/**
+ * El profe le da el acceso a un alumno con una contraseña aleatoria (o se la restablece si ya
+ * tenía cuenta). Devuelve email y contraseña: se muestran una sola vez y no se guardan en el navegador.
+ */
+export async function entregarCredenciales(alumnoId: string) {
+  await remoto.sincronizar();
+  const r = await remoto.entregarCredenciales(alumnoId);
+  await recargarDatos(true);
+  return r;
+}
+
+/** Cambia la contraseña de quien tiene la sesión iniciada (profe o alumno). Lanza ErrorHttp con un mensaje listo. */
+export const cambiarClave = remoto.cambiarClave;
+
 /** El alumno abre el enlace del mail, elige su contraseña y queda con la sesión iniciada */
 export async function aceptarInvitacion(token: string, clave: string): Promise<ResultadoLogin> {
   const r = await remoto.aceptarInvitacion(token, clave);
@@ -288,7 +304,6 @@ export function crearAlumno(
     proximoPago: null,
     altaEn: hoyISO(),
     planes: [],
-    planActivoId: null,
     semana: semanaVacia(),
     ficha: fichaVacia(),
     marcas: [],
@@ -347,6 +362,42 @@ export function crearEjercicioPersonalizado(nombre: string, categoria: Categoria
   return dto.nombre;
 }
 
+/**
+ * Renombra un ejercicio del profe o le cambia la categoría. Si cambia el nombre, los planes
+ * que ya lo usan se renombran también. Devuelve un mensaje si no se puede (nombre repetido).
+ */
+export function editarEjercicioPersonalizado(
+  id: string,
+  cambios: { nombre?: string; categoria?: CategoriaEjercicio },
+): string | null {
+  const s = getSnapshot();
+  const actual = s.ejerciciosCustom.find((e) => e.id === id);
+  if (!actual) return "No encontramos ese ejercicio";
+  const dto = exigir(crearEjercicioCustomDto, {
+    nombre: (cambios.nombre ?? actual.nombre).trim(),
+    categoria: cambios.categoria ?? actual.categoria,
+  });
+  const repetido = catalogoCompleto(s.ejerciciosCustom).some(
+    (e) => e.nombre.toLowerCase() === dto.nombre.toLowerCase() && e.nombre !== actual.nombre,
+  );
+  if (repetido) return "Ese ejercicio ya está en la lista";
+  set({
+    ...s,
+    ejerciciosCustom: s.ejerciciosCustom.map((e) => (e.id === id ? { ...e, ...dto } : e)),
+    alumnos:
+      dto.nombre === actual.nombre
+        ? s.alumnos
+        : s.alumnos.map((a) => ({
+            ...a,
+            planes: a.planes.map((p) => ({
+              ...p,
+              ejercicios: p.ejercicios.map((x) => (x.nombre === actual.nombre ? { ...x, nombre: dto.nombre } : x)),
+            })),
+          })),
+  });
+  return null;
+}
+
 /** Saca un ejercicio de la lista del profe. Los planes que ya lo usan lo conservan. */
 export function eliminarEjercicioPersonalizado(id: string) {
   const s = getSnapshot();
@@ -355,12 +406,13 @@ export function eliminarEjercicioPersonalizado(id: string) {
 
 /* ───────────── Planes ───────────── */
 
-export function crearPlan(alumnoId: string, nombre: string) {
-  const plan: Plan = { id: nuevoId(), ...exigir(crearPlanDto, { nombre }), ejercicios: [] };
-  editarAlumno(alumnoId, (a) => ({
-    planes: [...a.planes, plan],
-    planActivoId: a.planActivoId ?? plan.id,
-  }));
+/** El primer plan de cada tipo queda activo (es el que ve el alumno); los demás quedan de borrador */
+export function crearPlan(alumnoId: string, nombre: string, tipo: TipoPlan) {
+  const datos = exigir(crearPlanDto, { nombre, tipo });
+  const alumno = getSnapshot().alumnos.find((a) => a.id === alumnoId);
+  const hayActivo = alumno?.planes.some((p) => p.tipo === datos.tipo && p.activo) ?? false;
+  const plan: Plan = { id: nuevoId(), ...datos, activo: !hayActivo, ejercicios: [] };
+  editarAlumno(alumnoId, (a) => ({ planes: [...a.planes, plan] }));
   return plan;
 }
 
@@ -371,19 +423,28 @@ export function renombrarPlan(alumnoId: string, planId: string, nombre: string) 
   }));
 }
 
+/** Si se borra el plan activo, el siguiente de su mismo tipo pasa a ser el activo */
 export function eliminarPlan(alumnoId: string, planId: string) {
   editarAlumno(alumnoId, (a) => {
+    const borrado = a.planes.find((p) => p.id === planId);
     const planes = a.planes.filter((p) => p.id !== planId);
-    return {
-      planes,
-      planActivoId:
-        a.planActivoId === planId ? (planes[0]?.id ?? null) : a.planActivoId,
-    };
+    if (!borrado?.activo) return { planes };
+    const heredero = planes.find((p) => p.tipo === borrado.tipo);
+    return { planes: planes.map((p) => (p.id === heredero?.id ? { ...p, activo: true } : p)) };
   });
 }
 
+/** Deja activo este plan y desactiva el que estaba activo de su mismo tipo */
 export function activarPlan(alumnoId: string, planId: string) {
-  actualizarAlumno(alumnoId, { planActivoId: planId });
+  editarAlumno(alumnoId, (a) => {
+    const objetivo = a.planes.find((p) => p.id === planId);
+    if (!objetivo) return {};
+    return {
+      planes: a.planes.map((p) =>
+        p.tipo !== objetivo.tipo ? p : { ...p, activo: p.id === planId },
+      ),
+    };
+  });
 }
 
 function editarPlan(
@@ -398,10 +459,10 @@ function editarPlan(
   }));
 }
 
-export function agregarEjercicio(alumnoId: string, planId: string) {
+export function agregarEjercicio(alumnoId: string, planId: string, bloque: Bloque = "Entrenamiento") {
   editarPlan(alumnoId, planId, (ej) => [
     ...ej,
-    { id: nuevoId(), nombre: "", series: 3, repeticiones: "10" },
+    { id: nuevoId(), bloque, nombre: "", series: 3, repeticiones: "10", descanso: "" },
   ]);
 }
 

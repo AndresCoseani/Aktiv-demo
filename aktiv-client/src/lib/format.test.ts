@@ -8,6 +8,7 @@ import {
   parseISO,
   parseTiempo,
   sumarDias,
+  sumarMeses,
   toISO,
 } from "./format";
 
@@ -51,6 +52,14 @@ describe("fechas", () => {
     expect(diasHasta(hoyISO())).toBe(0);
     expect(diasHasta(sumarDias(5))).toBe(5);
     expect(diasHasta(sumarDias(-3))).toBe(-3);
+  });
+
+  it("suma meses de calendario y no se pasa de fin de mes", () => {
+    expect(sumarMeses(1, parseISO("2026-10-19"))).toBe("2026-11-19");
+    expect(sumarMeses(1, parseISO("2026-12-31"))).toBe("2027-01-31");
+    expect(sumarMeses(1, parseISO("2026-01-31"))).toBe("2026-02-28");
+    expect(sumarMeses(1, parseISO("2028-01-31"))).toBe("2028-02-29"); // bisiesto
+    expect(sumarMeses(12, parseISO("2026-03-15"))).toBe("2027-03-15");
   });
 
   it("calcula la edad cumplida", () => {

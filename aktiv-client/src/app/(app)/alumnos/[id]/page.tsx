@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Banknote, Mail, Phone, UserSearch } from "lucide-react";
 import { toast } from "sonner";
-import { AccesoCard, EliminarAlumno } from "@/components/acceso-card";
+import { AccesoAlumno, EliminarAlumno } from "@/components/acceso-card";
 import { CarrerasDeAlumno } from "@/components/carreras-view";
 import { EstadoBadge, PagoTexto } from "@/components/estado";
 import { FichaMedica } from "@/components/ficha-medica";
@@ -31,7 +31,7 @@ import {
   hoyISO,
   iniciales,
   parseISO,
-  sumarDias,
+  sumarMeses,
 } from "@/lib/format";
 import { useRol } from "@/lib/guards";
 import { actualizarAlumno, alternarDia, useStore } from "@/lib/store";
@@ -60,20 +60,22 @@ export default function AlumnoDetallePage() {
     if (!alumno) return;
     actualizarAlumno(alumno.id, {
       activo,
-      // al reactivar, si no tenía pago programado le armamos uno a 30 días
+      // al reactivar, si no tenía pago programado le armamos uno para dentro de un mes
       proximoPago:
-        activo && !alumno.proximoPago ? sumarDias(30) : alumno.proximoPago,
+        activo && !alumno.proximoPago ? sumarMeses(1) : alumno.proximoPago,
     });
     toast.success(activo ? "Alumno activado" : "Alumno marcado como inactivo");
   }
 
   function registrarPago() {
     if (!alumno) return;
+    // si todavía no venció, el mes se cuenta desde esa fecha (pagar antes no regala días);
+    // si ya venció o no había, desde hoy
     const base =
       alumno.proximoPago && diasHasta(alumno.proximoPago) >= 0
         ? parseISO(alumno.proximoPago)
         : new Date();
-    const siguiente = sumarDias(30, base);
+    const siguiente = sumarMeses(1, base);
     actualizarAlumno(alumno.id, { proximoPago: siguiente });
     toast.success(`Pago registrado. Próximo: ${formatFecha(siguiente)}`);
   }
@@ -122,6 +124,7 @@ export default function AlumnoDetallePage() {
                 {alumno.telefono || "Sin teléfono"}
               </span>
             </p>
+            <AccesoAlumno alumno={alumno} />
           </div>
         </header>
       </div>
@@ -204,8 +207,6 @@ export default function AlumnoDetallePage() {
           </CardContent>
         </Card>
       </section>
-
-      <AccesoCard alumno={alumno} />
 
       <SemanaCard
         semana={alumno.semana}

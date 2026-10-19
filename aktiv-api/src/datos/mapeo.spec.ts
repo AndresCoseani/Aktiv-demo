@@ -14,15 +14,15 @@ function filas(): FilasCrudas {
       {
         id: ALUMNO, coach_id: COACH, user_id: CUENTA, nombre: "Andres Coseani", email: "andres@mail.com",
         telefono: "+54 11 5555-0000", objetivo: "10K", nivel: "Intermedio", activo: true,
-        proximo_pago: "2026-11-01", alta_en: "2026-01-10", plan_activo_id: PLAN, semana,
+        proximo_pago: "2026-11-01", alta_en: "2026-01-10", semana,
         notas_profe: "rodilla", notas_alumno: "",
         creado_en: "2026-01-10T10:00:00Z", // columna que la app no usa: se ignora
       },
     ],
-    planes: [{ id: PLAN, alumno_id: ALUMNO, nombre: "Plan base", orden: 0 }],
+    planes: [{ id: PLAN, alumno_id: ALUMNO, nombre: "Plan base", orden: 0, tipo: "Fuerza", activo: true }],
     plan_ejercicios: [
-      { id: "e1", plan_id: PLAN, orden: 1, nombre: "Plancha", series: 3, repeticiones: "30 s", peso: null, peso_fecha: null },
-      { id: "e0", plan_id: PLAN, orden: 0, nombre: "Sentadilla", series: 3, repeticiones: "10", peso: "12,5", peso_fecha: "2026-10-01" },
+      { id: "e1", plan_id: PLAN, orden: 1, bloque: "Enfriamiento", nombre: "Plancha", series: 3, repeticiones: "30 s", descanso: "", peso: null, peso_fecha: null },
+      { id: "e0", plan_id: PLAN, orden: 0, bloque: "Entrenamiento", nombre: "Sentadilla", series: 3, repeticiones: "10", descanso: "90 s", peso: "12,5", peso_fecha: "2026-10-01" },
     ],
     fichas_medicas: [
       {
@@ -46,7 +46,7 @@ describe("mapeo base → app", () => {
     const a = d.alumnos[0];
     expect(a).toMatchObject({ id: ALUMNO, coachId: COACH, userId: CUENTA, nombre: "Andres Coseani", proximoPago: "2026-11-01" });
     expect(a.planes[0].ejercicios.map((e) => e.nombre)).toEqual(["Sentadilla", "Plancha"]); // por orden, no por llegada
-    expect(a.planes[0].ejercicios[0]).toMatchObject({ peso: "12,5", pesoFecha: "2026-10-01" });
+    expect(a.planes[0].ejercicios[0]).toMatchObject({ peso: "12,5", pesoFecha: "2026-10-01", descanso: "90 s" });
     expect(a.planes[0].ejercicios[1]).not.toHaveProperty("peso");
     expect(a.ficha.contacto).toEqual({ nombre: "Ana", parentesco: "Madre", telefono: "+54 11 4444-5555" });
     expect(a.ficha.certificado).toMatchObject({ tipo: "application/pdf", tamano: 84000, vencimiento: "2027-10-01" });

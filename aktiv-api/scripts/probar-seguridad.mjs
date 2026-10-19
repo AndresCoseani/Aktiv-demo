@@ -195,6 +195,18 @@ async function main() {
     .eq("id", ejA1.id).select();
   chequear("no puede cambiar el ejercicio, solo el peso",
     Boolean(renombrar.error) || (renombrar.data ?? []).length === 0);
+  const mover = await cS1.from("plan_ejercicios").update({ bloque: "Enfriamiento" }).eq("id", ejA1.id).select();
+  chequear("el alumno no puede mover un ejercicio de bloque", Boolean(mover.error) || (mover.data ?? []).length === 0);
+  chequear("el alumno no puede cambiar el descanso",
+    ((await cS1.from("plan_ejercicios").update({ descanso: "9 min" }).eq("id", ejA1.id).select()).data ?? []).length === 0
+    || Boolean((await cS1.from("plan_ejercicios").update({ descanso: "9 min" }).eq("id", ejA1.id)).error));
+  chequear("el descanso no puede pasar de 30 caracteres",
+    Boolean((await cA.from("plan_ejercicios").update({ descanso: "x".repeat(31) }).eq("id", ejA1.id)).error));
+  chequear("el bloque tiene que ser uno de los tres permitidos",
+    Boolean((await cA.from("plan_ejercicios").update({ bloque: "Postre" }).eq("id", ejA1.id)).error));
+  chequear("el profe puede mover un ejercicio de bloque",
+    (await cA.from("plan_ejercicios").update({ bloque: "Calentamiento" }).eq("id", ejA1.id).select()).data?.length === 1);
+  await cA.from("plan_ejercicios").update({ bloque: "Entrenamiento" }).eq("id", ejA1.id);
   const pesoAjeno = await cS1.from("plan_ejercicios").update({ peso: "99" })
     .eq("id", ejA2.id).select();
   chequear("no puede anotar peso en ejercicios de otro alumno", (pesoAjeno.data ?? []).length === 0);
@@ -292,13 +304,24 @@ async function main() {
     ((await cS1.from("carreras").update({ nombre: "x" }).eq("id", RA.id).select()).data ?? []).length === 0);
   chequear("el alumno no puede borrar carreras",
     ((await cS1.from("carreras").delete().eq("id", RA.id).select()).data ?? []).length === 0);
-  chequear("el alumno no puede anotarse solo",
-    Boolean((await cS1.from("inscripciones").insert({ alumno_id: A1.id, carrera_id: nueva.data.id, distancia_km: 5 })).error));
-  chequear("el alumno no puede salirse de la carrera",
-    ((await cS1.from("inscripciones").delete().eq("id", insA1.id).select()).data ?? []).length === 0);
+  const propia = await cS1.from("inscripciones")
+    .insert({ alumno_id: A1.id, carrera_id: nueva.data.id, distancia_km: 5 }).select("id").single();
+  chequear("el alumno puede anotarse solo en una carrera de su profe", !propia.error);
+  chequear("el alumno no puede anotarse en una distancia que la carrera no tiene",
+    Boolean((await cS1.from("inscripciones").update({ distancia_km: 42 }).eq("id", propia.data?.id).select()).error));
+  chequear("el alumno puede cambiar la distancia de su inscripción",
+    (await cS1.from("inscripciones").update({ distancia_km: 3 }).eq("id", propia.data?.id).select()).data?.length === 1);
+  chequear("el alumno no puede anotar a otro alumno",
+    Boolean((await cS1.from("inscripciones").insert({ alumno_id: A2.id, carrera_id: nueva.data.id, distancia_km: 5 })).error));
+  chequear("el alumno no puede anotarse en la carrera de otro profe",
+    Boolean((await cS1.from("inscripciones").insert({ alumno_id: A1.id, carrera_id: RB.id, distancia_km: 5 })).error));
+  chequear("el alumno puede salirse de la carrera",
+    ((await cS1.from("inscripciones").delete().eq("id", propia.data?.id).select()).data ?? []).length === 1);
+  chequear("el alumno no puede salir a otro de una carrera",
+    ((await cS1.from("inscripciones").delete().eq("id", insA2.data?.id).select()).data ?? []).length === 0);
   chequear("el alumno puede anotar su objetivo y su resultado",
     (await cS1.from("inscripciones").update({ objetivo_seg: 3000, resultado_seg: 3100 }).eq("id", insA1.id).select()).data?.length === 1);
-  for (const [campo, valor] of [["distancia_km", 5], ["carrera_id", nueva.data?.id], ["alumno_id", A2.id]]) {
+  for (const [campo, valor] of [["carrera_id", nueva.data?.id], ["alumno_id", A2.id]]) {
     const r = await cS1.from("inscripciones").update({ [campo]: valor }).eq("id", insA1.id).select();
     chequear("el alumno no puede cambiar " + campo + " de su inscripción", Boolean(r.error) || (r.data ?? []).length === 0);
   }
@@ -403,6 +426,32 @@ async function main() {
   }
   await rechaza("rechaza un ejercicio del catálogo de 121 caracteres",
     cA.from("ejercicios_custom").insert({ coach_id: profeA.id, nombre: largo(121), categoria: "Fuerza" }));
+
+  // ---------- planes por tipo
+  titulo("Planes por tipo (un activo por tipo)");
+  const nuevoPlan = async (nombre, tipo, activo) =>
+    (await cA.from("planes").insert({ alumno_id: A1.id, nombre, tipo, activo }).select("id").single()).data?.id;
+  const pR1 = await nuevoPlan("R1", "Running", true);
+  const pR2 = await nuevoPlan("R2", "Running", true); // activar otro del mismo tipo desactiva R1
+  const pF1 = await nuevoPlan("F1", "Fuerza", true);
+  const activos = async () =>
+    ((await cA.from("planes").select("id, activo").in("id", [pR1, pR2, pF1])).data ?? []).reduce((m, p) => ({ ...m, [p.id]: p.activo }), {});
+  const act = await activos();
+  chequear("activar un plan desactiva el activo de su mismo tipo", act[pR1] === false && act[pR2] === true);
+  chequear("el plan activo del otro tipo no se toca", act[pF1] === true);
+  await cA.from("planes").update({ activo: true }).eq("id", pR1);
+  const act2 = await activos();
+  chequear("al reactivar el primero, el segundo queda inactivo", act2[pR1] === true && act2[pR2] === false && act2[pF1] === true);
+  chequear("el tipo tiene que ser Running o Fuerza",
+    Boolean((await cA.from("planes").insert({ alumno_id: A1.id, nombre: "x", tipo: "Natación" })).error));
+  chequear("el tipo de un plan no se puede cambiar",
+    Boolean((await cA.from("planes").update({ tipo: "Fuerza" }).eq("id", pR2)).error));
+  const sinTocar = await cS1.from("planes").update({ activo: false }).eq("id", pR1).select("id");
+  chequear("el alumno no puede cambiar qué plan está activo", (sinTocar.data ?? []).length === 0);
+  chequear("el alumno ve los planes (con tipo y activo)",
+    ((await cS1.from("planes").select("tipo, activo").eq("id", pF1)).data ?? [])[0]?.activo === true);
+  chequear("el profe B no puede activar planes del profe A",
+    ((await cB.from("planes").update({ activo: false }).eq("id", pF1).select("id")).data ?? []).length === 0);
 
   // ---------- invitaciones
   titulo("Invitaciones (enlaces de acceso)");

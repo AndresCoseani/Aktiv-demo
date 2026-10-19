@@ -1,7 +1,9 @@
 import {
+  credencialesEntregadasSchema,
   datosApiSchema,
   invitacionConsultaSchema,
   invitacionEnviadaSchema,
+  type CredencialesEntregadas,
   type DatosApi,
   type InvitacionConsulta,
   type InvitacionEnviada,
@@ -136,6 +138,16 @@ export async function sesionActual(): Promise<Session | null> {
 /** El profe invita (o reenvía el acceso) a un alumno: la API le manda el mail */
 export async function invitar(alumnoId: string): Promise<InvitacionEnviada> {
   return invitacionEnviadaSchema.parse(await llamar<unknown>("POST", `/alumnos/${alumnoId}/invitar`, {}));
+}
+
+/** El profe le da el acceso al alumno con una contraseña aleatoria (se muestra una sola vez) */
+export async function entregarCredenciales(alumnoId: string): Promise<CredencialesEntregadas> {
+  return credencialesEntregadasSchema.parse(await llamar<unknown>("POST", `/alumnos/${alumnoId}/credenciales`, {}));
+}
+
+/** Cambiar la propia contraseña (pide la actual) */
+export async function cambiarClave(claveActual: string, claveNueva: string) {
+  await llamar<void>("POST", "/auth/clave", { claveActual, claveNueva });
 }
 
 /** A quién pertenece el enlace del mail (público, antes de elegir contraseña) */

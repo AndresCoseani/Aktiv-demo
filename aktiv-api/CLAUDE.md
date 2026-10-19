@@ -16,7 +16,7 @@ Navegador ──► Next.js (aktiv-client) ──/api/*──► NestJS (esta ca
 - **No hay datos de ejemplo**: lo que se ve es lo que hay en la base.
 
 ### Estado de verificación
-Probado contra una instancia **local** de Supabase (Docker): **18 tests unitarios y 80 e2e de la API**, **19 tests del contrato**, **149 verificaciones de RLS/CHECK/storage en la base** y flujos completos en navegador (Next → NestJS → Supabase) en escritorio y celular. **Todavía no se corrió nada contra el proyecto Supabase real del usuario ni se mandó un mail real con Resend** (en local los mails salen por la consola de la API).
+Probado contra una instancia **local** de Supabase (Docker): **18 tests unitarios y 91 e2e de la API**, **19 tests del contrato**, **166 verificaciones de RLS/CHECK/storage en la base** y flujos completos en navegador (Next → NestJS → Supabase) en escritorio y celular. **Todavía no se corrió nada contra el proyecto Supabase real del usuario ni se mandó un mail real con Resend** (en local los mails salen por la consola de la API).
 
 ## Stack
 
@@ -44,10 +44,10 @@ src/
   alumnos/ planes/ carreras/ certificados/ health/
   cuentas/ invitaciones/ mail/   # alta de cuentas por invitación (service_role + Resend)
 test/                      # e2e contra Supabase local (api.e2e-spec.ts, invitaciones.e2e-spec.ts)
-supabase/                  # config local + migraciones (5)
+supabase/                  # config local + migraciones (9)
 scripts/
   crear-usuarios.mjs       # crea a Lucas y a Andres (service_role, solo en tu compu)
-  probar-seguridad.mjs     # 149 verificaciones de RLS, storage, CHECK e invitaciones (solo base local)
+  probar-seguridad.mjs     # 166 verificaciones de RLS, storage, CHECK, invitaciones, planes, bloques y carreras (solo base local)
 render.yaml                # (en la raíz del repo) blueprint de Render con rootDir aktiv-api
 ```
 
@@ -83,15 +83,15 @@ Todo bajo `/api`. Errores siempre con el mismo formato: `{ statusCode, codigo, m
 | Auth | `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me` |
 | Carga | `GET /datos` (todo lo que el usuario puede ver, ya validado) |
 | Alumnos | `POST /alumnos` (profe), `PATCH /alumnos/:id`, `DELETE /alumnos/:id` (profe; borra también sus archivos **y su cuenta de acceso**) |
-| Invitaciones | `POST /alumnos/:id/invitar` (profe; crea la cuenta si falta y manda el mail), `GET /auth/invitacion/:token` (público; a quién pertenece el enlace), `POST /auth/invitacion/aceptar` (público; elige la contraseña y deja la sesión iniciada) |
+| Invitaciones | `POST /alumnos/:id/invitar` (profe; crea la cuenta si falta y manda el mail), `POST /alumnos/:id/credenciales` (profe; **sin mail**: crea la cuenta o restablece la contraseña con una **aleatoria de 12 caracteres** y la devuelve una sola vez, `Cache-Control: no-store`; invalida los enlaces pendientes), `POST /auth/clave` (cualquier usuario con sesión: cambia su contraseña pidiendo la actual; 204), `GET /auth/invitacion/:token` (público; a quién pertenece el enlace), `POST /auth/invitacion/aceptar` (público; elige la contraseña y deja la sesión iniciada) |
 | Ficha | `PATCH /alumnos/:id/ficha` |
 | Lesiones | `POST /alumnos/:id/lesiones`, `PATCH/DELETE /lesiones/:id` |
 | Marcas | `POST /alumnos/:id/marcas`, `PATCH/DELETE /marcas/:id` |
-| Planes (profe) | `POST /alumnos/:id/planes`, `PATCH/DELETE /planes/:id` |
-| Ejercicios | `POST /planes/:id/ejercicios` (profe), `PATCH /ejercicios/:id` (el alumno solo `peso`/`pesoFecha`), `DELETE /ejercicios/:id` (profe) |
+| Planes (profe) | `POST /alumnos/:id/planes` (`{id, nombre, tipo?, activo?}`; tipo `Running` o `Fuerza`), `PATCH /planes/:id` (`nombre`, `activo`; **el tipo no se cambia**), `DELETE /planes/:id`. Activar un plan desactiva el activo de su mismo tipo (lo hace un trigger de la base). |
+| Ejercicios | `POST /planes/:id/ejercicios` (profe; `bloque` opcional, por defecto `Entrenamiento`; `descanso` opcional; el profe puede moverlo o cambiar el descanso con `PATCH`, el alumno no), `PATCH /ejercicios/:id` (el alumno solo `peso`/`pesoFecha`), `DELETE /ejercicios/:id` (profe) |
 | Carreras (profe) | `POST /carreras`, `PATCH/DELETE /carreras/:id` |
-| Inscripciones | `POST /alumnos/:id/inscripciones` (profe), `PATCH /inscripciones/:id` (el alumno solo `objetivoSeg`/`resultadoSeg`), `DELETE` (profe) |
-| Catálogo (profe) | `POST /catalogo/ejercicios` (`{id, nombre, categoria}`), `DELETE /catalogo/ejercicios/:id` |
+| Inscripciones | `POST /alumnos/:id/inscripciones`, `PATCH /inscripciones/:id` (`distanciaKm`, `objetivoSeg`, `resultadoSeg`), `DELETE /inscripciones/:id`: **el profe y el propio alumno** pueden (el alumno solo en lo suyo y en carreras del calendario de su profe; no se mueve a otro alumno ni carrera). El calendario de carreras sigue siendo solo del profe. |
+| Catálogo (profe) | `POST /catalogo/ejercicios` (`{id, nombre, categoria}`), `PATCH /catalogo/ejercicios/:id` (renombrar o cambiar categoría), `DELETE /catalogo/ejercicios/:id` |
 | Certificado | `POST /alumnos/:id/certificado` (multipart, campo `archivo`), `GET …/url` (URL firmada de 2 min), `PATCH …` (vencimiento), `DELETE …` |
 
 POST → 201 `{id}`, PATCH → 200 `{id}`, DELETE → 204. Un parche vacío es 400 `sin_cambios`.
@@ -99,7 +99,7 @@ POST → 201 `{id}`, PATCH → 200 `{id}`, DELETE → 204. Un parche vacío es 4
 ### Seguridad de la API
 - **Sesión:** `access token` y `refresh token` de Supabase viajan **solo en cookies httpOnly** (`aktiv_at` en `/`; `aktiv_rt` solo en `/api/auth`), `SameSite=Lax`, `Secure` en producción. JavaScript del navegador nunca los ve (verificado en el test de navegador). El cliente renueva la sesión solo si el access token venció.
 - **Autenticación global** (`AuthGuard`): todo es privado salvo lo marcado `@Publico()`. El token se valida con Supabase (caché de 30 s) y el rol sale de `profiles`.
-- **Autorización por rol** (`@Roles('coach')`) + **permisos por campo**: el alumno solo puede editar `notasAlumno`, el `peso` de sus ejercicios y el objetivo/resultado de su inscripción (lo demás → 403 `sin_permiso`). Además la base lo impone con RLS y triggers.
+- **Autorización por rol** (`@Roles('coach')`) + **permisos por campo**: el alumno solo puede editar `notasAlumno`, el `peso` de sus ejercicios, su ficha/lesiones/marcas y **su participación en carreras** (anotarse, cambiar la distancia, objetivo/resultado, salirse); lo demás → 403 `sin_permiso`. Además la base lo impone con RLS y triggers.
 - **Sin filtrar existencia:** un recurso ajeno responde igual que uno inexistente (404).
 - **CSRF:** los pedidos que modifican datos exigen el header `X-Requested-With: aktiv` y, si hay `Origin`, que esté en `WEB_ORIGIN`.
 - **Límites:** `@nestjs/throttler` global (por IP) + **bloqueo de login por intentos fallidos** (IP + email, 8/min; mismo mensaje exista o no la cuenta). Está en memoria: si se escala a **varias instancias** hay que moverlo a Redis.
@@ -114,6 +114,7 @@ POST → 201 `{id}`, PATCH → 200 `{id}`, DELETE → 204. Un parche vacío es 4
 3. El token: 32 bytes aleatorios, **solo se guarda su hash SHA-256**, de un solo uso, vence en `INVITACION_DIAS` (7); los enlaces reemplazados se **invalidan** (no se borran: cuentan para el tope de `INVITACIONES_POR_HORA` = 5 por alumno). El profe puede ver el estado pero no el hash (permiso por columna).
 4. El alumno abre el enlace (`/invitacion`, página pública con `Referrer-Policy: no-referrer`), elige una contraseña de **8+ caracteres** y queda con la sesión iniciada.
 5. Estado de acceso en la ficha del profe: `sin_cuenta` → `invitado` → `activo` (o `invitacion_vencida`). Eliminar un alumno borra también su cuenta.
+   **Plan B sin mail:** *Copiar credenciales* (`POST /alumnos/:id/credenciales`) crea/restablece la cuenta con una contraseña aleatoria que el profe copia y le pasa (por WhatsApp). Se cuenta en el mismo tope por hora que las invitaciones. La contraseña no se guarda ni se loguea (queda solo en Supabase Auth, hasheada); el profe la ve una vez. El alumno la cambia desde el menú de su cuenta (`POST /auth/clave`).
 6. Sin `RESEND_API_KEY`/`MAIL_FROM`: en desarrollo el mail (con el enlace) se imprime en la consola de la API; en producción la invitación falla con 503 `mail_no_configurado`.
 
 ## Modelo de datos (Supabase, esquema `public`)
@@ -122,9 +123,11 @@ POST → 201 `{id}`, PATCH → 200 `{id}`, DELETE → 204. Un parche vacío es 4
 profiles          id (= auth.users.id), rol ('coach'|'alumno'), nombre, email
 alumnos           id, coach_id → profiles, user_id → profiles (único, null si no tiene cuenta),
                   nombre, email, telefono, objetivo, nivel, activo, proximo_pago, alta_en,
-                  plan_activo_id, semana (jsonb de 7), notas_profe, notas_alumno
-planes            id, alumno_id, nombre, orden
-plan_ejercicios   id, plan_id, orden, nombre, series, repeticiones, peso, peso_fecha
+                  plan_activo_id (SIN USO: ahora el activo vive en planes.activo; se borra en una migración futura),
+                  semana (jsonb de 7), notas_profe, notas_alumno
+planes            id, alumno_id, nombre, orden, tipo ('Running'|'Fuerza', inmutable), activo   # un activo por (alumno, tipo)
+plan_ejercicios   id, plan_id, orden, bloque ('Calentamiento'|'Entrenamiento'|'Enfriamiento'), nombre, series,
+                  repeticiones, descanso (texto libre, ≤ 30), peso, peso_fecha
 fichas_medicas    alumno_id (PK), fecha_nacimiento, lugar_nacimiento, enfermedades,
                   cert_ruta, cert_nombre, cert_tipo, cert_tamano, cert_subido_en, cert_vencimiento,
                   contacto_nombre, contacto_parentesco, contacto_telefono
@@ -173,7 +176,7 @@ Todos están **fuera de git** (`.env*`); solo se versionan los `*.example`.
 ```powershell
 cd aktiv-api
 npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,mailpit,supavisor,realtime,postgres-meta
-npx supabase db reset                 # aplica las 5 migraciones desde cero
+npx supabase db reset                 # aplica las 9 migraciones desde cero
 npm run usuarios                      # Lucas y Andres (con la URL local en .env.seed)
 # .env → SUPABASE_URL=http://127.0.0.1:54321 y la clave publishable que imprime `supabase start`
 npm run start:dev                     # API en http://localhost:4000
@@ -182,7 +185,7 @@ npx supabase stop
 
 ### Conectar el proyecto Supabase real (primera vez)
 1. **Datos del proyecto** (Project Settings → API): la *Project URL* (`https://<ref>.supabase.co`), la clave **publishable** (`sb_publishable_…`) y la clave **secret** (`sb_secret_…`). La *connection string* **no hace falta**: la API no se conecta a Postgres directamente, usa la API de Supabase con el token del usuario.
-2. **Migraciones**, en orden y sin editar: `20261019000000_esquema_inicial.sql`, `20261020000000_carreras_catalogo.sql` (se frena sola si `carreras` tuviera datos viejos), `20261021000000_validaciones.sql`, `20261022000000_invitaciones.sql`, `20261023000000_ejercicios_categoria.sql`. Opción A: pegar cada una en *SQL Editor*. Opción B (recomendada): `npx supabase login`, `npx supabase link --project-ref <ref>`, `npx supabase db push`. Verificar en *Database → Tables* que todas muestran **RLS enabled**. Aplicar las migraciones **antes** de desplegar el código que las usa.
+2. **Migraciones**, en orden y sin editar: `20261019000000_esquema_inicial.sql`, `20261020000000_carreras_catalogo.sql` (se frena sola si `carreras` tuviera datos viejos), `20261021000000_validaciones.sql`, `20261022000000_invitaciones.sql`, `20261023000000_ejercicios_categoria.sql`, `20261024000000_planes_tipo.sql` (compatible hacia atrás: no borra columnas), `20261025000000_inscripciones_alumno.sql`. Opción A: pegar cada una en *SQL Editor*. Opción B (recomendada): `npx supabase login`, `npx supabase link --project-ref <ref>`, `npx supabase db push`. Verificar en *Database → Tables* que todas muestran **RLS enabled**. Aplicar las migraciones **antes** de desplegar el código que las usa.
 3. *Authentication → Sign In / Providers*: **desactivar "Allow new users to sign up"** y dejar el proveedor **Email activo**.
 4. `.env.seed` desde `.env.seed.example` y `npm run usuarios`.
 5. `.env` desde `.env.example` y `npm run start:dev`. Probar la conexión: `GET http://localhost:4000/api/health/supabase`.
@@ -205,8 +208,8 @@ npm run start:dev     # API con watch (compila el contrato antes)
 npm run build         # contrato + API
 npm run typecheck
 npm test              # 18 unitarios de la API + 19 del contrato
-npm run test:e2e      # 80 e2e (necesita Supabase local + test/.env.test)
-npm run test:db       # 149 verificaciones de la base (solo local)
+npm run test:e2e      # 91 e2e (necesita Supabase local + test/.env.test)
+npm run test:db       # 166 verificaciones de la base (solo local)
 npm run usuarios      # crea/actualiza a Lucas y a Andres
 ```
 
@@ -229,7 +232,8 @@ No alcanza con que compile. Si se toca la API o el esquema: `typecheck`, `test`,
 
 ## Pendiente / próximos pasos
 
-1. **Aplicar las 5 migraciones al Supabase real**, crear a Lucas y probar la conexión. Las migraciones 4 (`invitaciones`) y 5 (`ejercicios_categoria`) son nuevas: aplicarlas **antes** de desplegar el código nuevo.
+1. **Aplicar las migraciones nuevas al Supabase real** (SQL Editor, en orden): `…024_planes_tipo.sql`, `…025_inscripciones_alumno.sql` y `…026_plan_bloques.sql` y `…027_plan_descanso.sql` (las 4 y 5 ya están aplicadas; la 24 y la 25 también, confirmado por el usuario). Aplicarlas **antes** del push: son compatibles con el código viejo, así no hay cortes.
+   Después, en una migración futura, borrar la columna `alumnos.plan_activo_id` (ya sin uso).
 2. **Probar Resend de verdad:** crear la API key, cargar `RESEND_API_KEY`, `MAIL_FROM` y `SUPABASE_SERVICE_ROLE_KEY` en Render e invitar a un alumno real.
 3. **Rate limiting en Redis** si se escala a varias instancias de la API.
 4. Supabase limita las consultas a 1.000 filas por pedido: si un profe supera ~1.000 filas en alguna tabla, paginar `GET /datos`.
@@ -245,4 +249,4 @@ No alcanza con que compile. Si se toca la API o el esquema: `typecheck`, `test`,
 - Todo dato nuevo pasa por el **contrato** (ver la regla de "campo nuevo") y después se sincroniza el frontend.
 - La API usa `service_role` **solo** en el módulo de invitaciones/cuentas y después de verificar la propiedad del alumno; nunca se conecta a Postgres como `postgres`. No sumar usos de `AdminService` fuera de ahí sin decirlo.
 - Cualquier tabla nueva nace con RLS, políticas, `CHECK` y su caso en `probar-seguridad.mjs`.
-- Hay un `next dev` del usuario que puede estar corriendo en el puerto 3000: no matarlo; para pruebas usar otro puerto (3100/3101). La API de prueba va en el 4000.
+- **Los puertos 3000 y 4000 son del usuario** (su `next dev` y su API): nunca matar procesos ahí ni dejar mis servidores en esos puertos. Para pruebas usar la API en el **4100** (`PORT=4100`) y el frontend en el **3101**, compilado con `API_URL=http://localhost:4100`, y al terminar apagar **solo** esos dos (por PID o por puerto 3101/4100).

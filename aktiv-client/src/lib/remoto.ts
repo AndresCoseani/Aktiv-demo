@@ -9,8 +9,10 @@ import type {
   Carrera,
   Certificado,
   EjercicioCustom,
+  Bloque,
   Inscripcion,
   Session,
+  TipoPlan,
 } from "./types";
 
 /**
@@ -49,6 +51,8 @@ export async function iniciarSesion(
 }
 
 export const invitar = http.invitar;
+export const entregarCredenciales = http.entregarCredenciales;
+export const cambiarClave = http.cambiarClave;
 export const consultarInvitacion = http.consultarInvitacion;
 
 export async function aceptarInvitacion(
@@ -93,7 +97,6 @@ type AlumnoPlano = Pick<
   | "nivel"
   | "activo"
   | "proximoPago"
-  | "planActivoId"
   | "semana"
   | "notasProfe"
   | "notasAlumno"
@@ -101,9 +104,11 @@ type AlumnoPlano = Pick<
 type FichaPlana = Pick<Alumno["ficha"], "fechaNacimiento" | "lugarNacimiento" | "enfermedades" | "contacto">;
 type LesionPlana = { alumnoId: string } & Omit<Alumno["ficha"]["lesiones"][number], "id">;
 type MarcaPlana = { alumnoId: string } & Omit<Alumno["marcas"][number], "id">;
-type PlanPlano = { alumnoId: string; nombre: string };
+type PlanPlano = { alumnoId: string; nombre: string; tipo: TipoPlan; activo: boolean };
 type EjercicioPlano = {
   planId: string;
+  bloque: Bloque;
+  descanso: string;
   nombre: string;
   series: number;
   repeticiones: string;
@@ -157,7 +162,6 @@ function aEntidades(d: Omit<Datos, "alumnoIdPropio">): Entidades {
       nivel: a.nivel,
       activo: a.activo,
       proximoPago: a.proximoPago,
-      planActivoId: a.planActivoId,
       semana: a.semana,
       notasProfe: a.notasProfe,
       notasAlumno: a.notasAlumno,
@@ -182,10 +186,12 @@ function aEntidades(d: Omit<Datos, "alumnoIdPropio">): Entidades {
       });
     }
     for (const p of a.planes) {
-      e.planes.set(p.id, { alumnoId: a.id, nombre: p.nombre });
+      e.planes.set(p.id, { alumnoId: a.id, nombre: p.nombre, tipo: p.tipo, activo: p.activo });
       for (const x of p.ejercicios) {
         e.ejercicios.set(x.id, {
           planId: p.id,
+          bloque: x.bloque,
+          descanso: x.descanso,
           nombre: x.nombre,
           series: x.series,
           repeticiones: x.repeticiones,
@@ -267,7 +273,6 @@ async function enviar(prev: Entidades, act: Entidades) {
         ...a,
         activo: true,
         proximoPago: null,
-        planActivoId: null,
         semana: SEMANA_VACIA,
         notasProfe: "",
         notasAlumno: "",
@@ -275,10 +280,14 @@ async function enviar(prev: Entidades, act: Entidades) {
       prev.fichas.set(id, FICHA_VACIA);
     },
   );
-  await altas(prev.planes, act.planes, (id, p) => api.post(`/alumnos/${p.alumnoId}/planes`, { id, nombre: p.nombre }));
+  await altas(prev.planes, act.planes, (id, p) =>
+    api.post(`/alumnos/${p.alumnoId}/planes`, { id, nombre: p.nombre, tipo: p.tipo, activo: p.activo }),
+  );
   await altas(prev.ejercicios, act.ejercicios, (id, x) =>
     api.post(`/planes/${x.planId}/ejercicios`, {
       id,
+      bloque: x.bloque,
+      ...(x.descanso !== "" ? { descanso: x.descanso } : {}),
       nombre: x.nombre,
       series: x.series,
       repeticiones: x.repeticiones,
@@ -348,7 +357,7 @@ async function enviar(prev: Entidades, act: Entidades) {
   parchar(
     prev.alumnos,
     act.alumnos,
-    ["nombre", "email", "telefono", "objetivo", "nivel", "activo", "proximoPago", "planActivoId", "semana", "notasProfe", "notasAlumno"],
+    ["nombre", "email", "telefono", "objetivo", "nivel", "activo", "proximoPago", "semana", "notasProfe", "notasAlumno"],
     (id) => `/alumnos/${id}`,
   );
   parchar(prev.fichas, act.fichas, ["fechaNacimiento", "lugarNacimiento", "enfermedades", "contacto"], (id) => `/alumnos/${id}/ficha`);
@@ -359,11 +368,12 @@ async function enviar(prev: Entidades, act: Entidades) {
   }
   parchar(prev.lesiones, act.lesiones, ["descripcion", "fecha", "estado"], (id) => `/lesiones/${id}`);
   parchar(prev.marcas, act.marcas, ["distanciaKm", "tiempoSeg", "fecha", "carrera"], (id) => `/marcas/${id}`);
-  parchar(prev.planes, act.planes, ["nombre"], (id) => `/planes/${id}`);
+  // activar un plan desactiva en la base el de su mismo tipo: sirve tanto el orden en que lleguen
+  parchar(prev.planes, act.planes, ["nombre", "activo"], (id) => `/planes/${id}`);
   parchar(
     prev.ejercicios,
     act.ejercicios,
-    ["nombre", "series", "repeticiones", "peso", "pesoFecha"],
+    ["bloque", "nombre", "series", "repeticiones", "descanso", "peso", "pesoFecha"],
     (id) => `/ejercicios/${id}`,
     (c) => {
       // pesoFecha nunca vuelve a null: solo se manda cuando hay una fecha
@@ -371,6 +381,7 @@ async function enviar(prev: Entidades, act: Entidades) {
       return pesoFecha ? { ...resto, pesoFecha } : resto;
     },
   );
+  parchar(prev.custom, act.custom, ["nombre", "categoria"], (id) => `/catalogo/ejercicios/${id}`);
   parchar(prev.carreras, act.carreras, ["nombre", "fecha", "lugar", "distanciasKm", "notas"], (id) => `/carreras/${id}`);
   parchar(prev.inscripciones, act.inscripciones, ["distanciaKm", "objetivoSeg", "resultadoSeg"], (id) => `/inscripciones/${id}`);
   await Promise.all(parches);

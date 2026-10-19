@@ -45,11 +45,11 @@ describe("Alta de alumnos con invitación por mail", () => {
     // 1. el profe da de alta al alumno y le arma un plan
     const al = await nuevoAlumno("Maria Prueba");
     const planId = uuid();
-    expect((await A.post(`/api/alumnos/${al.id}/planes`, { id: planId, nombre: "Plan de inicio" })).status).toBe(201);
+    expect((await A.post(`/api/alumnos/${al.id}/planes`, { id: planId, nombre: "Plan de inicio", tipo: "Fuerza", activo: true })).status).toBe(201);
     const ejId = uuid();
     expect((await A.post(`/api/planes/${planId}/ejercicios`, { id: ejId, nombre: "Sentadilla búlgara", series: 3, repeticiones: "10" })).status).toBe(201);
     expect((await A.post(`/api/planes/${planId}/ejercicios`, { id: uuid(), nombre: "Trote regenerativo", series: 1, repeticiones: "30 min" })).status).toBe(201);
-    expect((await A.patch(`/api/alumnos/${al.id}`, { planActivoId: planId, semana: Array.from({ length: 7 }, (_, i) => ({ correr: i % 2 === 0, fuerza: i === 3 })) })).status).toBe(200);
+    expect((await A.patch(`/api/alumnos/${al.id}`, { semana: Array.from({ length: 7 }, (_, i) => ({ correr: i % 2 === 0, fuerza: i === 3 })) })).status).toBe(200);
 
     // 2. todavía no tiene cuenta
     let datos = (await A.get("/api/datos")).body;
@@ -95,7 +95,7 @@ describe("Alta de alumnos con invitación por mail", () => {
     expect(suyos.session.alumnoId).toBe(al.id);
     expect(suyos.alumnos).toHaveLength(1);
     const miAlumno = suyos.alumnos[0];
-    expect(miAlumno.planActivoId).toBe(planId);
+    expect(miAlumno.planes[0]).toMatchObject({ id: planId, tipo: "Fuerza", activo: true });
     expect(miAlumno.planes[0].ejercicios.map((e: { nombre: string }) => e.nombre)).toEqual(["Sentadilla búlgara", "Trote regenerativo"]);
     expect(miAlumno.semana[0]).toEqual({ correr: true, fuerza: false });
     expect(miAlumno.acceso).toBeUndefined(); // el estado de acceso es solo del profe
@@ -298,6 +298,110 @@ describe("Alta de alumnos con invitación por mail", () => {
       expect((await B.delete(`/api/alumnos/${al.id}`)).status).toBe(404);
       const { data } = await env.admin.from("alumnos").select("user_id").eq("id", al.id).single();
       expect((await env.admin.auth.admin.getUserById(data!.user_id)).data.user).not.toBeNull();
+    });
+  });
+
+  /* ────────────────────────────────────────────────────────── */
+  describe("acceso sin mail: credenciales con contraseña aleatoria", () => {
+    it("crea la cuenta, devuelve email y contraseña UNA vez, y el alumno entra con eso", async () => {
+      const al = await nuevoAlumno("Camila Credenciales");
+      const r = await A.post(`/api/alumnos/${al.id}/credenciales`, {});
+      expect(r.status).toBe(200);
+      expect(r.headers["cache-control"]).toMatch(/no-store/);
+      expect(r.body.email).toBe(al.email);
+      expect(r.body.clave).toMatch(/^[A-HJ-NP-Za-km-z2-9]{12}$/); // 12 caracteres sin los que se confunden
+      expect(/[A-Z]/.test(r.body.clave) && /[a-z]/.test(r.body.clave) && /[0-9]/.test(r.body.clave)).toBe(true);
+      expect(mail.enviados.some((m) => m.a === al.email)).toBe(false); // no sale ningún mail
+
+      // el estado pasa a "activo" y el alumno entra con esas credenciales
+      const a = (await A.get("/api/datos")).body.alumnos.find((x: { id: string }) => x.id === al.id);
+      expect(a.acceso.estado).toBe("activo");
+      const S = new Sesion(app);
+      const login = await S.login(al.email, r.body.clave);
+      expect(login.status).toBe(200);
+      expect(login.body.session).toMatchObject({ role: "alumno" });
+      expect((await S.get("/api/datos")).body.session.alumnoId).toBe(al.id);
+
+      // la contraseña no queda en ningún lado de la base ni en el listado del profe
+      expect(JSON.stringify((await A.get("/api/datos")).body)).not.toContain(r.body.clave);
+    });
+
+    it("cada pedido genera una contraseña distinta, y la anterior deja de servir", async () => {
+      const al = await nuevoAlumno();
+      const uno = (await A.post(`/api/alumnos/${al.id}/credenciales`, {})).body;
+      const dos = (await A.post(`/api/alumnos/${al.id}/credenciales`, {})).body;
+      expect(dos.clave).not.toBe(uno.clave);
+      expect((await new Sesion(app).login(al.email, uno.clave)).status).toBe(401);
+      expect((await new Sesion(app).login(al.email, dos.clave)).status).toBe(200);
+    });
+
+    it("invalida el enlace de invitación pendiente (no puede pisar la contraseña entregada)", async () => {
+      const al = await nuevoAlumno();
+      await A.post(`/api/alumnos/${al.id}/invitar`, {});
+      const token = mail.ultimoToken();
+      expect((await A.post(`/api/alumnos/${al.id}/credenciales`, {})).status).toBe(200);
+      const aceptar = await request(app.getHttpServer()).post("/api/auth/invitacion/aceptar").set(H).send({ token, clave: CLAVE_NUEVA });
+      expect(aceptar.status).toBe(410);
+    });
+
+    it("sin email no se puede, y es solo del profe dueño", async () => {
+      const sinEmail = uuid();
+      expect((await A.post("/api/alumnos", { id: sinEmail, nombre: "Sin Mail", email: "", telefono: "", objetivo: "", nivel: "Principiante" })).status).toBe(201);
+      const r = await A.post(`/api/alumnos/${sinEmail}/credenciales`, {});
+      expect(r.status).toBe(422);
+      expect(r.body.codigo).toBe("sin_email");
+
+      const al = await nuevoAlumno();
+      expect((await B.post(`/api/alumnos/${al.id}/credenciales`, {})).status).toBe(404);
+      expect((await A.post(`/api/alumnos/${al.id}/credenciales`, { clave: "admin" })).status).toBe(400);
+      expect((await request(app.getHttpServer()).post(`/api/alumnos/${al.id}/credenciales`).set(H).send({})).status).toBe(401);
+    });
+
+    it("funciona aunque el reloj de la API esté atrasado respecto del de la base (caso real: el CHECK expira_en > creada_en)", async () => {
+      const al = await nuevoAlumno();
+      const real = Date.now;
+      jest.spyOn(Date, "now").mockImplementation(() => real() - 60_000); // la API "cree" que es 1 minuto antes
+      let r;
+      try {
+        r = await A.post(`/api/alumnos/${al.id}/credenciales`, {});
+      } finally {
+        jest.restoreAllMocks();
+      }
+      expect(r.status).toBe(200);
+      expect((await new Sesion(app).login(al.email, r.body.clave)).status).toBe(200);
+    });
+
+    it("tiene tope por hora (cuenta junto con las invitaciones)", async () => {
+      const al = await nuevoAlumno();
+      let ultimo = 200;
+      for (let i = 0; i < 6; i++) ultimo = (await A.post(`/api/alumnos/${al.id}/credenciales`, {})).status;
+      expect(ultimo).toBe(429);
+    });
+  });
+
+  /* ────────────────────────────────────────────────────────── */
+  describe("cambiar la propia contraseña", () => {
+    it("pide la actual, valida la nueva y deja entrar con la nueva", async () => {
+      const al = await nuevoAlumno();
+      const { clave } = (await A.post(`/api/alumnos/${al.id}/credenciales`, {})).body;
+      const S = new Sesion(app);
+      await S.login(al.email, clave);
+
+      expect((await S.post("/api/auth/clave", { claveActual: "incorrecta", claveNueva: CLAVE_NUEVA })).status).toBe(422);
+      expect((await S.post("/api/auth/clave", { claveActual: clave, claveNueva: "corta" })).status).toBe(400);
+      expect((await S.post("/api/auth/clave", { claveActual: clave, claveNueva: clave })).status).toBe(422);
+      expect((await S.post("/api/auth/clave", { claveActual: clave, claveNueva: CLAVE_NUEVA, otro: 1 })).status).toBe(400);
+      // la sesión sigue viva después de un intento fallido (no se confunde con un 401)
+      expect((await S.get("/api/auth/me")).status).toBe(200);
+
+      expect((await S.post("/api/auth/clave", { claveActual: clave, claveNueva: CLAVE_NUEVA })).status).toBe(204);
+      expect((await new Sesion(app).login(al.email, clave)).status).toBe(401);
+      expect((await new Sesion(app).login(al.email, CLAVE_NUEVA)).status).toBe(200);
+    });
+
+    it("exige estar con la sesión iniciada", async () => {
+      const r = await request(app.getHttpServer()).post("/api/auth/clave").set(H).send({ claveActual: "x", claveNueva: CLAVE_NUEVA });
+      expect(r.status).toBe(401);
     });
   });
 
