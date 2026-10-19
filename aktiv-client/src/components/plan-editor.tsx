@@ -271,7 +271,7 @@ export function PlanEditor({ alumno }: { alumno: Alumno }) {
                               <label
                                 className={cn(
                                   "space-y-1 md:space-y-0",
-                                  !admitePeso(ej.nombre, ejerciciosCustom) && "max-md:col-span-2",
+                                  !admitePeso(ej.nombre, ejerciciosCustom, plan.tipo) && "max-md:col-span-2",
                                 )}
                               >
                                 <span className="block text-[0.7rem] text-muted-foreground md:hidden">Descanso</span>
@@ -283,7 +283,7 @@ export function PlanEditor({ alumno }: { alumno: Alumno }) {
                                   maxLength={LIMITES.descanso}
                                 />
                               </label>
-                              {admitePeso(ej.nombre, ejerciciosCustom) ? (
+                              {admitePeso(ej.nombre, ejerciciosCustom, plan.tipo) ? (
                                 <label className="space-y-1 md:space-y-0">
                                   <span className="block text-[0.7rem] text-muted-foreground md:hidden">
                                     Peso

@@ -94,11 +94,13 @@ export function catalogoCompleto(custom: readonly EjercicioDelProfe[]) {
 }
 
 /**
- * Ejercicios donde tiene sentido registrar el peso: los de fuerza. Un nombre que
- * no está en ningún catálogo (el profe lo borró después de usarlo en un plan) se
- * trata como fuerza para no perder lo que el alumno ya anotó.
+ * Dónde se registra el peso: en TODOS los ejercicios de un plan de fuerza (el tipo de plan ya
+ * dice que es de pesas, sin importar la categoría con la que el profe creó el ejercicio) y, en un
+ * plan de running, solo en los ejercicios de fuerza. Un nombre que no está en ningún catálogo (el
+ * profe lo borró después de usarlo) cuenta como fuerza para no perder lo que el alumno ya anotó.
  */
-export function admitePeso(nombre: string, custom: readonly EjercicioDelProfe[] = []) {
+export function admitePeso(nombre: string, custom: readonly EjercicioDelProfe[] = [], tipoPlan?: TipoPlan) {
+  if (tipoPlan === "Fuerza") return true;
   const c = categoriaDe(nombre, custom);
   return c === "Fuerza" || c === "Personalizado";
 }

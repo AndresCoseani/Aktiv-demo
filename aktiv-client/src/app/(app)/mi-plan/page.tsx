@@ -185,7 +185,7 @@ function PlanActivo({
                       {ej.descanso && <Dato valor={ej.descanso} etiqueta="descanso" />}
                         </div>
                       </div>
-                      {admitePeso(ej.nombre, ejerciciosCustom) && (
+                      {admitePeso(ej.nombre, ejerciciosCustom, plan.tipo) && (
                         <div className="mt-2.5 flex items-center gap-2.5 pl-10">
                           <span className="text-xs whitespace-nowrap text-muted-foreground">Peso usado</span>
                           <PesoInput
