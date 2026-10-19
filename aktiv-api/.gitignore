@@ -1,0 +1,21 @@
+# dependencias y compilados
+node_modules
+dist
+
+*.tsbuildinfo
+/coverage
+
+# variables de entorno: NUNCA se suben (solo los *.example, que llevan placeholders)
+.env*
+!.env.example
+!.env.seed.example
+!.env.test.example
+test/.env.test
+
+# supabase local
+/supabase/.temp
+/supabase/.branches
+
+# varios
+.DS_Store
+npm-debug.log*

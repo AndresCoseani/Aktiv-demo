@@ -1,5 +1,6 @@
 # Despliegue de la API de Aktiv en Render (Blueprint).
 # Render lo lee desde la raíz del repo: New → Blueprint → elegir el repo.
+# La carpeta de la API (aktiv-api) ya está indicada abajo con rootDir.
 #
 # Los valores marcados `sync: false` los pide Render al crear el servicio
 # (son secretos o dependen de tu cuenta): no se guardan en este archivo.
@@ -13,22 +14,20 @@ services:
     region: ohio
     branch: main
     autoDeploy: true
-
-    # Instala SOLO la API y el contrato (no Next ni el resto): ~40 s y poca memoria.
-    # `--include=dev` es necesario: Render usa NODE_ENV=production y sin esto no
-    # instalaría `nest` ni `typescript`, y el build fallaría.
-    buildCommand: npm install --include=dev --workspace=@aktiv/contrato --workspace=@aktiv/backend && npm run build:api
-    startCommand: node backend/dist/main.js
-    healthCheckPath: /api/health
-
-    # solo reconstruye cuando cambia algo que afecta a la API
+    # el servicio vive en esta carpeta del repo: Render corre el build y el start desde acá
+    rootDir: aktiv-api
+    # solo reconstruye cuando cambia algo de la API (o este archivo)
     buildFilter:
       paths:
-        - backend/**
-        - packages/**
-        - package.json
-        - package-lock.json
+        - aktiv-api/**
         - render.yaml
+
+    # `--include=dev` es necesario: Render usa NODE_ENV=production y sin esto no
+    # instalaría `nest` ni `typescript`, y el build fallaría.
+    # `npm run build` compila primero el contrato (contrato/) y después la API.
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: node dist/main.js
+    healthCheckPath: /api/health
 
     envVars:
       - key: NODE_VERSION
@@ -46,4 +45,14 @@ services:
         sync: false
       # URL del frontend en Vercel, p. ej. https://aktiv.vercel.app (sin barra final)
       - key: WEB_ORIGIN
+        sync: false
+      # Invitaciones de alumnos. La clave SECRET (service_role) solo la usa el módulo
+      # de invitaciones/cuentas, después de comprobar que el profe es dueño del alumno.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # API key de Resend (conviene una restringida a "Sending access" de tu dominio)
+      - key: RESEND_API_KEY
+        sync: false
+      # Remitente con dominio verificado en Resend, p. ej. Aktiv <aktiv@tudominio.com>
+      - key: MAIL_FROM
         sync: false
