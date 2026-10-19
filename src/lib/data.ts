@@ -1,9 +1,13 @@
+import { semanaVacia } from "./dominio";
 import { sumarDias } from "./format";
 import type {
   Alumno,
+  Carrera,
+  Inscripcion,
   DiaEntrenamiento,
-  CategoriaEjercicio,
   Ejercicio,
+  FichaMedica,
+  Marca,
   Nivel,
   Plan,
   Session,
@@ -29,67 +33,6 @@ export const CUENTAS: Record<
     },
   },
 };
-
-/* ───────────── Catálogo de ejercicios ───────────── */
-
-const CATALOGO_POR_CATEGORIA: Record<CategoriaEjercicio, string[]> = {
-  "Series y ritmo": [
-    "Series 400 m",
-    "Series 800 m",
-    "Series 1000 m",
-    "Fartlek",
-    "Tempo run",
-    "Trote regenerativo",
-    "Fondo largo",
-    "Cuestas 30 m",
-  ],
-  "Técnica de carrera": [
-    "Skipping A",
-    "Skipping B",
-    "Talones al glúteo",
-    "Rodillas altas",
-    "Zancadas dinámicas",
-    "Pasadas progresivas",
-  ],
-  Fuerza: [
-    "Sentadilla búlgara",
-    "Peso muerto rumano",
-    "Puente de glúteo",
-    "Step-up al cajón",
-    "Estocadas caminando",
-    "Elevación de talones",
-    "Plancha frontal",
-    "Plancha lateral",
-    "Bicho muerto",
-  ],
-  Movilidad: [
-    "Movilidad de cadera",
-    "Movilidad de tobillo",
-    "Foam roller de cuádriceps",
-    "Estiramiento de isquiotibiales",
-  ],
-};
-
-export const EJERCICIOS_CATALOGO: { nombre: string; categoria: CategoriaEjercicio }[] =
-  (Object.entries(CATALOGO_POR_CATEGORIA) as [CategoriaEjercicio, string[]][]).flatMap(
-    ([categoria, nombres]) => nombres.map((nombre) => ({ nombre, categoria })),
-  );
-
-const CATEGORIA_POR_NOMBRE = new Map(
-  EJERCICIOS_CATALOGO.map((e) => [e.nombre, e.categoria]),
-);
-
-/** ejercicios donde tiene sentido registrar el peso (fuerza, core y los creados a mano) */
-export function admitePeso(nombre: string) {
-  const c = categoriaDe(nombre);
-  return c === "Fuerza" || c === "Personalizado";
-}
-
-/** los que no están en el catálogo base los creó el profe */
-export function categoriaDe(nombre: string) {
-  if (!nombre) return undefined;
-  return CATEGORIA_POR_NOMBRE.get(nombre) ?? "Personalizado";
-}
 
 /* ───────────── Semilla de alumnos ───────────── */
 
@@ -164,10 +107,6 @@ function plan(nombre: keyof typeof PLANTILLAS, conPesos = false): Plan {
 }
 
 /* ───────────── Semana de entrenamiento ───────────── */
-
-export function semanaVacia(): DiaEntrenamiento[] {
-  return Array.from({ length: 7 }, () => ({ correr: false, fuerza: false }));
-}
 
 /** días 0 = lunes … 6 = domingo */
 const PATRONES: { correr: number[]; fuerza: number[] }[] = [
@@ -375,8 +314,130 @@ export function crearSemilla(): Alumno[] {
       planes,
       planActivoId: planes[0]?.id ?? null,
       semana: semanaDesde(i),
+      ficha: fichaDemo(i, s.notas),
+      marcas: marcasDemo(s.nivel, i),
       notasProfe: s.notas ?? "",
       notasAlumno: "",
     };
   });
+}
+
+/* ───────────── Ficha médica y marcas de ejemplo ───────────── */
+
+const LUGARES = ["Buenos Aires", "Rosario", "Córdoba", "La Plata", "Mendoza"];
+const CONTACTOS = [
+  ["Marta Coseani", "Madre"],
+  ["Julián Benítez", "Hermano"],
+  ["Laura Paz", "Esposa"],
+  ["Carlos Duarte", "Padre"],
+];
+const ENFERMEDADES = ["", "Asma leve inducida por ejercicio", "", "Hipotiroidismo (medicado)"];
+
+function fichaDemo(i: number, notas?: string): FichaMedica {
+  // el certificado se reparte entre vigente, por vencer, vencido y sin cargar
+  const vencimientos = [200, 12, -20, null, 120];
+  const venc = vencimientos[i % vencimientos.length];
+  return {
+    fechaNacimiento: sumarDias(-365 * (22 + ((i * 3) % 20)) - i * 41),
+    lugarNacimiento: LUGARES[i % LUGARES.length],
+    enfermedades: ENFERMEDADES[i % ENFERMEDADES.length],
+    lesiones: notas
+      ? [
+          {
+            id: `l${i}`,
+            descripcion: notas.split(".")[0],
+            fecha: sumarDias(-60 - i * 5),
+            estado: i % 2 === 0 ? "activa" : "recuperada",
+          },
+        ]
+      : [],
+    contacto:
+      i % 3 === 0
+        ? { nombre: CONTACTOS[i % CONTACTOS.length][0], parentesco: CONTACTOS[i % CONTACTOS.length][1], telefono: `+54 11 4${500 + i * 37}-${1000 + i * 113}` }
+        : { nombre: "", parentesco: "", telefono: "" },
+    certificado:
+      venc === null
+        ? null
+        : {
+            nombre: "certificado-medico.pdf",
+            tipo: "application/pdf",
+            tamano: 84_000,
+            subidoEn: sumarDias(venc - 365),
+            vencimiento: sumarDias(venc),
+            ruta: "demo",
+          },
+  };
+}
+
+function marcasDemo(nivel: Nivel, i: number): Marca[] {
+  const factor = { Principiante: 1.25, Intermedio: 1.0, Avanzado: 0.78 }[nivel];
+  const t5 = Math.round(1500 * factor * (1 + (i % 4) * 0.03));
+  const marcas: Marca[] = [
+    { id: `m${i}-5`, distanciaKm: 5, tiempoSeg: t5, fecha: sumarDias(-40 - i * 7), carrera: "5K Solidaria Palermo" },
+  ];
+  if (nivel !== "Principiante") {
+    marcas.push({ id: `m${i}-10`, distanciaKm: 10, tiempoSeg: Math.round(t5 * 2.08), fecha: sumarDias(-90 - i * 5), carrera: "10K Parque Centenario" });
+    marcas.push({ id: `m${i}-5b`, distanciaKm: 5, tiempoSeg: t5 + 48, fecha: sumarDias(-200 - i * 3), carrera: "Entrenamiento de control" });
+  }
+  if (nivel === "Avanzado") {
+    marcas.push({ id: `m${i}-21`, distanciaKm: 21.097, tiempoSeg: Math.round(t5 * 4.4), fecha: sumarDias(-150 - i * 4), carrera: "Media Maratón de la Ciudad" });
+    marcas.push({ id: `m${i}-42`, distanciaKm: 42.195, tiempoSeg: Math.round(t5 * 9.4), fecha: sumarDias(-260 - i * 2), carrera: "Maratón de Buenos Aires" });
+  }
+  return marcas;
+}
+
+/* ───────────── Calendario de carreras de ejemplo ───────────── */
+
+const h = (horas: number, min: number, seg = 0) => horas * 3600 + min * 60 + seg;
+
+export function crearCalendarioSemilla(): {
+  carreras: Carrera[];
+  inscripciones: Inscripcion[];
+} {
+  const carrera = (
+    id: string,
+    nombre: string,
+    enDias: number,
+    lugar: string,
+    distanciasKm: number[],
+    notas = "",
+  ): Carrera => ({ id, nombre, fecha: sumarDias(enDias), lugar, distanciasKm, notas });
+
+  const carreras: Carrera[] = [
+    carrera("r1", "10K Parque Centenario", 12, "CABA", [5, 10], "Retiro de kit el día anterior en el club."),
+    carrera("r2", "5K Solidaria Palermo", 20, "CABA", [3, 5], "Se dona la inscripción a un comedor barrial."),
+    carrera("r3", "Media Maratón de la Ciudad", 45, "CABA", [10, 21.097]),
+    carrera("r4", "Maratón de Buenos Aires", 60, "CABA", [21.097, 42.195], "Largada 7:30. Hidratación cada 5 km."),
+    carrera("r5", "Carrera de la Primavera", 90, "La Plata", [5, 10]),
+    carrera("r6", "Aniversario del Club 5K", -40, "CABA", [5, 10]),
+    carrera("r7", "Correcaminos Rosario 15K", -25, "Rosario", [5, 15]),
+    carrera("r8", "Trail Sierras 21K", -70, "Córdoba", [10, 21.097], "Terreno técnico, llevar mochila de hidratación."),
+  ];
+
+  let n = 0;
+  const ins = (
+    alumnoId: string,
+    carreraId: string,
+    distanciaKm: number,
+    objetivoSeg: number | null,
+    resultadoSeg: number | null = null,
+  ): Inscripcion => ({ id: `i${++n}`, alumnoId, carreraId, distanciaKm, objetivoSeg, resultadoSeg });
+
+  const inscripciones: Inscripcion[] = [
+    ins("a1", "r1", 10, h(0, 52)),
+    ins("a1", "r3", 21.097, h(1, 48)),
+    ins("a1", "r6", 5, h(0, 24, 30), h(0, 25, 10)),
+    ins("a2", "r2", 5, h(0, 35)),
+    ins("a3", "r4", 42.195, h(3, 30)),
+    ins("a3", "r7", 15, h(1, 2), h(1, 2, 40)),
+    ins("a4", "r1", 10, h(0, 58)),
+    ins("a6", "r3", 21.097, h(1, 38)),
+    ins("a8", "r1", 10, h(0, 55)),
+    ins("a9", "r4", 42.195, h(3, 20)),
+    ins("a9", "r8", 21.097, h(2, 5), h(2, 5, 10)),
+    ins("a11", "r3", 21.097, h(1, 55)),
+    ins("a12", "r2", 5, h(0, 23, 30)),
+    ins("a13", "r2", 5, h(0, 33)),
+  ];
+  return { carreras, inscripciones };
 }

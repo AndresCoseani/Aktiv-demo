@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardList, House, LogOut, RotateCcw, Users } from "lucide-react";
+import {
+  ClipboardList,
+  FileCheck2,
+  Flag,
+  HeartPulse,
+  House,
+  LogOut,
+  RotateCcw,
+  Timer,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 import { LogoBadge } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -18,15 +28,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { iniciales } from "@/lib/format";
 import { logout, resetDemo } from "@/lib/store";
+import { MODO_API } from "@/lib/modo";
 import { cn } from "@/lib/utils";
 import type { Session } from "@/lib/types";
 
 const NAV_PROFE = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/alumnos", label: "Alumnos", icon: Users },
+  { href: "/carreras", label: "Carreras", icon: Flag },
+  { href: "/certificados", label: "Certificados", icon: FileCheck2 },
 ];
 
-const NAV_ALUMNO = [{ href: "/mi-plan", label: "Mi plan", icon: ClipboardList }];
+const NAV_ALUMNO = [
+  { href: "/mi-plan", label: "Mi plan", icon: ClipboardList },
+  { href: "/mis-marcas", label: "Marcas", icon: Timer },
+  { href: "/carreras", label: "Carreras", icon: Flag },
+  { href: "/mi-ficha", label: "Ficha", icon: HeartPulse },
+];
 
 export function Navbar({ session }: { session: Session }) {
   const pathname = usePathname();
@@ -35,8 +53,8 @@ export function Navbar({ session }: { session: Session }) {
   const nombreCompleto =
     session.role === "coach" ? "Lucas · Profe" : `${session.nombre} · Alumno`;
 
-  function salir() {
-    logout();
+  async function salir() {
+    await logout();
     router.replace("/login");
   }
 
@@ -98,7 +116,7 @@ export function Navbar({ session }: { session: Session }) {
                 <DropdownMenuLabel>{nombreCompleto}</DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
-              {session.role === "coach" && (
+              {session.role === "coach" && !MODO_API && (
                 <DropdownMenuItem
                   onClick={() => {
                     resetDemo();

@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // proyectos aparte: la API y el paquete compartido tienen su propio build
+    "backend/**",
+    "packages/**",
+    "supabase/**",
   ]),
 ]);
 

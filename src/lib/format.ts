@@ -1,20 +1,13 @@
+import { hoyISO, toISO } from "@aktiv/contrato";
+
+export { hoyISO, toISO };
+
 const MS_DIA = 86_400_000;
 
 /** yyyy-mm-dd → Date a medianoche local (evita el corrimiento por zona horaria) */
 export function parseISO(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
-}
-
-export function toISO(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-export function hoyISO() {
-  return toISO(new Date());
 }
 
 export function sumarDias(dias: number, base = new Date()) {
@@ -35,6 +28,18 @@ export function formatFecha(iso: string, opts?: { conAnio?: boolean }) {
     month: "short",
     ...(opts?.conAnio ? { year: "numeric" } : {}),
   });
+}
+
+/** edad en años cumplidos a hoy */
+export function edadDesde(iso: string) {
+  const nac = parseISO(iso);
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const aunNoCumplio =
+    hoy.getMonth() < nac.getMonth() ||
+    (hoy.getMonth() === nac.getMonth() && hoy.getDate() < nac.getDate());
+  if (aunNoCumplio) edad -= 1;
+  return edad;
 }
 
 export function formatFechaLarga(date = new Date()) {
@@ -80,6 +85,39 @@ export function diaDeHoy() {
   return (new Date().getDay() + 6) % 7;
 }
 
+/** UUID generado en el cliente: sirve igual en la demo y como clave en Supabase */
 export function nuevoId() {
-  return Math.random().toString(36).slice(2, 10);
+  return crypto.randomUUID();
+}
+
+/* ───────────── Tiempos de carrera ───────────── */
+
+/** "45:30" o "1:45:30" → segundos. Devuelve null si no se entiende. */
+export function parseTiempo(texto: string): number | null {
+  const partes = texto.trim().split(":");
+  if (partes.length < 2 || partes.length > 3) return null;
+  if (!partes.every((p) => /^\d{1,2}$/.test(p))) return null;
+  const [h, m, s] = partes.length === 3 ? partes.map(Number) : [0, ...partes.map(Number)];
+  if (m > 59 || s > 59) return null;
+  const total = h * 3600 + m * 60 + s;
+  return total > 0 ? total : null;
+}
+
+/** segundos → "mm:ss" o "h:mm:ss" */
+export function formatTiempo(seg: number) {
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const s = Math.round(seg % 60);
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
+}
+
+/** ritmo medio en min/km, por ejemplo "4:45" */
+export function formatRitmo(seg: number, km: number) {
+  if (!km) return "—";
+  const porKm = seg / km;
+  const m = Math.floor(porKm / 60);
+  const s = Math.round(porKm % 60);
+  return s === 60 ? `${m + 1}:00` : `${m}:${String(s).padStart(2, "0")}`;
 }

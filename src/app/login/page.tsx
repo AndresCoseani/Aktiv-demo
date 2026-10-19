@@ -7,30 +7,40 @@ import { LogoBadge, LogoLockup, LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loginDemoDto, loginDto, validar } from "@/lib/schemas";
 import { login, useHydrated, useStore } from "@/lib/store";
+import { MODO_API } from "@/lib/modo";
 
 export default function LoginPage() {
   const router = useRouter();
   const hydrated = useHydrated();
-  const { session } = useStore();
+  const { session, listo } = useStore();
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
   const [error, setError] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    if (hydrated && session) {
+    if (hydrated && listo && session) {
       router.replace(session.role === "coach" ? "/dashboard" : "/mi-plan");
     }
-  }, [hydrated, session, router]);
+  }, [hydrated, listo, session, router]);
 
-  function enviar(e: React.FormEvent) {
+  async function enviar(e: React.FormEvent) {
     e.preventDefault();
-    const s = login(usuario, clave);
-    if (!s) {
-      setError("Usuario o contraseña incorrectos.");
+    const v = validar(MODO_API ? loginDto : loginDemoDto, { usuario, clave });
+    if (!v.ok) {
+      setError(v.error);
       return;
     }
-    router.replace(s.role === "coach" ? "/dashboard" : "/mi-plan");
+    setEnviando(true);
+    const r = await login(v.datos.usuario, v.datos.clave);
+    setEnviando(false);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    router.replace(r.session.role === "coach" ? "/dashboard" : "/mi-plan");
   }
 
   function rellenar(u: string) {
@@ -65,7 +75,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="usuario">Usuario</Label>
+            <Label htmlFor="usuario">{MODO_API ? "Email" : "Usuario"}</Label>
             <div className="relative">
               <User className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -75,10 +85,11 @@ export default function LoginPage() {
                   setUsuario(e.target.value);
                   setError("");
                 }}
+                type={MODO_API ? "email" : "text"}
                 autoComplete="username"
                 autoCapitalize="none"
                 spellCheck={false}
-                placeholder="admin"
+                placeholder={MODO_API ? "tu@email.com" : "admin"}
                 className="h-10 pl-8"
                 required
               />
@@ -111,12 +122,18 @@ export default function LoginPage() {
             </p>
           )}
 
-          <Button type="submit" size="lg" className="h-10 w-full">
-            Entrar
-            <ArrowRight data-icon="inline-end" />
+          <Button
+            type="submit"
+            size="lg"
+            className="h-10 w-full"
+            disabled={enviando || !listo}
+          >
+            {enviando ? "Entrando…" : "Entrar"}
+            {!enviando && <ArrowRight data-icon="inline-end" />}
           </Button>
         </form>
 
+        {!MODO_API && (
         <div className="mt-6 text-center text-xs text-muted-foreground">
           <p className="mb-2">Cuentas de la demo</p>
           <div className="flex justify-center gap-2">
@@ -136,6 +153,7 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
+        )}
       </div>
     </main>
   );

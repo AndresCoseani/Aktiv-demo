@@ -10,7 +10,7 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox";
-import { EJERCICIOS_CATALOGO, categoriaDe } from "@/lib/data";
+import { EJERCICIOS_CATALOGO, categoriaDe } from "@/lib/dominio";
 import { crearEjercicioPersonalizado, useStore } from "@/lib/store";
 
 const BASE = EJERCICIOS_CATALOGO.map((e) => e.nombre);
@@ -29,7 +29,7 @@ export function EjercicioCombobox({
   const [busqueda, setBusqueda] = useState("");
 
   const nombres = useMemo(
-    () => [...BASE, ...ejerciciosCustom],
+    () => [...BASE, ...ejerciciosCustom.map((e) => e.nombre)],
     [ejerciciosCustom],
   );
 

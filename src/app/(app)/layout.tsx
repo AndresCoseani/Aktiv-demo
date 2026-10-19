@@ -9,13 +9,13 @@ import { useHydrated, useStore } from "@/lib/store";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const hydrated = useHydrated();
-  const { session } = useStore();
+  const { session, listo } = useStore();
 
   useEffect(() => {
-    if (hydrated && !session) router.replace("/login");
-  }, [hydrated, session, router]);
+    if (hydrated && listo && !session) router.replace("/login");
+  }, [hydrated, listo, session, router]);
 
-  if (!hydrated || !session) {
+  if (!hydrated || !listo || !session) {
     return (
       <div className="grid min-h-dvh place-items-center">
         <LogoMark className="size-10 animate-pulse text-muted-foreground" />

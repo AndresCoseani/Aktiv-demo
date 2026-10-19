@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { LIMITES, crearAlumnoDto, validar } from "@/lib/schemas";
 import { crearAlumno } from "@/lib/store";
 import type { Nivel } from "@/lib/types";
 
@@ -31,17 +32,24 @@ export function NuevoAlumnoDialog() {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [nivel, setNivel] = useState<Nivel>("Principiante");
+  const [error, setError] = useState("");
 
   function enviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    const alumno = crearAlumno({
+    const v = validar(crearAlumnoDto, {
       nombre: String(f.get("nombre")).trim(),
       email: String(f.get("email")).trim(),
       telefono: String(f.get("telefono")).trim(),
       objetivo: String(f.get("objetivo")).trim() || "Sin definir",
       nivel,
     });
+    if (!v.ok) {
+      setError(v.error);
+      return;
+    }
+    const alumno = crearAlumno(v.datos);
+    setError("");
     setAbierto(false);
     setNivel("Principiante");
     toast.success(`${alumno.nombre} se sumó al club`);
@@ -50,7 +58,12 @@ export function NuevoAlumnoDialog() {
 
   return (
     <>
-      <Button onClick={() => setAbierto(true)}>
+      <Button
+        onClick={() => {
+          setError("");
+          setAbierto(true);
+        }}
+      >
         <Plus data-icon="inline-start" />
         <span className="hidden sm:inline">Nuevo alumno</span>
         <span className="sm:hidden">Nuevo</span>
@@ -68,16 +81,34 @@ export function NuevoAlumnoDialog() {
 
             <div className="space-y-2">
               <Label htmlFor="n-nombre">Nombre completo</Label>
-              <Input id="n-nombre" name="nombre" required autoComplete="off" />
+              <Input
+                id="n-nombre"
+                name="nombre"
+                required
+                maxLength={LIMITES.nombre}
+                autoComplete="off"
+              />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="n-email">Email</Label>
-                <Input id="n-email" name="email" type="email" autoComplete="off" />
+                <Input
+                  id="n-email"
+                  name="email"
+                  type="email"
+                  maxLength={LIMITES.email}
+                  autoComplete="off"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="n-tel">Teléfono</Label>
-                <Input id="n-tel" name="telefono" type="tel" autoComplete="off" />
+                <Input
+                  id="n-tel"
+                  name="telefono"
+                  type="tel"
+                  maxLength={LIMITES.telefono}
+                  autoComplete="off"
+                />
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -87,6 +118,7 @@ export function NuevoAlumnoDialog() {
                   id="n-objetivo"
                   name="objetivo"
                   placeholder="Ej: Primer 10K"
+                  maxLength={LIMITES.objetivo}
                   autoComplete="off"
                 />
               </div>
@@ -109,6 +141,12 @@ export function NuevoAlumnoDialog() {
                 </Select>
               </div>
             </div>
+
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setAbierto(false)}>

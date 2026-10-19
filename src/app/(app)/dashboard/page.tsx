@@ -70,7 +70,7 @@ export default function DashboardPage() {
       <header>
         <p className="text-sm text-muted-foreground">{formatFechaLarga()}</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Hola, Lucas!
+          Hola, {session.nombre.split(" ")[0]}!
         </h1>
       </header>
 

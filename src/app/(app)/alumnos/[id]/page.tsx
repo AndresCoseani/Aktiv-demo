@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Banknote, Mail, Phone, UserSearch } from "lucide-react";
 import { toast } from "sonner";
+import { CarrerasDeAlumno } from "@/components/carreras-view";
 import { EstadoBadge, PagoTexto } from "@/components/estado";
+import { FichaMedica } from "@/components/ficha-medica";
+import { MarcasPanel } from "@/components/marcas-panel";
 import { NotasCard } from "@/components/notas-card";
 import { PlanEditor } from "@/components/plan-editor";
 import { SemanaCard } from "@/components/semana-card";
@@ -19,6 +22,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { estadoCertificado } from "@/lib/dominio";
 import {
   diasHasta,
   formatFecha,
@@ -72,6 +77,15 @@ export default function AlumnoDetallePage() {
     toast.success(`Pago registrado. Próximo: ${formatFecha(siguiente)}`);
   }
 
+  const estadoCert = estadoCertificado(alumno.ficha.certificado);
+  const avisoCertificado = estadoCert === "vigente" ? null : estadoCert;
+  const textoAviso =
+    estadoCert === "sin-certificado"
+      ? "Sin certificado médico"
+      : estadoCert === "vencido"
+        ? "Certificado médico vencido"
+        : "Certificado médico por vencer";
+
   return (
     <div className="space-y-6">
       <div className="space-y-4">
@@ -111,6 +125,34 @@ export default function AlumnoDetallePage() {
         </header>
       </div>
 
+      <Tabs defaultValue="resumen" className="gap-6">
+        <TabsList className="h-9 w-full sm:w-fit">
+          <TabsTrigger value="resumen" className="sm:px-4">
+            Resumen
+          </TabsTrigger>
+          <TabsTrigger value="ficha" className="sm:px-4">
+            Ficha médica
+            {avisoCertificado && (
+              <span
+                aria-label={textoAviso}
+                title={textoAviso}
+                className={
+                  avisoCertificado === "vencido" || avisoCertificado === "sin-certificado"
+                    ? "size-1.5 rounded-full bg-destructive"
+                    : "size-1.5 rounded-full bg-warning"
+                }
+              />
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="marcas" className="sm:px-4">
+            Marcas
+          </TabsTrigger>
+          <TabsTrigger value="carreras" className="sm:px-4">
+            Carreras
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="resumen" className="space-y-6">
       <section aria-label="Estado y pago" className="grid gap-3 sm:grid-cols-2">
         <Card className="gap-3 py-4">
           <CardHeader className="px-4">
@@ -178,6 +220,18 @@ export default function AlumnoDetallePage() {
         />
         <PlanEditor alumno={alumno} />
       </div>
+        </TabsContent>
+
+        <TabsContent value="ficha">
+          <FichaMedica alumno={alumno} />
+        </TabsContent>
+        <TabsContent value="marcas">
+          <MarcasPanel alumno={alumno} />
+        </TabsContent>
+        <TabsContent value="carreras">
+          <CarrerasDeAlumno alumno={alumno} puedeAsignar />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

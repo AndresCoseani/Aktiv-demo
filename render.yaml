@@ -1,0 +1,49 @@
+# Despliegue de la API de Aktiv en Render (Blueprint).
+# Render lo lee desde la raíz del repo: New → Blueprint → elegir el repo.
+#
+# Los valores marcados `sync: false` los pide Render al crear el servicio
+# (son secretos o dependen de tu cuenta): no se guardan en este archivo.
+services:
+  - type: web
+    name: aktiv-api
+    runtime: node
+    plan: free
+    # Ohio / Virginia son las regiones más cercanas a Supabase (ca-central-1, Montreal).
+    # Cuanto más cerca de la base, más rápida responde la API.
+    region: ohio
+    branch: main
+    autoDeploy: true
+
+    # Instala SOLO la API y el contrato (no Next ni el resto): ~40 s y poca memoria.
+    # `--include=dev` es necesario: Render usa NODE_ENV=production y sin esto no
+    # instalaría `nest` ni `typescript`, y el build fallaría.
+    buildCommand: npm install --include=dev --workspace=@aktiv/contrato --workspace=@aktiv/backend && npm run build:api
+    startCommand: node backend/dist/main.js
+    healthCheckPath: /api/health
+
+    # solo reconstruye cuando cambia algo que afecta a la API
+    buildFilter:
+      paths:
+        - backend/**
+        - packages/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # delante de la API hay dos proxies (Vercel y el balanceador de Render)
+      - key: TRUST_PROXY
+        value: "2"
+      # Project URL de Supabase, p. ej. https://<ref>.supabase.co
+      - key: SUPABASE_URL
+        sync: false
+      # clave PUBLISHABLE (sb_publishable_...). Nunca la secret.
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # URL del frontend en Vercel, p. ej. https://aktiv.vercel.app (sin barra final)
+      - key: WEB_ORIGIN
+        sync: false

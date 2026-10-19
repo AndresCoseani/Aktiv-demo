@@ -8,13 +8,13 @@ import { useHydrated, useStore } from "@/lib/store";
 export default function Home() {
   const router = useRouter();
   const hydrated = useHydrated();
-  const { session } = useStore();
+  const { session, listo } = useStore();
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !listo) return;
     if (!session) router.replace("/login");
     else router.replace(session.role === "coach" ? "/dashboard" : "/mi-plan");
-  }, [hydrated, session, router]);
+  }, [hydrated, listo, session, router]);
 
   return (
     <div className="grid min-h-dvh place-items-center">

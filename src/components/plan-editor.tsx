@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { admitePeso } from "@/lib/data";
+import { admitePeso } from "@/lib/dominio";
+import { LIMITES, crearPlanDto, validar } from "@/lib/schemas";
 import { hoyISO } from "@/lib/format";
 import {
   activarPlan,
@@ -54,7 +55,12 @@ export function PlanEditor({ alumno }: { alumno: Alumno }) {
   function crear(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const nombre = String(new FormData(e.currentTarget).get("nombre")).trim();
-    const nuevo = crearPlan(alumno.id, nombre || `Plan ${alumno.planes.length + 1}`);
+    const v = validar(crearPlanDto, { nombre: nombre || `Plan ${alumno.planes.length + 1}` });
+    if (!v.ok) {
+      toast.error(v.error);
+      return;
+    }
+    const nuevo = crearPlan(alumno.id, v.datos.nombre);
     setSeleccionId(nuevo.id);
     setNuevoAbierto(false);
     toast.success("Plan creado");
@@ -125,6 +131,7 @@ export function PlanEditor({ alumno }: { alumno: Alumno }) {
                 value={plan.nombre}
                 onChange={(e) => renombrarPlan(alumno.id, plan.id, e.target.value)}
                 aria-label="Nombre del plan"
+                maxLength={LIMITES.nombre}
                 className="h-9 min-w-0 flex-1 basis-32 border-transparent bg-transparent px-2 text-base font-semibold hover:border-input focus-visible:border-ring dark:bg-transparent"
               />
               {esActivo ? (
@@ -215,6 +222,7 @@ export function PlanEditor({ alumno }: { alumno: Alumno }) {
                           }
                           aria-label={`Repeticiones del ejercicio ${i + 1}`}
                           placeholder="12"
+                          maxLength={LIMITES.repeticiones}
                         />
                       </label>
                       {admitePeso(ej.nombre) ? (
@@ -287,6 +295,7 @@ export function PlanEditor({ alumno }: { alumno: Alumno }) {
               <Input
                 id="plan-nombre"
                 name="nombre"
+                maxLength={LIMITES.nombre}
                 placeholder="Ej: Semana 3 · Velocidad"
                 autoComplete="off"
                 autoFocus

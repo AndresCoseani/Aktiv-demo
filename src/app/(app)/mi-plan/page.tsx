@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CircleCheck } from "lucide-react";
+import Link from "next/link";
+import { CircleCheck, TriangleAlert } from "lucide-react";
 import { NotasCard } from "@/components/notas-card";
 import { PesoInput } from "@/components/peso-input";
 import { SemanaCard } from "@/components/semana-card";
@@ -13,19 +14,34 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { admitePeso, categoriaDe } from "@/lib/data";
-import { formatFecha, formatFechaLarga, hoyISO } from "@/lib/format";
+import { admitePeso, categoriaDe, distanciaLabel, estadoCertificado } from "@/lib/dominio";
+import { diasHasta, formatFecha, formatFechaLarga, hoyISO } from "@/lib/format";
 import { useRol } from "@/lib/guards";
 import { actualizarAlumno, actualizarEjercicio, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export default function MiPlanPage() {
   const session = useRol("alumno");
-  const { alumnos } = useStore();
+  const { alumnos, carreras, inscripciones } = useStore();
   const [seleccionId, setSeleccionId] = useState<string | null>(null);
 
   const alumno = alumnos.find((a) => a.id === session?.alumnoId);
-  if (!session || !alumno) return null;
+  if (!session) return null;
+  if (!alumno) {
+    return (
+      <p className="rounded-xl border border-dashed py-16 text-center text-sm text-muted-foreground">
+        Tu cuenta todavía no está asociada a un alumno. Hablá con tu profe.
+      </p>
+    );
+  }
+
+  const proxima = inscripciones
+    .filter((i) => i.alumnoId === alumno.id)
+    .map((i) => ({ i, carrera: carreras.find((c) => c.id === i.carreraId) }))
+    .filter((x) => x.carrera && x.carrera.fecha >= hoyISO())
+    .sort((a, b) => a.carrera!.fecha.localeCompare(b.carrera!.fecha))[0];
+  const proximaCarrera = proxima?.carrera;
+  const estadoCert = estadoCertificado(alumno.ficha.certificado);
 
   const plan =
     alumno.planes.find((p) => p.id === seleccionId) ??
@@ -38,19 +54,53 @@ export default function MiPlanPage() {
         <div>
           <p className="text-sm text-muted-foreground">{formatFechaLarga()}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Hola, {session.nombre}!
+            Hola, {session.nombre.split(" ")[0]}!
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Este es el plan que armó Lucas para vos.
+            Este es el plan que armó tu profe para vos.
           </p>
         </div>
-        {alumno.activo && alumno.proximoPago && (
-          <div className="rounded-xl border bg-card px-4 py-2.5 text-sm">
-            <p className="text-xs text-muted-foreground">Próximo pago</p>
-            <PagoTexto fecha={alumno.proximoPago} />
-          </div>
-        )}
+        <div className="flex flex-wrap gap-3">
+          {proximaCarrera && (
+            <Link
+              href="/carreras"
+              className="rounded-xl border bg-card px-4 py-2.5 text-sm transition-colors hover:bg-muted/50"
+            >
+              <p className="text-xs text-muted-foreground">Próxima carrera</p>
+              <p className="max-w-48 truncate font-medium">{proximaCarrera.nombre}</p>
+              <p className="text-xs text-primary">
+                {distanciaLabel(proxima.i.distanciaKm)} ·{" "}
+                {diasHasta(proximaCarrera.fecha) === 0
+                  ? "Hoy"
+                  : `en ${diasHasta(proximaCarrera.fecha)} días`}
+              </p>
+            </Link>
+          )}
+          {alumno.activo && alumno.proximoPago && (
+            <div className="rounded-xl border bg-card px-4 py-2.5 text-sm">
+              <p className="text-xs text-muted-foreground">Próximo pago</p>
+              <PagoTexto fecha={alumno.proximoPago} />
+            </div>
+          )}
+        </div>
       </header>
+
+      {estadoCert !== "vigente" && (
+        <Link
+          href="/mi-ficha"
+          className="flex items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm transition-colors hover:bg-warning/15"
+        >
+          <TriangleAlert className="size-5 shrink-0 text-warning" />
+          <span>
+            {estadoCert === "sin-certificado"
+              ? "Todavía no cargaste tu certificado médico."
+              : estadoCert === "vencido"
+                ? "Tu certificado médico está vencido."
+                : "Tu certificado médico está por vencer."}{" "}
+            <span className="font-medium underline underline-offset-2">Actualizalo en Mi ficha</span>
+          </span>
+        </Link>
+      )}
 
       <SemanaCard semana={alumno.semana} />
 
@@ -61,7 +111,7 @@ export default function MiPlanPage() {
             <CardDescription>
               {plan
                 ? plan.nombre
-                : "Todavía no tenés un plan cargado. Lucas lo va a subir pronto."}
+                : "Todavía no tenés un plan cargado. Tu profe lo va a subir pronto."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
