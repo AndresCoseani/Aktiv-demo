@@ -73,13 +73,13 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
     </div>
     {datos.cargando ? <p role="status" className="py-8 text-sm text-muted-foreground">Cargando planes…</p> : datos.error ?
       <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm"><p>{datos.error}</p><Button variant="outline" size="sm" className="mt-2" onClick={datos.reintentar}>Reintentar</Button></div> : <>
-      {editable && visibles.length > 0 && <div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">
+      {editable && visibles.length > 1 && <div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">
         {visibles.map((p) => <Button key={p.id} variant={p.id === plan?.id ? "secondary" : "outline"} size="sm" aria-pressed={p.id === plan?.id} onClick={() => navegar(() => setSeleccion(p.id))}>
           {p.activo && <Check className="size-3.5" />}{p.nombre || "Sin nombre"}
         </Button>)}
       </div>}
       {plan ? <>
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-5 pt-1">
           <div className="min-w-0 flex-1 basis-48"><p className="break-words font-medium">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
           {editable && <div className="flex gap-2">
             {!plan.activo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => navegar(() => void accion("activar"))}>Activar plan</Button>}
@@ -205,14 +205,14 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
     {!actual && <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{hoyISO() < plan.inicio ? "Este plan todavía no empezó." : `Este plan de ${plan.semanas} semanas terminó.`} Podés consultar sus semanas.</p>}
     <div role="group" aria-label="Tipo de entrenamiento" className="flex gap-2">{(["Fuerza", "Running"] as const).map((t) => <Button key={t} disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}</div>
     {(sesiones.length > 0 || editable) && <div className="space-y-2">
-      <h3 className="text-sm font-semibold">Días de {tipo.toLowerCase()}</h3>
+      <h3 className="sr-only">Días de {tipo.toLowerCase()}</h3>
       <div role="group" aria-label="Días del entrenamiento" className="flex flex-wrap gap-2">
         {sesiones.map((s, i) => <Button key={s.id} size="sm" variant={sesion?.id === s.id ? "secondary" : "outline"} aria-label={`Día ${i + 1}`} aria-pressed={sesion?.id === s.id} disabled={ocupado} onClick={() => navegar(() => setSeleccionSesion(s.id))}>Día {i + 1}</Button>)}
         {editable && <Button variant="outline" size="sm" disabled={ocupado} onClick={() => navegar(() => void nuevaSesion())}><Plus />{ocupado ? "Creando día…" : `Crear Día ${sesiones.length + 1}`}</Button>}
       </div>
     </div>}
     {sesion && <div className="min-w-0 space-y-2">
-      <p className="text-xs text-muted-foreground">Progresión del Día {numeroDia} · Semana {semana} de {plan.semanas}</p>
+      <p className="text-xs text-muted-foreground">Semana {semana} de {plan.semanas}</p>
       <SemanasPlan total={plan.semanas} semana={semana} actual={actual} onSeleccionar={setSemana} />
     </div>}
     {sesion ? editable ? <EditorSesion key={sesion.id} sesion={sesion} numeroDia={numeroDia} semana={semana} semanasVisibles={semanasVisibles} totalSemanas={plan.semanas} /> : <LecturaSesion key={sesion.id} sesion={sesion} semana={semana} /> :
@@ -312,11 +312,10 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       avisarCambioMensual(); setConfirmar(false); setQuitar(null);
     } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
   }
-  return <Card className="gap-4"><CardHeader><div className="flex items-center justify-between gap-2"><div><CardTitle>{borrador.nombre || sesion.tipo}</CardTitle><CardDescription>{borrador.tipo} · Día {numeroDia}{borrador.dia ? ` · ${DIAS_PLAN[borrador.dia - 1]}` : " · Sin día fijo"}</CardDescription></div><Button type="button" variant="ghost" size="icon-sm" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></CardHeader>
-    <CardContent><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-5">
-      <fieldset className="min-w-0 space-y-5">
-        <label className="block space-y-1 text-xs text-muted-foreground">Nombre del día<Input value={borrador.nombre} maxLength={60} onChange={(e) => setBorrador({ ...borrador, nombre: e.target.value })} /></label>
-        <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Asignar día de la semana (opcional)</summary><label className="mt-3 block max-w-xs space-y-1">Día calendario<select className={selector} value={borrador.dia ?? ""} onChange={(e) => setBorrador({ ...borrador, dia: e.target.value ? Number(e.target.value) : null })}><option value="">Sin día fijo</option>{DIAS_PLAN.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}</select></label></details>
+  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-center justify-between gap-2"><div><CardTitle className="text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle>{borrador.dia && <CardDescription>{DIAS_PLAN[borrador.dia - 1]}</CardDescription>}</div><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></CardHeader>
+    <CardContent><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50">
+      <fieldset className="min-w-0 space-y-8">
+        <details className="text-xs text-muted-foreground"><summary className="w-fit cursor-pointer py-1">Editar nombre y día calendario</summary><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="block space-y-1">Nombre del día<Input value={borrador.nombre} maxLength={60} onChange={(e) => setBorrador({ ...borrador, nombre: e.target.value })} /></label><label className="block space-y-1">Día calendario (opcional)<select className={selector} value={borrador.dia ?? ""} onChange={(e) => setBorrador({ ...borrador, dia: e.target.value ? Number(e.target.value) : null })}><option value="">Sin día fijo</option>{DIAS_PLAN.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}</select></label></div></details>
         <EntradaEnCalorEditor texto={borrador.calentamiento} ejercicios={borrador.activacion} onTexto={(calentamiento) => setBorrador((anterior) => ({ ...anterior, calentamiento }))} onEjercicios={(activacion) => setBorrador((anterior) => ({ ...anterior, activacion }))} />
         <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Entrenamiento</h3><div className="flex flex-wrap gap-2">
           {semana > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setBorrador((b) => ({ ...b, ejercicios: b.ejercicios.map((e) => ({ ...e, semanas: e.semanas.map((c) => c.semana === semana ? { ...c, prescripcion: c.prescripcion.trim() ? c.prescripcion : prescripcionEfectiva(e.semanas, semana - 1) } : c) })) }))}>Completar vacíos de S{semana} con S{semana - 1}</Button>}
@@ -334,9 +333,9 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
 
 function LecturaSesion({ sesion, semana }: { sesion: SesionEntrenamiento; semana: number }) {
   const grupos = bloquesDelPlan(sesion.ejercicios, sesion.bloques).filter((grupo) => sesion.ejercicios.some((e) => e.grupo === grupo));
-  return <Card><CardHeader><CardTitle>{sesion.nombre || sesion.tipo}</CardTitle><CardDescription>{sesion.tipo} · Semana {semana}</CardDescription></CardHeader><CardContent className="space-y-5">
+  return <Card className="gap-8"><CardHeader><CardTitle>{sesion.nombre || sesion.tipo}</CardTitle><CardDescription>{sesion.tipo} · Semana {semana}</CardDescription></CardHeader><CardContent className="space-y-10 sm:space-y-12">
     {(sesion.calentamiento || sesion.activacion.length > 0) && <section className="space-y-3"><h3 className="text-sm font-semibold">Entrada en calor</h3>{sesion.activacion.length > 0 && <ol className="space-y-2 text-sm">{sesion.activacion.map((e, indice) => <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span className="min-w-0 break-words font-medium">{indice + 1}. {e.nombre || "Ejercicio sin nombre"}</span>{e.indicacion && <span className="whitespace-pre-wrap break-words text-foreground">{e.indicacion}</span>}</li>)}</ol>}{sesion.calentamiento && <div className="space-y-1 border-t pt-3"><p className="text-xs text-muted-foreground">Indicaciones generales</p><p className="whitespace-pre-wrap break-words text-sm text-foreground">{sesion.calentamiento}</p></div>}</section>}
-    {grupos.map((grupo) => <section key={grupo} className="space-y-2"><h3 className="text-sm font-semibold">Bloque {grupos.indexOf(grupo) + 1}{sesion.ejercicios.filter((e) => e.grupo === grupo).length > 1 ? " ? Ejercicios juntos" : " ? Ejercicio individual"}</h3><ul className="divide-y rounded-xl border">{sesion.ejercicios.filter((e) => e.grupo === grupo).map((e) => <li key={e.id} className="space-y-2 p-3"><p className="break-words text-sm font-medium">{e.nombre || "Ejercicio sin nombre"}</p><p className="break-words text-sm text-primary">{prescripcionEfectiva(e.semanas, semana) || "Sin indicación"}</p>{e.descanso && <p className="text-xs text-muted-foreground">Descanso: {e.descanso}</p>}{sesion.tipo === "Fuerza" && <PesoSemanal key={`${e.id}:${semana}`} ejercicio={e} semana={semana} />}</li>)}</ul></section>)}
+    {grupos.map((grupo) => <section key={grupo} aria-label={`Bloque ${grupos.indexOf(grupo) + 1}`} className="space-y-4"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><h3 className="text-base font-semibold">Bloque {grupos.indexOf(grupo) + 1}</h3><p className="text-xs text-muted-foreground">{sesion.ejercicios.filter((e) => e.grupo === grupo).length > 1 ? "Ejercicios juntos" : "Ejercicio individual"}</p></div><ul className="divide-y divide-border/50 rounded-xl bg-muted/20 px-4 ring-1 ring-border/50 sm:px-5">{sesion.ejercicios.filter((e) => e.grupo === grupo).map((e) => <li key={e.id} className="space-y-4 py-5 sm:py-6"><div className="space-y-2"><p className="break-words text-sm font-medium">{e.nombre || "Ejercicio sin nombre"}</p><p className="break-words text-base font-medium text-primary">{prescripcionEfectiva(e.semanas, semana) || "Sin indicación"}</p>{e.descanso && <p className="text-xs text-muted-foreground">Descanso: {e.descanso}</p>}</div>{sesion.tipo === "Fuerza" && <PesoSemanal key={`${e.id}:${semana}`} ejercicio={e} semana={semana} />}</li>)}</ul></section>)}
     {!sesion.ejercicios.length && <p className="text-sm text-muted-foreground">Esta sesión todavía no tiene ejercicios.</p>}
     {sesion.enfriamiento && <section><h3 className="mb-2 text-sm font-semibold">Vuelta a la calma</h3><p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{sesion.enfriamiento}</p></section>}
   </CardContent></Card>;
@@ -355,5 +354,5 @@ function PesoSemanal({ ejercicio, semana }: { ejercicio: EjercicioMensual; seman
       avisarCambioMensual(); toast.success("Peso guardado para esta semana");
     } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
   }
-  return <form onSubmit={guardar} className="space-y-1"><div className="flex flex-wrap items-end gap-2"><label className="text-xs text-muted-foreground">Peso usado · kg<Input aria-label={`Peso de ${ejercicio.nombre}, semana ${semana}`} inputMode="decimal" maxLength={10} className="mt-1 w-28" value={peso} onChange={(e) => setPeso(e.target.value)} disabled={ocupado || !celda} /></label><Button type="submit" size="sm" variant="outline" disabled={ocupado || !celda || peso === (celda.peso ?? "")}>{ocupado ? "Guardando…" : "Guardar peso"}</Button></div>{celda?.pesoFecha && <p className="text-xs text-muted-foreground">Registrado el {formatFecha(celda.pesoFecha)}</p>}{error && <p role="alert" className="text-xs text-destructive">{error}</p>}</form>;
+  return <form onSubmit={guardar} className="space-y-1"><div className="flex flex-wrap items-end gap-2"><label className="flex flex-col gap-2 text-xs text-muted-foreground">Peso usado · kg<Input aria-label={`Peso de ${ejercicio.nombre}, semana ${semana}`} inputMode="decimal" maxLength={10} className="w-28" value={peso} onChange={(e) => setPeso(e.target.value)} disabled={ocupado || !celda} /></label><Button type="submit" size="sm" variant="outline" disabled={ocupado || !celda || peso === (celda.peso ?? "")}>{ocupado ? "Guardando…" : "Guardar peso"}</Button></div>{celda?.pesoFecha && <p className="text-xs text-muted-foreground">Registrado el {formatFecha(celda.pesoFecha)}</p>}{error && <p role="alert" className="text-xs text-destructive">{error}</p>}</form>;
 }

@@ -127,6 +127,7 @@ try {
     assert.equal(await texto.inputValue(), "Una sola serie por ejercicio");
     await page.getByRole("button", { name: "Reintentar guardado", exact: true }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    await entrada.getByText("Filtro del catálogo", { exact: true }).click();
     await entrada.getByRole("checkbox", { name: "Solo movilidad y activación", exact: true }).uncheck();
     await entrada.getByRole("button", { name: "Agregar ejercicio de entrada en calor", exact: true }).click();
     await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).nth(1).fill("Hip thrust");
@@ -134,6 +135,7 @@ try {
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].activacion[1].nombre, "Hip thrust");
     assert.equal(await entrada.getByLabel("Indicación de activación 1", { exact: true }).getAttribute("placeholder"), "Opcional");
+    await entrada.locator("[data-activacion-id]").first().evaluate((e) => e.scrollIntoView({ block: "center", behavior: "instant" }));
     const origen = await entrada.getByRole("button", { name: "Reordenar activación 2", exact: true }).boundingBox();
     const destinoFila = await entrada.locator("[data-activacion-id]").first().boundingBox();
     await page.mouse.move(origen.x + origen.width / 2, origen.y + origen.height / 2);
@@ -167,6 +169,8 @@ try {
     assert.equal(planes[0].sesiones[0].activacion.length, 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     await page.screenshot({ path: join(destino, "entrada-calor-mixta.png"), fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.screenshot({ path: join(destino, "plan-minimal-escritorio.png"), fullPage: true });
     await ctx.close();
     const alumno = await pagina("alumno", 390);
     await alumno.page.goto(`${baseUrl}/mi-plan`);
@@ -179,6 +183,10 @@ try {
     const generalesLectura = await alumno.page.getByText("Una sola serie por ejercicio", { exact: true }).boundingBox();
     assert(Math.abs(nombreLectura.y - dosisLectura.y) < 5, "La indicación debe estar al lado del ejercicio cuando entra");
     assert(generalesLectura.y > nombreLectura.y, "Las indicaciones generales deben estar al final");
+    const bloqueAlumno = alumno.page.getByRole("region", { name: "Bloque 1", exact: true });
+    assert.equal(await bloqueAlumno.getByRole("heading").innerText(), "Bloque 1");
+    const espacioEjercicio = await bloqueAlumno.locator("li").first().evaluate((e) => Number.parseFloat(getComputedStyle(e).paddingTop));
+    assert(espacioEjercicio >= 20, "Cada ejercicio debe tener espacio interior para separar la lectura y el registro de peso");
     await alumno.ctx.close();
     assert.deepEqual(errores, []);
     console.log("OK: texto libre + catálogo de activación, dosis, error/reintento, otros tipos, quitar, recarga y lectura del alumno.");
