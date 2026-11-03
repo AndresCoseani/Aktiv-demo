@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORIAS, EJERCICIOS_CATALOGO } from "@/lib/dominio";
+import { CATEGORIAS } from "@/lib/dominio";
+import { claveEjercicio } from "@aktiv/contrato";
 import { useRol } from "@/lib/guards";
 import { LIMITES, crearEjercicioCustomDto, validar } from "@/lib/schemas";
 import {
@@ -37,7 +38,6 @@ import { cn } from "@/lib/utils";
 
 type Fila = { nombre: string; categoria: CategoriaEjercicio; propio?: EjercicioCustom };
 
-const sinTildes = (t: string) => t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 export default function EjerciciosPage() {
   const session = useRol("coach");
@@ -52,16 +52,15 @@ export default function EjerciciosPage() {
 
   const filas: Fila[] = useMemo(
     () => [
-      ...EJERCICIOS_CATALOGO,
       ...ejerciciosCustom.map((e) => ({ nombre: e.nombre, categoria: e.categoria, propio: e })),
     ],
     [ejerciciosCustom],
   );
 
   const visibles = useMemo(() => {
-    const q = sinTildes(busqueda.trim());
+    const q = claveEjercicio(busqueda);
     return filas.filter(
-      (f) => (categoria === "todas" || f.categoria === categoria) && sinTildes(f.nombre).includes(q),
+      (f) => (categoria === "todas" || f.categoria === categoria) && claveEjercicio(f.nombre).includes(q),
     );
   }, [filas, busqueda, categoria]);
 
@@ -94,7 +93,7 @@ export default function EjerciciosPage() {
       toast.success(`“${v.datos.nombre}” se actualizó`);
       return;
     }
-    const yaEstaba = filas.some((f) => f.nombre.toLowerCase() === v.datos.nombre.toLowerCase());
+    const yaEstaba = filas.some((f) => claveEjercicio(f.nombre) === claveEjercicio(v.datos.nombre));
     if (yaEstaba) {
       setError("Ese ejercicio ya está en la lista");
       return;

@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { diasHasta } from "./format";
 import { LIMITES } from "./schemas";
+import { claveEjercicio } from "@aktiv/contrato";
 
 /**
  * Reglas y constantes del dominio: puras, sin acceso a datos.
@@ -15,52 +16,7 @@ import { LIMITES } from "./schemas";
 
 /* ───────────── Catálogo de ejercicios ───────────── */
 
-const CATALOGO_POR_CATEGORIA: Record<CategoriaEjercicio, string[]> = {
-  "Series y ritmo": [
-    "Series 400 m",
-    "Series 800 m",
-    "Series 1000 m",
-    "Fartlek",
-    "Tempo run",
-    "Trote regenerativo",
-    "Fondo largo",
-    "Cuestas 30 m",
-  ],
-  "Técnica de carrera": [
-    "Skipping A",
-    "Skipping B",
-    "Talones al glúteo",
-    "Rodillas altas",
-    "Zancadas dinámicas",
-    "Pasadas progresivas",
-  ],
-  Fuerza: [
-    "Sentadilla búlgara",
-    "Peso muerto rumano",
-    "Puente de glúteo",
-    "Step-up al cajón",
-    "Estocadas caminando",
-    "Elevación de talones",
-    "Plancha frontal",
-    "Plancha lateral",
-    "Bicho muerto",
-  ],
-  Movilidad: [
-    "Movilidad de cadera",
-    "Movilidad de tobillo",
-    "Foam roller de cuádriceps",
-    "Estiramiento de isquiotibiales",
-  ],
-};
-
-export const EJERCICIOS_CATALOGO: { nombre: string; categoria: CategoriaEjercicio }[] =
-  (Object.entries(CATALOGO_POR_CATEGORIA) as [CategoriaEjercicio, string[]][]).flatMap(
-    ([categoria, nombres]) => nombres.map((nombre) => ({ nombre, categoria })),
-  );
-
-const CATEGORIA_POR_NOMBRE = new Map(
-  EJERCICIOS_CATALOGO.map((e) => [e.nombre, e.categoria]),
-);
+// Catalogo obtenido exclusivamente desde la base de datos.
 
 /** Las partes de una sesión, en el orden en que se hacen, con una pista de qué va en cada una */
 export const BLOQUES: { bloque: Bloque; pista: string }[] = [
@@ -88,9 +44,14 @@ export const CATEGORIAS: CategoriaEjercicio[] = [
 
 type EjercicioDelProfe = { nombre: string; categoria: CategoriaEjercicio };
 
-/** el catálogo base (del código) más los ejercicios que el profe agregó */
+/** Catálogo del profesor, sin opciones equivalentes repetidas. */
 export function catalogoCompleto(custom: readonly EjercicioDelProfe[]) {
-  return [...EJERCICIOS_CATALOGO, ...custom];
+  const nombres = new Set<string>();
+  return custom.filter((e) => {
+    const clave = claveEjercicio(e.nombre);
+    if (nombres.has(clave)) return false;
+    nombres.add(clave); return true;
+  });
 }
 
 /**
@@ -109,8 +70,7 @@ export function admitePeso(nombre: string, custom: readonly EjercicioDelProfe[] 
 export function categoriaDe(nombre: string, custom: readonly EjercicioDelProfe[] = []) {
   if (!nombre) return undefined;
   return (
-    CATEGORIA_POR_NOMBRE.get(nombre) ??
-    custom.find((e) => e.nombre === nombre)?.categoria ??
+    custom.find((e) => claveEjercicio(e.nombre) === claveEjercicio(nombre))?.categoria ??
     "Personalizado"
   );
 }

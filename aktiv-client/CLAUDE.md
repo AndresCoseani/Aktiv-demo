@@ -2,6 +2,34 @@
 
 # Aktiv Client (Next.js)
 
+## Actualización: días numerados y autoguardado
+
+Última decisión para demo: selector simple Día 1/Día 2 en Plan, sin tarjetas/gráfico. El calendario semanal queda solo en Resumen del detalle del alumno; Mi plan no muestra ese gráfico. Si hay sesiones sin fecha, no indicar descanso en los huecos: mostrar Sin asignar. Se revisará con Lucas. Preguntas en `../PREGUNTAS-LUCAS-2026-11-03.md`.
+
+`EntradaEnCalorEditor` combina `calentamiento` texto libre y `activacion` ejercicios elegidos del catálogo con indicación individual. Filtro Movilidad por defecto, desmarcable para todas las categorías. Lista snapshot de nombres, no referencias borrables al catálogo. Autoguardado en cabecera de sesión y lectura del alumno con ambas partes. Requiere migración 35; no convertir ni descartar texto anterior. Prueba `--calentamiento`.
+
+El catálogo ya no incluye ejercicios fijos del código. `catalogoCompleto` deduplica solo los recibidos de la base; la página Ejercicios también muestra únicamente esas filas. Migración 34 reemplaza el catálogo con los 11 ejercicios de la foto por profesor, a pedido de Andrés. Los nombres históricos elegidos en planes siguen visibles; no borrar ejercicios de planes al limpiar el catálogo.
+
+Grilla de prescripciones sin grupos fijos de cuatro: `EditorEjerciciosPlan` mide su ancho y calcula columnas legibles; móvil muestra la semana seleccionada. No limitar `semanasVisibles` en el padre a cuatro. `--semanas` comprueba planes de cinco/doce semanas.
+
+Identidad del catálogo: `claveEjercicio`/`limpiarNombreEjercicio` nacen en contrato. Búsqueda, deduplicación de opciones, categoría y prevención de duplicados en store usan la misma clave. Mantener nombres legibles; no guardar el nombre como slug ni reescribir registros anteriores. `--catalogo` cubre variantes Hiptrust/Hip Trust/HIP_TRUST.
+
+Flujo de tarjetas: Crear bloque crea una tarjeta vacía al final, persistida en `sesiones.bloques` mediante autoguardado (requiere migración 33). Agregar ejercicio vive dentro de cada tarjeta y recibe su grupo, no crea otro bloque. Orden de `bloques` prevalece y se incorporan grupos de ejercicios aún no listados para compatibilidad. Prueba `--bloques-vacios` cubre recarga, añadir dos en una tarjeta y eliminar la vacía.
+
+Altas de ejercicios optimistas: tarjeta local inmediata al final, POST serializado con el guardado de campos, alta pendiente conservada ante error. No remontar el formulario por cambios en la lista de IDs: perdería ediciones durante pedidos lentos. Bajas de ejercicios confirmadas actualizan borrador y baseline local. El orden de tarjetas sigue el orden de ejercicios, no el ID numérico del grupo. `scripts/mensual.browser.mjs --alta` cubre estos casos.
+
+Nuevo plan incluye nombre, semanas, Running/Fuerza/ambos, cantidad de días (1–7 por tipo seleccionado) e inicio. Envía `diasIniciales` en el POST; el servidor crea todo atómicamente (requiere migración 32 después de 31). No hacer múltiples POST de días desde el navegador al crear el plan. El botón Crear Día N permite ampliar después.
+
+El editor/lector del plan organiza Fuerza y Running en Día 1, Día 2, etc. según el orden de sesiones de cada tipo. `dia` ahora admite null: el calendario es opcional y se conservan las asignaciones anteriores. Requiere migración 31. La edición de ejercicios, calentamiento y prescripciones se guarda automáticamente tras 800 ms, con pedidos serializados, borrador conservado ante error y reintento explícito. Se puede escribir durante el guardado; los cambios nuevos se envían después. La navegación se bloquea mientras hay cambios pendientes. Altas, eliminaciones y el modal de metadatos siguen siendo acciones explícitas. Esto reemplaza las referencias históricas al guardado manual de sesiones.
+
+## Actualización: planes mensuales
+
+Corrección posterior: la UI usa “Plan de entrenamiento” y permite elegir duración en semanas al crear/editar. Cuatro es solo el valor inicial; escritorio pagina columnas en grupos de cuatro y celular muestra una semana. Requiere migración 30 de la API. El resumen calcula la semana con la duración real del plan. Ver `../INVESTIGACION-PLANIFICADORES.md` para referencias/preguntas. Prevalece esta aclaración sobre las menciones históricas a cuatro semanas fijas.
+
+`components/plan-mensual.tsx` es el editor/lector principal en Plan y Mi plan; `lib/mensual.ts` carga por alumno y sesión de usuario, separado del store optimista. Los cambios mensuales se guardan explícitamente; no pasar estas entidades por `remoto.ts`. Cuatro semanas, sesiones por día, grupo/descanso y prescripciones heredadas cuando una celda está vacía. Los pesos son independientes por semana. La distribución del resumen y la preview de hoy usan el mes activo. Las rutinas anteriores permanecen en “Planes anteriores”.
+
+Requiere la migración complementaria 29 de la API antes de usar el editor. Ver `../PLANES-MENSUALES.md` para estado, endpoints y comprobaciones. Smoke de UI con API controlada en `scripts/mensual.browser.mjs`; no sustituye pruebas con Supabase local.
+
 Frontend de **Aktiv**, el sistema web del club de **running y entrenamiento integral** del profe **Lucas**: gestión de alumnos, pagos, planes, semana de entrenamiento, ficha médica, marcas y carreras, y una cuenta para que cada alumno vea su plan. Esta carpeta (`aktiv-client/`) es el frontend; la API está en `../aktiv-api/`. Contexto general y reglas comunes: `../CLAUDE.md`.
 
 - **Idioma:** producto y dominio en **español rioplatense** (voseo: "Tocá", "Cargá", "Creá"). Los nombres de código del dominio también van en español (`alumno`, `plan`, `ejercicio`, `semana`, `marca`, `carrera`, `inscripcion`). Los términos técnicos quedan en inglés.

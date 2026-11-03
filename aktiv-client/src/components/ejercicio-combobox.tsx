@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
+import { claveEjercicio } from "@aktiv/contrato";
 import {
   Combobox,
   ComboboxContent,
@@ -39,11 +40,11 @@ export function EjercicioCombobox({
       .filter((e) => !categorias || categorias.includes(e.categoria))
       .map((e) => e.nombre);
     // lo que ya está elegido siempre se muestra, aunque sea de otra categoría
-    return value && !lista.includes(value) ? [value, ...lista] : lista;
+    return value && !lista.some((n) => claveEjercicio(n) === claveEjercicio(value)) ? [value, ...lista] : lista;
   }, [ejerciciosCustom, categorias, value]);
 
-  const q = busqueda.trim().toLowerCase();
-  const hayExacto = todos.some((n) => n.toLowerCase() === q);
+  const q = claveEjercicio(busqueda);
+  const hayExacto = todos.some((n) => claveEjercicio(n) === q);
   const puedeCrear = q.length > 0 && !hayExacto;
 
   function crear(categoria: CategoriaEjercicio) {
@@ -56,6 +57,7 @@ export function EjercicioCombobox({
   return (
     <Combobox
       items={nombres}
+      filter={(nombre, consulta) => claveEjercicio(nombre).includes(claveEjercicio(consulta))}
       value={value || null}
       onValueChange={(v) => v && onChange(v)}
       open={abierto}

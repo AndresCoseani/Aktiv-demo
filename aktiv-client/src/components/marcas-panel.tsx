@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { FechaInput } from "@/components/fecha-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -355,10 +356,9 @@ function MarcaForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="m-fecha">Día</Label>
-          <Input
+          <FechaInput
             id="m-fecha"
             name="fecha"
-            type="date"
             max={hoyISO()}
             defaultValue={editando?.fecha ?? hoyISO()}
             required

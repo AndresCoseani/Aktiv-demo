@@ -1,5 +1,29 @@
 # Aktiv API (NestJS + Supabase)
 
+Desarrollo usa `npm run start:dev` con `tsconfig.dev.json` y salida `dist-dev`, sin caché incremental. Producción compila en `dist`. Mantener ambas salidas separadas: `nest build` limpia `dist` y no debe borrar los archivos del watcher de desarrollo. Ignorar `dist-dev` en Git.
+
+`nest-cli.json` usa la configuración de desarrollo por defecto. `npm run build` pasa explícitamente `--path tsconfig.build.json` para producción; no usar `nest build` sin ese path para generar el deploy. Ambas configuraciones fijan raíz `src`. Si una terminal abierta todavía busca `dist/main` durante desarrollo, detener y reiniciar el comando: Nest captura outDir al arrancar y no lo actualiza en un watcher anterior.
+
+## Actualización: días numerados
+
+Migración 35: `sesiones.activacion` JSONB, array de hasta 20 objetos id/nombre/indicacion. CHECK valida tipos, campos permitidos, longitudes e IDs únicos. `calentamiento` sigue siendo texto libre y no se modifica. RLS de sesiones aplica a la nueva columna. Contrato default [] para lectura/alta y sin default en PATCH. Pendiente en remoto por Andrés. Diagnóstico de planes actualizado.
+
+Catálogo: helpers compartidos `claveEjercicio` (comparación sin mayúsculas/tildes/separadores) y `limpiarNombreEjercicio` (nombre legible). Crear/renombrar revisa de forma paginada solo ejercicios del profe, con token/RLS, y devuelve 409 ante variante equivalente. No se migraron duplicados existentes; no hay un nuevo índice SQL normalizado, por lo que la comprobación de API no sustituye una restricción atómica frente a creaciones simultáneas. Tests `src/carreras/catalogo.spec.ts`.
+
+Migración 33: `sesiones.bloques` (smallint[], por defecto vacío, máximo 20 IDs en rango 1..20) conserva tarjetas vacías y orden. Backfill de grupos existentes por orden de ejercicios. Contrato entidad con default [] para leer respuestas anteriores; PATCH usa esquema sin default para no borrar bloques al editar otro campo. RLS existente de sesiones sigue aplicándose. Pendiente de aplicación remota por Andrés.
+
+Nuevo plan admite `diasIniciales: { fuerza, running }` (0–7 por tipo, suma >0). Si viene, creación atómica mediante RPC `crear_plan_con_dias`, migration 32 después de 31, security invoker/RLS, token del usuario. Los pedidos viejos sin distribución siguen creando solo el plan. No aplicada en remoto. El diagnóstico de días verifica 31 y 32.
+
+La migración 31 permite `sesiones.dia = null`, sin modificar asignaciones existentes, RLS ni ejercicios. La UI usa el orden dentro de cada tipo para Día 1, Día 2, etc.; el día calendario es opcional. Contrato y DTOs aceptan null, mantienen el rango 1..7 para días asignados. Diagnóstico de solo lectura: `supabase/verificar_dias_entrenamiento.sql`. La migración está preparada, no aplicada en remoto.
+
+## Actualización: planes mensuales
+
+Corrección posterior: la duración ya es configurable con `planes_mensuales.semanas`; cuatro es el valor inicial, no un límite. Requiere la migración **30**, después de 28 y 29, para ampliar/reducir celdas sin perder indicaciones ni pesos. Se conserva el nombre físico de tablas/endpoints por compatibilidad. Ver `../INVESTIGACION-PLANIFICADORES.md` para las preguntas abiertas sobre la metodología de Lucas. Prevalece esta aclaración sobre las referencias históricas a 28 días.
+
+Implementados contrato `contrato/src/mensual.ts` y módulo `src/mensuales/`: meses de 28 días, sesiones por día, grupos y cuatro prescripciones/pesos semanales. El alumno solo edita peso/fecha. El GET mensual por alumno pagina y valida la respuesta; las tablas anteriores siguen funcionando. Ver `../PLANES-MENSUALES.md` para endpoints y validación.
+
+Migración 28: copia del SQL mensual que el usuario informa haber aplicado; no reejecutar sobre tablas existentes. Migración 29: **nueva, pendiente en remoto**, crea cuatro celdas por ejercicio con trigger y completa faltantes. Aplicarla antes de usar el editor. No hubo cambios en Supabase remoto desde el agente. Los e2e actuales necesitan Supabase local operativo.
+
 API REST de **Aktiv**, el sistema web del club de running y entrenamiento integral del profe **Lucas**. Esta carpeta (`aktiv-api/`) es el backend; el frontend está en `../aktiv-client/`. Contexto general y reglas comunes: `../CLAUDE.md`.
 
 - **Idioma:** dominio en **español rioplatense** (`alumno`, `plan`, `ejercicio`, `semana`, `marca`, `carrera`, `inscripcion`); términos técnicos en inglés. Los mensajes de error van en español, listos para mostrar.

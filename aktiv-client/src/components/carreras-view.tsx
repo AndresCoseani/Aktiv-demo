@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { FechaInput } from "@/components/fecha-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -443,7 +444,7 @@ function CarreraForm({ editando, onClose }: { editando: Carrera | null; onClose:
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="c-fecha">Fecha</Label>
-          <Input id="c-fecha" name="fecha" type="date" required defaultValue={editando?.fecha} />
+          <FechaInput id="c-fecha" name="fecha" required defaultValue={editando?.fecha} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="c-lugar">Ubicación</Label>

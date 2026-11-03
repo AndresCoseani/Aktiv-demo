@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { NotasCard } from "@/components/notas-card";
+import { PlanMensualPanel } from "@/components/plan-mensual";
 import { PesoInput } from "@/components/peso-input";
-import { SemanaCard } from "@/components/semana-card";
 import { PagoTexto } from "@/components/estado";
 import {
   Card,
@@ -98,10 +98,9 @@ export default function MiPlanPage() {
         </Link>
       )}
 
-      <SemanaCard semana={alumno.semana} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-        <div className="space-y-6">
+        <PlanMensualPanel alumnoId={alumno.id}>
           {activos.length === 0 ? (
             <Card>
               <CardHeader>
@@ -114,7 +113,7 @@ export default function MiPlanPage() {
               <PlanActivo key={p.id} plan={p} alumnoId={alumno.id} ejerciciosCustom={ejerciciosCustom} />
             ))
           )}
-        </div>
+        </PlanMensualPanel>
 
         <NotasCard
           titulo="Mis notas"

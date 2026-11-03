@@ -1,4 +1,12 @@
 import { z } from "zod";
+
+/** Nombre legible; la clave de comparación es independiente de cómo se muestra. */
+export function limpiarNombreEjercicio(nombre: string) {
+  return nombre.normalize("NFC").trim().replace(/[\s_]+/g, " ");
+}
+export function claveEjercicio(nombre: string) {
+  return nombre.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[\s_-]+/g, "");
+}
 import { hoyISO } from "./fechas";
 
 /**

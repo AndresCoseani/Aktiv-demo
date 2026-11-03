@@ -481,6 +481,42 @@ async function main() {
   chequear("el hash tiene que tener 64 caracteres",
     Boolean((await admin.from("invitaciones").insert({ alumno_id: A1.id, token_hash: "corto", expira_en: new Date(Date.now() + 1000).toISOString() })).error));
 
+  // ---------- planes mensuales
+  titulo("Planes mensuales: RLS, semanas, activación y cascada");
+  const mes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Mes de prueba", inicio: "2026-11-02", activo: true }).select().single();
+  if (mes.error) throw mes.error;
+  const sesionMes = await cA.from("sesiones").insert({ plan_id: mes.data.id, dia: 1, tipo: "Fuerza", nombre: "A" }).select().single();
+  if (sesionMes.error) throw sesionMes.error;
+  const ejMes = await cA.from("sesion_ejercicios").insert({ sesion_id: sesionMes.data.id, nombre: "Zumo" }).select().single();
+  if (ejMes.error) throw ejMes.error;
+  const semanasMes = await cS1.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejMes.data.id);
+  chequear("cada ejercicio mensual nace con cuatro semanas", !semanasMes.error && semanasMes.data?.length === 4);
+  const ampliarMes = await cA.from("planes_mensuales").update({ semanas: 6 }).eq("id", mes.data.id);
+  chequear("el profe amplía el plan a seis semanas", !ampliarMes.error);
+  const seisSemanas = await cS1.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejMes.data.id);
+  chequear("ampliar crea las celdas adicionales sin copiar pesos", seisSemanas.data?.length === 6 && seisSemanas.data.filter((c) => c.semana > 4).every((c) => c.peso === null));
+  await cS1.from("ejercicio_semanas").update({ peso: "15" }).eq("ejercicio_id", ejMes.data.id).eq("semana", 6);
+  chequear("acortar no puede borrar un peso registrado", Boolean((await cA.from("planes_mensuales").update({ semanas: 4 }).eq("id", mes.data.id)).error));
+  await cS1.from("ejercicio_semanas").update({ peso: null }).eq("ejercicio_id", ejMes.data.id).eq("semana", 6);
+  chequear("se puede quitar semanas adicionales vacías", !(await cA.from("planes_mensuales").update({ semanas: 4 }).eq("id", mes.data.id)).error);
+  for (const [tabla, columna, valor] of [["planes_mensuales", "id", mes.data.id], ["sesiones", "id", sesionMes.data.id], ["sesion_ejercicios", "id", ejMes.data.id], ["ejercicio_semanas", "ejercicio_id", ejMes.data.id]]) {
+    chequear(`otro profe no lee ${tabla}`, vacio(await cB.from(tabla).select("*").eq(columna, valor)));
+    chequear(`otro alumno no lee ${tabla}`, vacio(await cS2.from(tabla).select("*").eq(columna, valor)));
+    chequear(`anon no lee ${tabla}`, vacio(await anon.from(tabla).select("*").eq(columna, valor)));
+  }
+  chequear("el alumno registra peso en una semana", !(await cS1.from("ejercicio_semanas").update({ peso: "12,5" }).eq("ejercicio_id", ejMes.data.id).eq("semana", 2)).error);
+  chequear("el trigger impide al alumno cambiar la prescripción", Boolean((await cS1.from("ejercicio_semanas").update({ prescripcion: "9x9" }).eq("ejercicio_id", ejMes.data.id).eq("semana", 1)).error));
+  chequear("el alumno no crea sesiones", Boolean((await cS1.from("sesiones").insert({ plan_id: mes.data.id, dia: 2, tipo: "Running" })).error));
+  chequear("el alumno no borra el ejercicio mensual", vacio(await cS1.from("sesion_ejercicios").delete().eq("id", ejMes.data.id).select()));
+  chequear("el día de sesión debe estar entre 1 y 7", Boolean((await cA.from("sesiones").insert({ plan_id: mes.data.id, dia: 0, tipo: "Running" })).error));
+  chequear("no existe semana 5", Boolean((await cA.from("ejercicio_semanas").update({ semana: 5 }).eq("ejercicio_id", ejMes.data.id).eq("semana", 1)).error));
+  const otroMes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Siguiente", inicio: "2026-12-01", activo: true }).select().single();
+  if (otroMes.error) throw otroMes.error;
+  const activosMes = await cA.from("planes_mensuales").select("id").eq("alumno_id", A1.id).eq("activo", true);
+  chequear("un solo mes activo por alumno", activosMes.data?.length === 1 && activosMes.data[0].id === otroMes.data.id);
+  await cA.from("planes_mensuales").delete().eq("id", mes.data.id);
+  chequear("borrar el mes borra sus celdas semanales", vacio(await admin.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejMes.data.id)));
+
   // ---------- storage
   titulo("Certificados médicos (storage)");
   const pdf = new Blob(["%PDF-1.4 prueba"], { type: "application/pdf" });

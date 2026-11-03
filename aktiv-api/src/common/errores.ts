@@ -7,6 +7,8 @@ import { HttpException, HttpStatus } from "@nestjs/common";
  * español y es seguro mostrarlo. Nunca se filtran detalles internos.
  */
 export class ErrorApi extends HttpException {
+  /** Solo para diagnóstico del servidor. Nunca se serializa en la respuesta HTTP. */
+  codigoDb?: string;
   constructor(
     status: number,
     readonly codigo: string,
@@ -14,6 +16,7 @@ export class ErrorApi extends HttpException {
     readonly detalles?: Record<string, string>,
   ) {
     super({ codigo, mensaje, detalles }, status);
+    this.message = mensaje;
   }
 }
 
@@ -36,7 +39,45 @@ export type ErrorDb = { code?: string; message: string; details?: string; hint?:
  * Los mensajes de los triggers propios (P0001) son seguros y están en español.
  */
 export function errorDeDb(e: ErrorDb): HttpException {
+  const error = traducirErrorDeDb(e);
+  if (error instanceof ErrorApi && e.code && /^[A-Z0-9]{1,16}$/.test(e.code)) error.codigoDb = e.code;
+  return error;
+}
+
+function traducirErrorDeDb(e: ErrorDb): HttpException {
   switch (e.code) {
+    case "PGRST202":
+    case "42883":
+      if (/\bcrear_plan_con_dias\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "planes_esquema_desactualizado", "Falta habilitar la creación del plan con sus días. Aplicá la migración 32 después de la 31 y reintentá.");
+      return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "esquema_desactualizado", "Falta actualizar una función de la base. Revisá las migraciones pendientes.");
+    case "23502":
+      if (/\bdia\b/.test(e.message) && /\bsesiones\b/.test(e.message)) {
+        return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "sesiones_esquema_desactualizado", "Falta habilitar entrenamientos sin día fijo. Aplicá la migración 31 y reintentá.");
+      }
+      return new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "campo_requerido", "Falta completar un campo obligatorio.");
+    case "PGRST204": // columna ausente del schema cache de PostgREST
+    case "42703": // columna ausente en Postgres
+      if (/\bactivacion\b/.test(e.message) && /\bsesiones\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "sesiones_esquema_desactualizado", "Falta habilitar los ejercicios de entrada en calor. Aplicá la migración 35 y reintentá.");
+      if (/\bbloques\b/.test(e.message) && /\bsesiones\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "sesiones_esquema_desactualizado", "Falta habilitar los bloques de ejercicios. Aplicá la migración 33 y reintentá.");
+      if (/\bsemanas\b/.test(e.message) && /\bplanes_mensuales\b/.test(e.message)) {
+        return new ErrorApi(
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "planes_esquema_desactualizado",
+          "La base de datos todavía no tiene la duración configurable de los planes. Aplicá la migración 30 (después de la 29) y reintentá.",
+        );
+      }
+      return new ErrorApi(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "esquema_desactualizado",
+        "La base de datos no está actualizada para esta versión. Revisá las migraciones pendientes.",
+      );
+    case "PGRST205": // tabla ausente del schema cache
+    case "42P01": // tabla ausente en Postgres
+      return new ErrorApi(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "esquema_desactualizado",
+        "Faltan tablas de esta versión en la base de datos. Revisá las migraciones pendientes.",
+      );
     case "42501": // RLS o trigger de permisos
       return sinPermiso();
     case "23505":

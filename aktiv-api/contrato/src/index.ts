@@ -40,6 +40,7 @@ export * from "./marca";
 export * from "./plan";
 export * from "./sesion";
 export * from "./api";
+export * from "./mensual";
 
 /* ───────────── Tipos de dominio (inferidos de los esquemas) ───────────── */
 

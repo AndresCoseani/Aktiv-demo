@@ -1,6 +1,7 @@
 # dependencias y compilados
 node_modules
 dist
+dist-dev
 
 *.tsbuildinfo
 /coverage

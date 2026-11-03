@@ -9,6 +9,7 @@ import {
 import type { Response } from "express";
 import { ThrottlerException } from "@nestjs/throttler";
 import type { RequestConUsuario } from "./tipos";
+import { ErrorApi } from "./errores";
 
 /**
  * Filtro global: toda respuesta de error sale con el mismo formato y sin
@@ -68,7 +69,8 @@ export class FiltroExcepciones implements ExceptionFilter {
     if (statusCode >= 500) {
       // el detalle real queda solo en el log del servidor
       const e = exception instanceof Error ? exception : new Error(String(exception));
-      this.log.error(`[${requestId}] ${req.method} ${req.url} → ${statusCode}: ${e.message}`, e.stack);
+      const db = exception instanceof ErrorApi && exception.codigoDb ? ` [DB ${exception.codigoDb}]` : "";
+      this.log.error(`[${requestId}] ${req.method} ${req.url} → ${statusCode}${db}: ${e.message}`, e.stack);
     }
 
     res.status(statusCode).json({ statusCode, codigo, mensaje, ...(detalles ? { detalles } : {}), requestId });

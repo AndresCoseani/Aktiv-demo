@@ -63,14 +63,14 @@ export function Navbar({ session }: { session: Session }) {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-3 sm:gap-4 sm:px-6">
+      <div className="mx-auto flex h-14 w-full min-w-0 max-w-6xl items-center gap-1 px-2 sm:gap-4 sm:px-6">
         <Link
           href={items[0].href}
-          className="flex items-center gap-2.5 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex shrink-0 items-center gap-2.5 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           aria-label="Aktiv, ir al inicio"
         >
           <LogoBadge className="size-8" />
-          <span className="hidden text-sm leading-none font-semibold tracking-tight sm:block">
+          <span className="hidden text-sm leading-none font-semibold tracking-tight md:block">
             Aktiv
             <span className="mt-0.5 block text-[0.6rem] font-normal tracking-[0.2em] text-muted-foreground uppercase">
               Running
@@ -78,7 +78,7 @@ export function Navbar({ session }: { session: Session }) {
           </span>
         </Link>
 
-        <nav aria-label="Principal" className="ml-1 flex flex-1 items-center gap-1">
+        <nav aria-label="Principal" className="flex min-w-0 flex-1 items-center gap-0.5 sm:ml-1 sm:gap-1">
           {items.map(({ href, label, icon: Icon }) => {
             const activo = pathname === href || pathname.startsWith(`${href}/`);
             return (
@@ -88,20 +88,20 @@ export function Navbar({ session }: { session: Session }) {
                 aria-label={label}
                 aria-current={activo ? "page" : undefined}
                 className={cn(
-                  "flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-1 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:flex-none sm:px-2 lg:px-3",
                   activo
                     ? "bg-primary/12 text-primary"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
-                <Icon className="size-[1.15rem]" />
-                <span className="hidden sm:inline">{label}</span>
+                <Icon className="size-[1.15rem] shrink-0" />
+                <span className="hidden lg:inline">{label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger

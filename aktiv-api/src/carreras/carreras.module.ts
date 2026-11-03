@@ -18,6 +18,8 @@ import {
   parcheCarreraApi,
   parcheInscripcionProfeApi,
   uuidSchema,
+  claveEjercicio,
+  limpiarNombreEjercicio,
 } from "@aktiv/contrato";
 import { Roles } from "../auth/guards";
 import {
@@ -122,22 +124,40 @@ export class CarrerasService {
   /* ───────────── catálogo de ejercicios del profe ───────────── */
 
   async crearEjercicioCustom(u: Usuario, dto: z.output<typeof altaEjercicioCustomApi>) {
+    const nombre = limpiarNombreEjercicio(dto.nombre);
+    await this.asegurarNombreEjercicio(u, nombre);
     const { error } = await this.supa
       .delUsuario(u.token)
       .from("ejercicios_custom")
-      .insert({ id: dto.id, coach_id: u.id, nombre: dto.nombre, categoria: dto.categoria });
+      .insert({ id: dto.id, coach_id: u.id, nombre, categoria: dto.categoria });
     lanzarSiError(error);
     return RESPUESTA_ID(dto.id);
   }
 
   async parchearEjercicioCustom(u: Usuario, id: string, dto: z.output<typeof parcheEjercicioCustomApi>) {
     if (Object.keys(dto).length === 0) throw new ErrorApi(400, "sin_cambios", "No hay cambios para guardar.");
+    if (dto.nombre !== undefined) {
+      dto = { ...dto, nombre: limpiarNombreEjercicio(dto.nombre) };
+      await this.asegurarNombreEjercicio(u, dto.nombre!, id);
+    }
     await actualizarUno(this.supa.delUsuario(u.token), "ejercicios_custom", "id", id, dto, "El ejercicio");
     return RESPUESTA_ID(id);
   }
 
   async eliminarEjercicioCustom(u: Usuario, id: string) {
     await borrarUno(this.supa.delUsuario(u.token), "ejercicios_custom", id, "El ejercicio");
+  }
+
+  private async asegurarNombreEjercicio(u: Usuario, nombre: string, excluirId?: string) {
+    const db = this.supa.delUsuario(u.token);
+    for (let desde = 0; ; desde += 500) {
+      const r = await db.from("ejercicios_custom").select("id,nombre").eq("coach_id", u.id).order("id").range(desde, desde + 499);
+      lanzarSiError(r.error);
+      if (r.data?.some((e) => e.id !== excluirId && claveEjercicio(e.nombre) === claveEjercicio(nombre))) {
+        throw new ErrorApi(409, "ejercicio_repetido", "Ya existe un ejercicio con ese nombre. Elegilo desde el catálogo.");
+      }
+      if ((r.data?.length ?? 0) < 500) return;
+    }
   }
 }
 

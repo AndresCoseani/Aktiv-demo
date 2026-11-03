@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { claveEjercicio, limpiarNombreEjercicio } from "@aktiv/contrato";
 import type { z } from "zod";
 import { catalogoCompleto, fichaVacia, semanaVacia } from "./dominio";
 import { hoyISO, nuevoId } from "./format";
@@ -350,10 +351,10 @@ function editarAlumno(alumnoId: string, fn: (a: Alumno) => Partial<Alumno>) {
 /** Suma un ejercicio al catálogo y devuelve el nombre canónico (sin duplicar) */
 export function crearEjercicioPersonalizado(nombre: string, categoria: CategoriaEjercicio) {
   const s = getSnapshot();
-  const dto = exigir(crearEjercicioCustomDto, { nombre: nombre.trim(), categoria });
+  const dto = exigir(crearEjercicioCustomDto, { nombre: limpiarNombreEjercicio(nombre), categoria });
   const existente = catalogoCompleto(s.ejerciciosCustom)
     .map((e) => e.nombre)
-    .find((n) => n.toLowerCase() === dto.nombre.toLowerCase());
+    .find((n) => claveEjercicio(n) === claveEjercicio(dto.nombre));
   if (existente) return existente;
   set({
     ...s,
@@ -374,11 +375,11 @@ export function editarEjercicioPersonalizado(
   const actual = s.ejerciciosCustom.find((e) => e.id === id);
   if (!actual) return "No encontramos ese ejercicio";
   const dto = exigir(crearEjercicioCustomDto, {
-    nombre: (cambios.nombre ?? actual.nombre).trim(),
+    nombre: limpiarNombreEjercicio(cambios.nombre ?? actual.nombre),
     categoria: cambios.categoria ?? actual.categoria,
   });
-  const repetido = catalogoCompleto(s.ejerciciosCustom).some(
-    (e) => e.nombre.toLowerCase() === dto.nombre.toLowerCase() && e.nombre !== actual.nombre,
+  const repetido = catalogoCompleto(s.ejerciciosCustom.filter((e) => e.id !== id)).some(
+    (e) => claveEjercicio(e.nombre) === claveEjercicio(dto.nombre),
   );
   if (repetido) return "Ese ejercicio ya está en la lista";
   set({

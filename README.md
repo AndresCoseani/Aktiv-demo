@@ -1,5 +1,9 @@
 # Aktiv
 
+**Reunión del 3 de noviembre:** [preguntas y acuerdos para Lucas](PREGUNTAS-LUCAS-2026-11-03.md).
+
+**Seguimiento del trabajo:** [PASO-A-PASO.md](PASO-A-PASO.md) — paso activo, responsabilidades, comprobaciones y aprobaciones. La comparación de funcionalidades está en [HOJA-RUTA-AKTIV.md](HOJA-RUTA-AKTIV.md).
+
 Sistema web del club de running y entrenamiento integral **Aktiv**: el profe gestiona alumnos, planes, pagos, ficha médica, marcas y carreras; cada alumno entra con su cuenta (por invitación por email) a ver su plan.
 
 | Carpeta | Qué es |

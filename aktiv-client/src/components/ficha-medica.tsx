@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { FechaInput } from "@/components/fecha-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { LIMITES } from "@/lib/schemas";
@@ -85,9 +86,8 @@ export function FichaMedica({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="nacimiento">Fecha de nacimiento</Label>
-                <Input
+                <FechaInput
                   id="nacimiento"
-                  type="date"
                   max={hoyISO()}
                   value={ficha.fechaNacimiento ?? ""}
                   onChange={(e) =>
@@ -292,9 +292,8 @@ function CertificadoCard({ alumno, className }: { alumno: Alumno; className?: st
 
             <div className="space-y-2">
               <Label htmlFor="venc">Vence el</Label>
-              <Input
+              <FechaInput
                 id="venc"
-                type="date"
                 value={cert.vencimiento ?? ""}
                 onChange={(e) =>
                   actualizarFicha(alumno.id, {

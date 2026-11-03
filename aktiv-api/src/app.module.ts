@@ -18,6 +18,7 @@ import { ENV, type Env } from "./config/env";
 import { DatosModule } from "./datos/datos.service";
 import { HealthModule } from "./health/health.module";
 import { PlanesModule } from "./planes/planes.module";
+import { MensualesModule } from "./mensuales/mensuales.module";
 import { SupabaseModule } from "./supabase/supabase.service";
 
 /** Hace disponible la configuración validada en toda la app */
@@ -40,6 +41,7 @@ export function crearAppModule(env: Env, opciones: { mail?: Mail } = {}) {
       DatosModule,
       AlumnosModule,
       PlanesModule,
+      MensualesModule,
       CarrerasModule,
       CertificadosModule,
       InvitacionesModule,

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Banknote, Mail, Phone, UserSearch } from "lucide-react";
 import { toast } from "sonner";
@@ -9,8 +10,10 @@ import { CarrerasDeAlumno } from "@/components/carreras-view";
 import { EstadoBadge, PagoTexto } from "@/components/estado";
 import { FichaMedica } from "@/components/ficha-medica";
 import { MarcasPanel } from "@/components/marcas-panel";
-import { NotasCard } from "@/components/notas-card";
+import { AlumnoResumen } from "@/components/alumno-resumen";
 import { PlanEditor } from "@/components/plan-editor";
+import { PlanMensualPanel } from "@/components/plan-mensual";
+import { usePlanesMensuales, hayBorradoresMensuales } from "@/lib/mensual";
 import { SemanaCard } from "@/components/semana-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -20,7 +23,7 @@ import {
   CardDescription,
   CardHeader,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { FechaInput } from "@/components/fecha-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,10 +40,13 @@ import { useRol } from "@/lib/guards";
 import { actualizarAlumno, alternarDia, useStore } from "@/lib/store";
 
 export default function AlumnoDetallePage() {
+  const [tab, setTab] = useState("resumen");
   const session = useRol("coach");
   const { id } = useParams<{ id: string }>();
+  const mensual = usePlanesMensuales(id);
   const { alumnos } = useStore();
   const alumno = alumnos.find((a) => a.id === id);
+  const mesActivo = mensual.planes.find((p) => p.activo);
 
   if (!session) return null;
 
@@ -90,7 +96,7 @@ export default function AlumnoDetallePage() {
         : "Certificado médico por vencer";
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="space-y-4">
         <Link
           href="/alumnos"
@@ -100,74 +106,45 @@ export default function AlumnoDetallePage() {
           Alumnos
         </Link>
 
-        <header className="flex items-center gap-4">
-          <Avatar size="lg" className="size-14">
+        <header className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:items-center">
+          <Avatar size="lg" className="size-11 shrink-0 sm:size-14">
             <AvatarFallback className="bg-primary/15 text-lg font-semibold text-primary">
               {iniciales(alumno.nombre)}
             </AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
               {alumno.nombre}
             </h1>
             <p className="text-sm text-muted-foreground">
               {alumno.objetivo} · {alumno.nivel} · Alumno desde{" "}
               {formatFecha(alumno.altaEn, { conAnio: true })}
             </p>
-            <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <Mail className="size-3.5" />
-                {alumno.email || "Sin email"}
+            <p className="mt-1 flex min-w-0 flex-col items-start gap-x-4 gap-y-1 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center">
+              <span className="inline-flex min-w-0 max-w-full items-start gap-1.5">
+                <Mail className="mt-0.5 size-3.5 shrink-0" />
+                <span className="min-w-0 break-all">{alumno.email || "Sin email"}</span>
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Phone className="size-3.5" />
+                <Phone className="size-3.5 shrink-0" />
                 {alumno.telefono || "Sin teléfono"}
               </span>
             </p>
             <AccesoAlumno alumno={alumno} />
           </div>
-        </header>
-      </div>
-
-      <Tabs defaultValue="resumen" className="gap-6">
-        <TabsList className="h-9 w-full sm:w-fit">
-          <TabsTrigger value="resumen" className="sm:px-4">
-            Resumen
-          </TabsTrigger>
-          <TabsTrigger value="ficha" className="sm:px-4">
-            Ficha médica
-            {avisoCertificado && (
-              <span
-                aria-label={textoAviso}
-                title={textoAviso}
-                className={
-                  avisoCertificado === "vencido" || avisoCertificado === "sin-certificado"
-                    ? "size-1.5 rounded-full bg-destructive"
-                    : "size-1.5 rounded-full bg-warning"
-                }
-              />
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="marcas" className="sm:px-4">
-            Marcas
-          </TabsTrigger>
-          <TabsTrigger value="carreras" className="sm:px-4">
-            Carreras
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="resumen" className="space-y-6">
-      <section aria-label="Estado y pago" className="grid gap-3 sm:grid-cols-2">
-        <Card className="gap-3 py-4">
+          </div>
+      <section aria-label="Estado y pago" className="grid w-full gap-2 sm:grid-cols-[9.5rem_minmax(0,1fr)] xl:w-[36rem] xl:shrink-0">
+        <Card className="min-w-0 gap-2 py-3">
           <CardHeader className="px-4">
             <CardDescription>Estado</CardDescription>
           </CardHeader>
-          <CardContent className="flex items-center justify-between gap-3 px-4">
+          <CardContent className="flex items-center justify-between gap-2 px-4">
             <div className="flex items-center gap-3">
-              <EstadoBadge activo={alumno.activo} className="px-2.5 py-3 text-sm" />
+              <EstadoBadge activo={alumno.activo} />
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="estado-switch" className="text-sm text-muted-foreground">
+              <Label htmlFor="estado-switch" className="sr-only">
                 {alumno.activo ? "Desactivar" : "Activar"}
               </Label>
               <Switch
@@ -179,27 +156,26 @@ export default function AlumnoDetallePage() {
           </CardContent>
         </Card>
 
-        <Card className="gap-3 py-4">
+        <Card className="min-w-0 gap-2 py-3">
           <CardHeader className="px-4">
             <CardDescription>Próximo pago</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 px-4">
+          <CardContent className="flex min-w-0 flex-wrap items-center justify-between gap-3 px-4">
             <PagoTexto
               fecha={alumno.proximoPago}
-              className="text-lg [&>div:last-child]:text-sm"
+              className="text-sm"
             />
-            <div className="flex items-center gap-2">
-              <Input
-                type="date"
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
+              <FechaInput
                 aria-label="Fecha del próximo pago"
                 value={alumno.proximoPago ?? ""}
                 min={hoyISO()}
                 onChange={(e) =>
                   actualizarAlumno(alumno.id, { proximoPago: e.target.value || null })
                 }
-                className="w-40"
+                className="h-8 min-w-0 flex-1 basis-36 text-xs sm:w-36 sm:flex-none"
               />
-              <Button variant="outline" onClick={registrarPago}>
+              <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={registrarPago}>
                 <Banknote data-icon="inline-start" />
                 Registrar pago
               </Button>
@@ -207,23 +183,50 @@ export default function AlumnoDetallePage() {
           </CardContent>
         </Card>
       </section>
-
-      <SemanaCard
-        semana={alumno.semana}
-        onAlternar={(dia, tipo) => alternarDia(alumno.id, dia, tipo)}
-      />
-
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-        <NotasCard
-          className="order-last lg:order-first"
-          titulo="Lesiones o apuntes"
-          descripcion="Solo lo ves vos. Lesiones, molestias, observaciones."
-          placeholder="Ej: molestia en la rodilla derecha, evitar cuestas…"
-          value={alumno.notasProfe}
-          onChange={(notasProfe) => actualizarAlumno(alumno.id, { notasProfe })}
-        />
-        <PlanEditor alumno={alumno} />
+        </header>
       </div>
+
+      <Tabs value={tab} onValueChange={(valor) => {
+        if (hayBorradoresMensuales()) toast.error("Guardá la sesión antes de cambiar de pestaña.");
+        else setTab(valor);
+      }} className="min-w-0 gap-6">
+        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 group-data-horizontal/tabs:h-auto sm:flex sm:h-9 sm:w-fit sm:group-data-horizontal/tabs:h-9">
+          <TabsTrigger value="resumen" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Resumen</TabsTrigger>
+          <TabsTrigger value="plan" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Plan</TabsTrigger>
+          <TabsTrigger value="ficha" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">
+            Ficha médica
+            {avisoCertificado && (
+              <span
+                aria-label={textoAviso}
+                title={textoAviso}
+                className={`size-1.5 rounded-full ${avisoCertificado === "por-vencer" ? "bg-warning" : "bg-destructive"}`}
+              />
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="marcas" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Marcas</TabsTrigger>
+          <TabsTrigger value="carreras" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Carreras</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="resumen" className="space-y-6">
+
+      {mensual.cargando ? <div role="status" className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Cargando semana de entrenamiento…</div> : mensual.error ? <div role="alert" className="space-y-3 rounded-xl border bg-card p-5 text-sm"><p>No pudimos consultar la semana de entrenamiento.</p><Button variant="outline" size="sm" onClick={mensual.reintentar}>Reintentar</Button></div> : <SemanaCard
+        titulo="Semana de entrenamiento"
+        semana={mesActivo ? Array.from({ length: 7 }, (_, i) => ({
+          correr: mesActivo.sesiones.some((s) => s.dia === i + 1 && s.tipo === "Running"),
+          fuerza: mesActivo.sesiones.some((s) => s.dia === i + 1 && s.tipo === "Fuerza"),
+        })) : alumno.semana}
+        descripcion={mesActivo ? `${mesActivo.nombre} · Asignación opcional al calendario` : undefined}
+        sinDiasFijos={mesActivo?.sesiones.some((s) => s.dia === null)}
+        onAlternar={mesActivo ? undefined : (dia, tipo) => alternarDia(alumno.id, dia, tipo)}
+      />}
+
+        <AlumnoResumen alumno={alumno} mensual={mensual} onAbrir={setTab} />
+        </TabsContent>
+
+        <TabsContent value="plan" className="min-w-0">
+          <PlanMensualPanel alumnoId={alumno.id} editable>
+            <PlanEditor alumno={alumno} />
+          </PlanMensualPanel>
         </TabsContent>
 
         <TabsContent value="ficha">

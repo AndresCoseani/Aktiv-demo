@@ -29,12 +29,16 @@ export function SemanaCard({
   onAlternar,
   descripcion,
   className,
+  titulo,
+  sinDiasFijos = false,
 }: {
   semana: DiaEntrenamiento[];
   /** si no se pasa, la semana es de solo lectura */
   onAlternar?: (dia: number, tipo: "correr" | "fuerza") => void;
   descripcion?: string;
   className?: string;
+  titulo?: string;
+  sinDiasFijos?: boolean;
 }) {
   const hoy = diaDeHoy();
   const diasCorrer = semana.filter((d) => d.correr).length;
@@ -47,7 +51,7 @@ export function SemanaCard({
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle>{onAlternar ? "Semana de entrenamiento" : "Mi semana"}</CardTitle>
+        <CardTitle>{titulo ?? (onAlternar ? "Semana de entrenamiento" : "Mi semana")}</CardTitle>
         <CardDescription>
           {descripcion ??
             `${diasCorrer} ${diasCorrer === 1 ? "día" : "días"} de running · ${diasFuerza} de fuerza`}
@@ -95,7 +99,7 @@ export function SemanaCard({
                     {d.fuerza && <Insignia tipo="fuerza" />}
                     {!d.correr && !d.fuerza && (
                       <span className="text-[0.6rem] text-muted-foreground/70 sm:text-[0.65rem]">
-                        Descanso
+                        {sinDiasFijos ? "Sin asignar" : "Descanso"}
                       </span>
                     )}
                   </div>
@@ -118,7 +122,7 @@ export function SemanaCard({
           </div>
           {!onAlternar && (
             <p className="text-sm text-foreground">
-              {tocaHoy.length
+              {sinDiasFijos ? "El plan incluye días sin fecha asignada" : tocaHoy.length
                 ? `Hoy te toca: ${tocaHoy.join(" + ")}`
                 : "Hoy es día de descanso"}
             </p>

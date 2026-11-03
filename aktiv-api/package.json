@@ -5,9 +5,9 @@
   "description": "API de Aktiv (NestJS). Autentica con Supabase Auth y accede a la base como el usuario, así que las políticas RLS siguen valiendo.",
   "scripts": {
     "contrato": "npm run build -w @aktiv/contrato",
-    "build": "npm run contrato && nest build",
+    "build": "npm run contrato && nest build --path tsconfig.build.json",
     "start": "node dist/main.js",
-    "start:dev": "npm run contrato && nest start --watch",
+    "start:dev": "npm run contrato && nest start --watch --path tsconfig.dev.json",
     "typecheck": "npm run contrato && tsc --noEmit -p tsconfig.json",
     "test": "npm run contrato && jest && npm run test -w @aktiv/contrato",
     "test:e2e": "npm run contrato && jest --config test/jest-e2e.json --runInBand",
