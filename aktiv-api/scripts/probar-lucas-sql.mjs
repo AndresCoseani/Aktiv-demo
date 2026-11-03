@@ -134,5 +134,10 @@ try {
   await como(coach,cambiar(f2));
   igual((await como(coach,`select * from cambios_horario_clase where fecha='${f2}' and alcance='solo_fecha'`)).rows.length,0);
   igual((await como(coach,"select * from confirmaciones_clase")).rows.length,0);
+  const diagnosticos = await db.exec(await readFile(new URL('../supabase/verificar_actualizacion_lucas.sql', import.meta.url), 'utf8'));
+  for (const resultado of diagnosticos) for (const fila of resultado.rows) {
+    if ('ok' in fila) igual(fila.ok, true);
+    else for (const valor of Object.values(fila)) igual(valor, true);
+  }
   console.log(`OK: ${total} verificaciones SQL de DNI, importación atómica, calendario, agenda y aislamiento entre profesores/alumnos.`);
 } finally { await db.close(); }
