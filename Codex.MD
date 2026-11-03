@@ -87,7 +87,7 @@ Los planes legacy en `planes`/`plan_ejercicios` siguen siendo otro modelo, visib
 
 ## 6. Clases: lógica y uso
 
-Diseño vigente de agenda: cuatro tarjetas iguales arriba y tres centradas debajo en escritorio (grid de ocho columnas, cada tarjeta ocupa dos). Dos columnas en tablet, una en móvil, sin scroll horizontal de página. Tarjetas de 240 px de alto; varios turnos se desplazan dentro. Cancelar clase es un botón outline con borde/fondo/texto destructivo y Reabrir usa primario, distintos de la información. Horarios semanales visibles debajo como filas ordenadas, sin acordeones. Confirmaciones y edición siguen en modales.
+Diseño vigente de agenda: cuatro tarjetas iguales arriba y tres centradas debajo en escritorio (grid de ocho columnas, cada tarjeta ocupa dos). Dos columnas en tablet, una en móvil, sin scroll horizontal de página. Tarjetas de 384 px de alto; varios turnos se desplazan dentro. Cancelar clase es un botón outline con borde/fondo/texto destructivo y Reabrir usa primario, distintos de la información. Horarios semanales visibles debajo como filas ordenadas, sin acordeones. Confirmaciones y edición siguen en modales.
 
 **El plan dice qué entrenar; Clases dice a qué encuentro presencial piensa ir el alumno.** No se vinculan automáticamente ni se marca el entrenamiento realizado por reservar una clase.
 
