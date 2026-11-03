@@ -4,6 +4,8 @@
 
 ## Actualización: días numerados y autoguardado
 
+Entrada en calor: arrastre por agarre con Pointer Events (mouse/táctil) y flechas arriba/abajo con foco en el agarre. El orden de `activacion` se guarda con el autoguardado existente. En lectura, indicación al lado del nombre con ajuste de línea y generales al final; placeholders opcionales sin dosis sugeridas. `--calentamiento` verifica arrastre, teclado, tacto simulado, recarga y disposición del lector.
+
 Última decisión para demo: selector simple Día 1/Día 2 en Plan, sin tarjetas/gráfico. El calendario semanal queda solo en Resumen del detalle del alumno; Mi plan no muestra ese gráfico. Si hay sesiones sin fecha, no indicar descanso en los huecos: mostrar Sin asignar. Se revisará con Lucas. Preguntas en `../PREGUNTAS-LUCAS-2026-11-03.md`.
 
 `EntradaEnCalorEditor` combina `calentamiento` texto libre y `activacion` ejercicios elegidos del catálogo con indicación individual. Filtro Movilidad por defecto, desmarcable para todas las categorías. Lista snapshot de nombres, no referencias borrables al catálogo. Autoguardado en cabecera de sesión y lectura del alumno con ambas partes. Requiere migración 35; no convertir ni descartar texto anterior. Prueba `--calentamiento`.

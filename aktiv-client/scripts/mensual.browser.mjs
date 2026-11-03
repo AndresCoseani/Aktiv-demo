@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
+const baseUrl = process.env.MENSUAL_URL ?? "http://localhost:3101";
 const destino = process.env.MENSUAL_ARTIFACTS ?? join(process.env.TEMP, "aktiv-mensual-capturas");
 await mkdir(destino, { recursive: true });
 const browser = await chromium.launch({ channel: "msedge", headless: true });
@@ -107,7 +108,7 @@ try {
   if (process.argv.includes("--calentamiento")) {
     ejerciciosCatalogo = [{ id: crypto.randomUUID(), nombre: "Rolo", categoria: "Movilidad" }, { id: crypto.randomUUID(), nombre: "Hip thrust", categoria: "Fuerza" }];
     const { page, ctx } = await pagina("coach", 390);
-    await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     const entrada = page.getByRole("region", { name: "Entrada en calor", exact: true });
     const texto = entrada.getByRole("textbox", { name: "Entrada en calor", exact: true });
@@ -132,6 +133,31 @@ try {
     await page.getByRole("option", { name: /^Hip thrust/ }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].activacion[1].nombre, "Hip thrust");
+    assert.equal(await entrada.getByLabel("Indicación de activación 1", { exact: true }).getAttribute("placeholder"), "Opcional");
+    const origen = await entrada.getByRole("button", { name: "Reordenar activación 2", exact: true }).boundingBox();
+    const destinoFila = await entrada.locator("[data-activacion-id]").first().boundingBox();
+    await page.mouse.move(origen.x + origen.width / 2, origen.y + origen.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(destinoFila.x + destinoFila.width / 2, destinoFila.y + 10, { steps: 8 });
+    await page.mouse.up();
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    assert.deepEqual(planes[0].sesiones[0].activacion.map((e) => e.nombre), ["Hip thrust", "Rolo"]);
+    await entrada.getByRole("button", { name: "Reordenar activación 1", exact: true }).press("ArrowDown");
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    assert.deepEqual(planes[0].sesiones[0].activacion.map((e) => e.nombre), ["Rolo", "Hip thrust"]);
+    const tactil = await ctx.newCDPSession(page);
+    const agarreTactil = await entrada.getByRole("button", { name: "Reordenar activación 2", exact: true }).boundingBox();
+    const filaTactil = await entrada.locator("[data-activacion-id]").first().boundingBox();
+    await tactil.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: agarreTactil.x + agarreTactil.width / 2, y: agarreTactil.y + agarreTactil.height / 2 }] });
+    await tactil.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: filaTactil.x + filaTactil.width / 2, y: filaTactil.y + 10 }] });
+    await tactil.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    assert.deepEqual(planes[0].sesiones[0].activacion.map((e) => e.nombre), ["Hip thrust", "Rolo"]);
+    await page.reload();
+    await page.getByRole("tab", { name: "Plan", exact: true }).click();
+    assert.equal(await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).first().inputValue(), "Hip thrust");
+    await entrada.getByRole("button", { name: "Reordenar activación 1", exact: true }).press("ArrowDown");
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await entrada.getByRole("button", { name: "Quitar ejercicio de entrada en calor 2", exact: true }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await page.reload();
@@ -143,17 +169,23 @@ try {
     await page.screenshot({ path: join(destino, "entrada-calor-mixta.png"), fullPage: true });
     await ctx.close();
     const alumno = await pagina("alumno", 390);
-    await alumno.page.goto("http://localhost:3101/mi-plan");
+    await alumno.page.goto(`${baseUrl}/mi-plan`);
     await alumno.page.getByText("Una sola serie por ejercicio", { exact: true }).waitFor();
-    await alumno.page.getByText("Rolo", { exact: true }).waitFor();
+    const ejercicioLectura = alumno.page.getByText("1. Rolo", { exact: true });
+    await ejercicioLectura.waitFor();
     await alumno.page.getByText("1 min por grupo muscular", { exact: true }).waitFor();
+    const nombreLectura = await ejercicioLectura.boundingBox();
+    const dosisLectura = await alumno.page.getByText("1 min por grupo muscular", { exact: true }).boundingBox();
+    const generalesLectura = await alumno.page.getByText("Una sola serie por ejercicio", { exact: true }).boundingBox();
+    assert(Math.abs(nombreLectura.y - dosisLectura.y) < 5, "La indicación debe estar al lado del ejercicio cuando entra");
+    assert(generalesLectura.y > nombreLectura.y, "Las indicaciones generales deben estar al final");
     await alumno.ctx.close();
     assert.deepEqual(errores, []);
     console.log("OK: texto libre + catálogo de activación, dosis, error/reintento, otros tipos, quitar, recarga y lectura del alumno.");
   } else if (process.argv.includes("--catalogo")) {
     ejerciciosCatalogo = ["Hiptrust", "Hip Trust"].map((nombre) => ({ id: crypto.randomUUID(), nombre, categoria: "Fuerza" }));
     const { page, ctx } = await pagina("coach", 390);
-    await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     const buscador = page.getByRole("combobox", { name: "Ejercicio", exact: true });
     await buscador.fill("Hip");
@@ -174,7 +206,7 @@ try {
       planes[0].semanas = total;
       planes[0].sesiones[0].ejercicios[0].semanas = Array.from({ length: total }, (_, i) => ({ semana: i + 1, prescripcion: i ? "" : "4×8", peso: null, pesoFecha: null }));
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+      await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
       await page.getByRole("tab", { name: "Plan", exact: true }).click();
       await page.getByLabel("Zumo, semana 5", { exact: true }).waitFor();
       if (total === 5) assert.equal(await page.getByRole("textbox", { name: /^Zumo, semana/ }).count(), 5);
@@ -201,7 +233,7 @@ try {
     planes[0].sesiones[0].ejercicios = [];
     planes[0].sesiones[0].bloques = [];
     const { page, ctx } = await pagina("coach", 390);
-    await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await page.getByRole("button", { name: "Crear bloque", exact: true }).click();
     await page.getByRole("button", { name: "Crear bloque", exact: true }).click();
@@ -236,7 +268,7 @@ try {
     planes[0].sesiones[0].bloques = [7];
     demoraAlta = 1800; fallarAlta = true;
     const { page, ctx } = await pagina("coach", 1440);
-    await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await page.getByLabel("Zumo, semana 1", { exact: true }).fill("4×10");
     await page.getByRole("button", { name: "Crear bloque", exact: true }).click();
@@ -279,7 +311,7 @@ try {
   } else if (process.argv.includes("--bloques")) {
     planes[0].sesiones[0].ejercicios.push({ ...structuredClone(planes[0].sesiones[0].ejercicios[0]), id: crypto.randomUUID(), nombre: "Hip thrust", grupo: 2, orden: 1 });
     const { page, ctx } = await pagina("coach", 1440);
-    await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     const bloque1 = page.getByRole("region", { name: "Bloque 1", exact: true });
     const bloque2 = page.getByRole("region", { name: "Bloque 2", exact: true });
@@ -311,7 +343,7 @@ try {
   } else if (process.argv.includes("--carga")) {
     demoraLectura = 1800;
     const { page, ctx } = await pagina("coach", 390);
-    await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
     await page.getByText("Cargando semana de entrenamiento…", { exact: true }).waitFor();
     assert.equal(await page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Vista del plan anterior", { exact: true }).count(), 0);
@@ -327,7 +359,7 @@ try {
     await page.getByText("Base 10K · Seis semanas · Asignación opcional al calendario", { exact: true }).waitFor();
     await ctx.close();
     const estudiante = await pagina("alumno", 390);
-    await estudiante.page.goto("http://localhost:3101/mi-plan");
+    await estudiante.page.goto(`${baseUrl}/mi-plan`);
     await estudiante.page.getByText("Cargando planes…", { exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
     await estudiante.page.getByRole("button", { name: "Semana 2", exact: true }).waitFor();
@@ -343,7 +375,7 @@ try {
       sinPlanes = vacio;
       for (const ancho of [320, 360, 375, 390, 430, 768, 1024, 1440]) {
         await page.setViewportSize({ width: ancho, height: 900 });
-        await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+        await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
         await page.getByRole("tab", { name: "Plan", exact: true }).click();
         await page.getByRole("heading", { name: "Plan de entrenamiento", exact: true }).waitFor();
         if (vacio) await page.getByText("Creá un plan, elegí su duración y agregá las sesiones.", { exact: true }).waitFor();
@@ -377,7 +409,7 @@ try {
     }
     planes[0].semanas = 12;
     await page.setViewportSize({ width: 320, height: 900 });
-    await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await page.getByRole("button", { name: "Semanas siguientes", exact: true }).click();
     await page.getByRole("button", { name: "Semana 12", exact: true }).click();
@@ -387,7 +419,7 @@ try {
     console.log(`OK: planes vacíos y cargados sin controles cortados en 320, 360, 375, 390, 430, 768, 1024 y 1440 px. Capturas: ${destino}`);
   } else {
   const { page, ctx } = await pagina("coach", 1440);
-  await page.goto(`http://localhost:3101/alumnos/${alumnoId}`);
+  await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
   await page.getByRole("tab", { name: "Plan", exact: true }).click();
   await page.getByLabel("Zumo, semana 1", { exact: true }).waitFor();
   assert.equal(await page.getByText("Editar nombre, inicio y duración", { exact: true }).count(), 0);
@@ -511,7 +543,7 @@ try {
   }
   await ctx.close();
   const estudiante = await pagina("alumno", 390);
-  await estudiante.page.goto("http://localhost:3101/mi-plan");
+  await estudiante.page.goto(`${baseUrl}/mi-plan`);
   await estudiante.page.getByRole("button", { name: "Semana 2", exact: true }).click();
   await estudiante.page.getByText("4×10", { exact: true }).waitFor();
   await estudiante.page.getByRole("button", { name: "Semana 6", exact: true }).click();
