@@ -4,6 +4,9 @@
 -- La 34 reemplaza datos del catálogo, no agrega estructura.
 -- Todo true = estas piezas están presentes; no equivale a probar el flujo completo.
 -- Si algo da false, revisar la migración indicada; no reejecutar todas a ciegas.
+-- Este diagnóstico no revisa la caché de PostgREST ni la configuración de Render.
+-- Si todo da true pero la API no reconoce columnas, ejecutar recargar_esquema.sql
+-- y comprobar que SUPABASE_URL en Render corresponde a este mismo proyecto.
 select
   exists (
     select 1 from information_schema.tables

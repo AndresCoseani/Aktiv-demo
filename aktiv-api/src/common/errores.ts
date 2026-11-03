@@ -56,6 +56,11 @@ function traducirErrorDeDb(e: ErrorDb): HttpException {
       }
       return new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "campo_requerido", "Falta completar un campo obligatorio.");
     case "PGRST204": // columna ausente del schema cache de PostgREST
+      return new ErrorApi(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        /\bsesiones\b/.test(e.message) ? "sesiones_esquema_desactualizado" : /\bplanes_mensuales\b/.test(e.message) ? "planes_esquema_desactualizado" : "esquema_desactualizado",
+        "Supabase no reconoce una columna de esta versión. Revisá verificar_planes.sql; si da todo true, recargá la caché con recargar_esquema.sql y verificá que la API use ese mismo proyecto.",
+      );
     case "42703": // columna ausente en Postgres
       if (/\bactivacion\b/.test(e.message) && /\bsesiones\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "sesiones_esquema_desactualizado", "Falta habilitar los ejercicios de entrada en calor. Aplicá la migración 35 y reintentá.");
       if (/\bbloques\b/.test(e.message) && /\bsesiones\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "sesiones_esquema_desactualizado", "Falta habilitar los bloques de ejercicios. Aplicá la migración 33 y reintentá.");

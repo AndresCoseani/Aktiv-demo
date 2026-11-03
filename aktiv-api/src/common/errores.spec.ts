@@ -14,14 +14,20 @@ describe("diagnóstico seguro de errores de base", () => {
   it("identifica una migración de duración pendiente desde PostgREST", () => {
     const r = errorDeDb({ code: "PGRST204", message: "Could not find the 'semanas' column of 'planes_mensuales' in the schema cache" });
     expect(r.getStatus()).toBe(503);
-    expect(r.getResponse()).toMatchObject({ codigo: "planes_esquema_desactualizado", mensaje: expect.stringContaining("migración 30") });
-    expect(r.message).toContain("migración 30");
+    expect(r.getResponse()).toMatchObject({ codigo: "planes_esquema_desactualizado", mensaje: expect.stringContaining("recargar_esquema.sql") });
+    expect(r.message).not.toContain("Aplicá la migración");
     expect((r as ErrorApi).codigoDb).toBe("PGRST204");
     expect(r.getResponse()).not.toHaveProperty("codigoDb");
   });
   it("identifica también la columna ausente de Postgres", () => {
     expect(errorDeDb({ code: "42703", message: 'column "semanas" of relation "planes_mensuales" does not exist' }).getResponse())
       .toMatchObject({ codigo: "planes_esquema_desactualizado" });
+  });
+  it("no confunde la caché de bloques con una migración sin aplicar", () => {
+    const r = errorDeDb({ code: "PGRST204", message: "Could not find the 'bloques' column of 'sesiones' in the schema cache" });
+    expect(r.getStatus()).toBe(503);
+    expect(r.getResponse()).toMatchObject({ codigo: "sesiones_esquema_desactualizado", mensaje: expect.stringContaining("mismo proyecto") });
+    expect(r.message).not.toContain("migración 33");
   });
   it("no atribuye errores desconocidos a una migración ni filtra datos", () => {
     const r = errorDeDb({ code: "XX000", message: "Texto privado que no debe aparecer", details: "Datos sensibles" });
