@@ -4,6 +4,7 @@ import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { NotasCard } from "@/components/notas-card";
 import { PlanMensualPanel } from "@/components/plan-mensual";
+import { ClasesHoyCard } from "@/components/clases-hoy-card";
 import { PesoInput } from "@/components/peso-input";
 import { PagoTexto } from "@/components/estado";
 import {
@@ -81,6 +82,8 @@ export default function MiPlanPage() {
         </div>
       </header>
 
+      <ClasesHoyCard />
+
       {estadoCert !== "vigente" && (
         <Link
           href="/mi-ficha"
@@ -102,12 +105,7 @@ export default function MiPlanPage() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <PlanMensualPanel alumnoId={alumno.id}>
           {activos.length === 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Mi plan</CardTitle>
-                <CardDescription>Todavía no tenés un plan cargado. Tu profe lo va a subir pronto.</CardDescription>
-              </CardHeader>
-            </Card>
+            <p className="py-2 text-sm text-muted-foreground">No hay planes anteriores registrados.</p>
           ) : (
             activos.map((p) => (
               <PlanActivo key={p.id} plan={p} alumnoId={alumno.id} ejerciciosCustom={ejerciciosCustom} />

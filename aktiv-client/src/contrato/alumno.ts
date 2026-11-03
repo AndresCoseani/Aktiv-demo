@@ -13,6 +13,9 @@ import { marcaSchema } from "./marca";
 import { planSchema } from "./plan";
 
 export const nivelSchema = z.enum(["Principiante", "Intermedio", "Avanzado"]);
+/** DNI sin puntos ni espacios. Vacío para conservar alumnos anteriores sin documento. */
+export const dniSchema = z.union([z.literal(""), z.string().regex(/^\d{7,8}$/, "Escribí el DNI con 7 u 8 números, sin puntos")]);
+export const normalizarDni = (valor: string) => valor.replace(/[.\s-]/g, "");
 
 /** qué toca un día de la semana (correr, fuerza, las dos o descanso) */
 export const diaEntrenamientoSchema = z.object({
@@ -42,6 +45,7 @@ export const alumnoSchema = z.object({
   id: idSchema,
   nombre: textoRequerido(LIMITES.nombre, "Escribí el nombre del alumno", "El nombre"),
   email: emailOpcional,
+  dni: dniSchema.default(""),
   telefono: telefonoSchema,
   objetivo: textoOpcional(LIMITES.objetivo, "El objetivo"),
   nivel: nivelSchema,
@@ -68,6 +72,7 @@ export const alumnoSchema = z.object({
 
 /** Alta de alumno (lo que pide el formulario) */
 export const crearAlumnoDto = alumnoSchema.pick({
+  dni: true,
   nombre: true,
   email: true,
   telefono: true,
@@ -78,6 +83,7 @@ export const crearAlumnoDto = alumnoSchema.pick({
 /** Cambios que el profe puede hacer sobre un alumno */
 export const actualizarAlumnoDto = alumnoSchema
   .pick({
+    dni: true,
     nombre: true,
     email: true,
     telefono: true,
@@ -89,7 +95,7 @@ export const actualizarAlumnoDto = alumnoSchema
     notasProfe: true,
     notasAlumno: true,
   })
-  .partial();
+  .partial().extend({ dni: dniSchema.optional() });
 
 export type CrearAlumnoDto = z.output<typeof crearAlumnoDto>;
 export type ActualizarAlumnoDto = z.output<typeof actualizarAlumnoDto>;

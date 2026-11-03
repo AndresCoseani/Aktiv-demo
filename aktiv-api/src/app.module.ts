@@ -20,6 +20,7 @@ import { HealthModule } from "./health/health.module";
 import { PlanesModule } from "./planes/planes.module";
 import { MensualesModule } from "./mensuales/mensuales.module";
 import { SupabaseModule } from "./supabase/supabase.service";
+import { AgendaModule } from "./agenda/agenda.module";
 
 /** Hace disponible la configuración validada en toda la app */
 export function crearModuloConfig(env: Env) {
@@ -40,6 +41,7 @@ export function crearAppModule(env: Env, opciones: { mail?: Mail } = {}) {
       ThrottlerModule.forRoot([{ name: "default", ttl: 60_000, limit: env.RATE_LIMIT_PER_MIN }]),
       DatosModule,
       AlumnosModule,
+      AgendaModule,
       PlanesModule,
       MensualesModule,
       CarrerasModule,

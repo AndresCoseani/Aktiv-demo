@@ -231,14 +231,27 @@ export async function invitarAlumno(alumnoId: string) {
 }
 
 /**
- * El profe le da el acceso a un alumno con una contraseña aleatoria (o se la restablece si ya
- * tenía cuenta). Devuelve email y contraseña: se muestran una sola vez y no se guardan en el navegador.
+ * El profe prepara el acceso con DNI inicial. Restablecer una cuenta requiere una
+ * acción explícita; la contraseña no se guarda en el navegador.
  */
-export async function entregarCredenciales(alumnoId: string) {
+export async function entregarCredenciales(alumnoId: string, restablecer = false, datos?: { dni: string; email?: string }) {
   await remoto.sincronizar();
-  const r = await remoto.entregarCredenciales(alumnoId);
+  // Los datos de acceso deben confirmarse, no depender del sync optimista que
+  // recupera errores recargando el store. Si falla el PATCH, no se toca la clave.
+  if (datos) {
+    const { api } = await import("./api");
+    await api.patch(`/alumnos/${alumnoId}`, datos);
+  }
+  try { return await remoto.entregarCredenciales(alumnoId, restablecer); }
+  finally { await recargarDatos(true); }
+}
+
+export async function importarAlumnos(alumnos: unknown[]) {
+  await remoto.sincronizar();
+  const { api } = await import("./api");
+  const resultado = await api.post<{ cantidad: number }>("/alumnos/importar", { alumnos });
   await recargarDatos(true);
-  return r;
+  return resultado;
 }
 
 /** Cambia la contraseña de quien tiene la sesión iniciada (profe o alumno). Lanza ErrorHttp con un mensaje listo. */
@@ -295,7 +308,7 @@ export function actualizarAlumno(id: string, cambios: Partial<Alumno>) {
 }
 
 export function crearAlumno(
-  datos: Pick<Alumno, "nombre" | "email" | "telefono" | "objetivo" | "nivel">,
+  datos: Pick<Alumno, "nombre" | "email" | "telefono" | "objetivo" | "nivel"> & { dni?: string },
 ) {
   const s = getSnapshot();
   const alumno: Alumno = {

@@ -18,6 +18,7 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   aceptarInvitacionApi,
   invitarAlumnoApi,
+  entregarCredencialesApi,
   type CredencialesEntregadas,
   tokenInvitacionSchema,
   uuidSchema,
@@ -159,23 +160,26 @@ export class InvitacionesService {
   }
 
   /**
-   * Entrega el acceso SIN mail: crea la cuenta del alumno (o le restablece la contraseña si ya
-   * tiene una) con una contraseña aleatoria y se la devuelve al profe UNA vez, para que se la
-   * pase por WhatsApp. La contraseña no se guarda ni se loguea: queda solo en Supabase Auth, hasheada.
+   * Entrega el acceso SIN envío de mail con el DNI como clave inicial. Restablecer una cuenta
+   * existente requiere confirmación explícita. La contraseña no se loguea ni se guarda como
+   * clave en la ficha: Supabase Auth almacena su hash; el DNI sigue siendo un dato del alumno.
    * Los enlaces de invitación pendientes se invalidan para que no se pise esta contraseña.
    */
-  async entregarCredenciales(u: Usuario, alumnoId: string): Promise<CredencialesEntregadas> {
+  async entregarCredenciales(u: Usuario, alumnoId: string, restablecer = false): Promise<CredencialesEntregadas> {
     const db = this.supa.delUsuario(u.token);
     const base = await asegurarAlumno(db, alumnoId);
     if (base.coach_id !== u.id) throw new ErrorApi(HttpStatus.FORBIDDEN, "sin_permiso", "No tenés permiso para hacer esto.");
 
-    const { data, error } = await db.from("alumnos").select("nombre, email, user_id").eq("id", alumnoId).single();
+    const { data, error } = await db.from("alumnos").select("nombre, email, dni, user_id").eq("id", alumnoId).single();
     lanzarSiError(error);
     const alumno = existe(data, "El alumno");
+    if (!/^\d{7,8}$/.test(String(alumno.dni ?? ""))) throw reglaDeNegocio("sin_dni", "Cargá el DNI del alumno antes de preparar su acceso.");
+    if (alumno.user_id && !restablecer) throw new ErrorApi(HttpStatus.CONFLICT, "cuenta_existente", "El alumno ya tiene cuenta. Confirmá el restablecimiento para cambiar su contraseña al DNI.");
+    if (!alumno.user_id && !(alumno.email as string).trim()) throw reglaDeNegocio("sin_email", "Cargá el email del alumno antes de preparar su acceso.");
     await this.verificarTope(db, alumnoId);
 
     const sb = this.admin.admin();
-    const clave = this.cuentas.claveLegible();
+    const clave = String(alumno.dni);
 
     // 1. el registro en la base va ANTES de tocar la cuenta: si algo falla acá, la contraseña del
     //    alumno no cambia (no queda una contraseña nueva que el profe nunca llegó a ver).
@@ -315,7 +319,7 @@ export class InvitacionesController {
     return this.invitaciones.consultar(token, req.ip ?? "desconocida");
   }
 
-  /** El profe le da el acceso a un alumno con una contraseña aleatoria (se muestra una sola vez) */
+  /** El profe prepara el acceso con DNI o restablece explícitamente una cuenta existente. */
   @Roles("coach")
   @Post("alumnos/:id/credenciales")
   @HttpCode(200)
@@ -325,9 +329,9 @@ export class InvitacionesController {
     @Body() body: unknown,
     @Res({ passthrough: true }) res: Response,
   ) {
-    validarOLanzar(invitarAlumnoApi, body ?? {});
+    const dto = validarOLanzar(entregarCredencialesApi, body ?? {});
     res.setHeader("Cache-Control", "no-store"); // la contraseña no se guarda en ninguna caché
-    return this.invitaciones.entregarCredenciales(u, id);
+    return this.invitaciones.entregarCredenciales(u, id, dto.restablecer);
   }
 
   /** El alumno elige su contraseña y queda con la sesión iniciada */

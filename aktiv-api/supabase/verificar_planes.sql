@@ -61,4 +61,8 @@ select
   exists (
     select 1 from information_schema.columns
     where table_schema = 'public' and table_name = 'sesiones' and column_name = 'activacion'
-  ) as ejercicios_entrada_calor_migracion_35;
+  ) as ejercicios_entrada_calor_migracion_35,
+  exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'sesiones' and column_name = 'franja'
+  ) as momento_del_dia_migracion_36;

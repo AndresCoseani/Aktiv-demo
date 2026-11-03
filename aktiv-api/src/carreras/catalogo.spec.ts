@@ -4,7 +4,7 @@ import type { Usuario } from "../common/tipos";
 
 const usuario: Usuario = { id: "profe", token: "token-profe", rol: "coach", email: "profe@test.local", nombre: "Profe" };
 function entorno(filas: { id: string; nombre: string }[]) {
-  const q = { select: jest.fn(() => q), eq: jest.fn(() => q), order: jest.fn(() => q), range: jest.fn(async (desde: number, hasta: number) => ({ data: filas.slice(desde, hasta + 1), error: null })), insert: jest.fn(async (_dto: unknown) => ({ error: null })) };
+  const q: Record<"select" | "eq" | "order" | "range" | "insert", jest.Mock> = { select: jest.fn(() => q), eq: jest.fn(() => q), order: jest.fn(() => q), range: jest.fn(async (desde: number, hasta: number) => ({ data: filas.slice(desde, hasta + 1), error: null })), insert: jest.fn(async (_dto: unknown) => ({ error: null })) };
   const supa = { delUsuario: jest.fn(() => ({ from: jest.fn(() => q) })) };
   return { servicio: new CarrerasService(supa as unknown as SupabaseService), q, supa };
 }

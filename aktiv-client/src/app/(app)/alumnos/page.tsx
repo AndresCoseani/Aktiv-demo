@@ -2,6 +2,7 @@
 
 import { AlumnosTable } from "@/components/alumnos-table";
 import { NuevoAlumnoDialog } from "@/components/nuevo-alumno-dialog";
+import { ImportarAlumnosDialog } from "@/components/importar-alumnos-dialog";
 import { useRol } from "@/lib/guards";
 import { useStore } from "@/lib/store";
 
@@ -13,7 +14,7 @@ export default function AlumnosPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Alumnos
@@ -22,7 +23,7 @@ export default function AlumnosPage() {
             Tocá un alumno para ver su detalle y sus planes.
           </p>
         </div>
-        <NuevoAlumnoDialog />
+        <div className="flex flex-wrap gap-2"><ImportarAlumnosDialog /><NuevoAlumnoDialog /></div>
       </header>
       <AlumnosTable alumnos={alumnos} />
     </div>

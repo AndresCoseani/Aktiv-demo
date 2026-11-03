@@ -13,6 +13,7 @@ const fecha = z.string();
 const num = z.coerce.number();
 
 export const filaAlumnoSchema = z.object({
+  dni: z.string().default(""),
   id,
   coach_id: id,
   user_id: id.nullable(),

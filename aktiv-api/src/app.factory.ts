@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import { json } from "express";
 import { crearAppModule } from "./app.module";
 import type { Env } from "./config/env";
 import type { Mail } from "./mail/mail.service";
@@ -24,7 +25,8 @@ export async function crearApp(env: Env, opciones: { mail?: Mail } = {}): Promis
 
   app.use(helmet());
   app.use(cookieParser());
-  // el cuerpo JSON no necesita más de 100 kb (los archivos viajan por multipart, con su propio tope)
+  // La importación admite hasta 200 alumnos; el resto conserva su límite habitual.
+  app.use("/api/alumnos/importar", json({ limit: "512kb" }));
   app.useBodyParser("json", { limit: "100kb" });
 
   app.enableCors({

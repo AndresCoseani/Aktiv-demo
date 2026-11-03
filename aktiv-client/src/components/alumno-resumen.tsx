@@ -74,7 +74,7 @@ export function AlumnoResumen({ alumno, mensual, onAbrir }: {
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-2 px-4">
           {mensual.error ? <p className="text-sm text-muted-foreground">No se pudo consultar el plan.</p> : mensual.cargando ? <p className="text-sm text-muted-foreground">Cargando…</p> : mes ? (
-            !semanaMensual ? <p className="text-sm text-muted-foreground">{hoyISO() < mes.inicio ? "El plan todavía no empezó." : `El plan de ${mes.semanas} semanas terminó.`}</p> : sesionesHoy.length ? sesionesHoy.slice(0, 2).map((s) => (
+            !semanaMensual ? <p className="text-sm text-muted-foreground">{hoyISO() < mes.inicio ? "El plan todavía no empezó." : `El plan de ${mes.semanas} semanas terminó.`}</p> : sesionesHoy.length ? sesionesHoy.map((s) => (
               <div key={s.id} className="min-w-0"><p className="truncate text-sm font-medium">{s.nombre || s.tipo}</p><p className="line-clamp-2 text-xs text-muted-foreground">{s.ejercicios.slice(0, 2).map((e) => `${e.nombre || "Ejercicio"}: ${prescripcionEfectiva(e.semanas, semanaMensual) || "Sin indicación"}`).join(" · ") || "Sin ejercicios cargados"}</p></div>
             )) : <p className="text-sm text-muted-foreground">{mes.sesiones.some((s) => s.dia === null) ? "El plan tiene entrenamientos sin día fijo. Consultalos en Plan." : "Hoy no tiene sesiones asignadas."}</p>
           ) : planes.length ? planes.map((plan) => (

@@ -8,6 +8,8 @@ import type { NextConfig } from "next";
 const API_URL = (process.env.API_URL ?? "http://localhost:4000").replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
+  // Verificación en paralelo sin compartir los artefactos del servidor de Andrés.
+  distDir: process.env.AKTIV_DIST_DIR ?? ".next",
   turbopack: {
     rules: {
       "*.css": {

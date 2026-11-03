@@ -124,6 +124,7 @@ export default function LoginPage() {
             {enviando ? "Entrando…" : "Entrar"}
             {!enviando && <ArrowRight data-icon="inline-end" />}
           </Button>
+          <p className="text-center text-xs leading-relaxed text-muted-foreground">Si tu profe preparó tu acceso con DNI, esa es tu contraseña inicial, sin puntos. La sesión se recuerda en este dispositivo; si es compartido, cerrá sesión al terminar.</p>
         </form>
 
       </div>

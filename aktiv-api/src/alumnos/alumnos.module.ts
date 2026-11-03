@@ -13,6 +13,7 @@ import { z } from "zod";
 import {
   CAMPOS_ALUMNO_EDITABLES_POR_ALUMNO,
   altaAlumnoApi,
+  importarAlumnosApi,
   altaLesionApi,
   altaMarcaApi,
   parcheAlumnoAlumnoApi,
@@ -68,12 +69,19 @@ export class AlumnosService {
       coach_id: u.id,
       nombre: dto.nombre,
       email: dto.email,
+      dni: dto.dni,
       telefono: dto.telefono,
       objetivo: dto.objetivo,
       nivel: dto.nivel,
     });
     lanzarSiError(error);
     return RESPUESTA_ID(dto.id);
+  }
+
+  async importar(u: Usuario, dto: z.output<typeof importarAlumnosApi>) {
+    const { error } = await this.supa.delUsuario(u.token).rpc("importar_alumnos", { p_alumnos: dto.alumnos });
+    lanzarSiError(error);
+    return { cantidad: dto.alumnos.length };
   }
 
   async parchear(u: Usuario, id: string, body: unknown) {
@@ -169,6 +177,12 @@ const idParam = () => new ZodPipe(uuidSchema);
 @Controller()
 export class AlumnosController {
   constructor(private readonly alumnos: AlumnosService) {}
+
+  @Roles("coach")
+  @Post("alumnos/importar")
+  importar(@UsuarioActual() u: Usuario, @Body(new ZodPipe(importarAlumnosApi)) dto: z.output<typeof importarAlumnosApi>) {
+    return this.alumnos.importar(u, dto);
+  }
 
   // ---- alumnos
   @Roles("coach")

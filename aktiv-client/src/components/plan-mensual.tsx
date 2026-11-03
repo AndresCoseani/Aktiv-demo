@@ -173,10 +173,10 @@ function SemanasPlan({ total, semana, actual, onSeleccionar }: { total: number; 
     else if (boton.offsetLeft + boton.offsetWidth > elemento.scrollLeft + elemento.clientWidth) elemento.scrollLeft = boton.offsetLeft + boton.offsetWidth - elemento.clientWidth;
   }, [semana]);
   const desbordado = bordes.anterior || bordes.siguiente;
-  return <div className="flex min-w-0 items-center gap-2">
+  return <div className="flex min-w-0 items-center justify-center gap-2">
     {desbordado && <Button size="icon-sm" variant="outline" aria-label="Semanas anteriores" disabled={!bordes.anterior} onClick={() => lista.current?.scrollBy({ left: -lista.current.clientWidth })}><ArrowLeft /></Button>}
     <div ref={lista} role="group" aria-label="Semana del plan" className="relative flex min-w-0 w-fit gap-1 overflow-x-auto rounded-lg bg-muted p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {semanasDelPlan(total).map((s) => <Button key={s} data-semana={s} className="shrink-0" size="sm" variant={semana === s ? "secondary" : "ghost"} aria-label={`Semana ${s}`} aria-pressed={semana === s} onClick={() => onSeleccionar(s)}>Semana {s}{actual === s && <span className="sr-only"> · Actual</span>}</Button>)}
+      {semanasDelPlan(total).map((s) => <Button key={s} data-semana={s} className="shrink-0" size="sm" variant={semana === s ? "default" : "ghost"} aria-label={`Semana ${s}`} aria-pressed={semana === s} onClick={() => onSeleccionar(s)}>{semana === s && <Check className="size-3.5" />}Semana {s}{actual === s && <span className="sr-only"> · Actual</span>}</Button>)}
     </div>
     {desbordado && <Button size="icon-sm" variant="outline" aria-label="Semanas siguientes" disabled={!bordes.siguiente} onClick={() => lista.current?.scrollBy({ left: lista.current.clientWidth })}><ArrowRight /></Button>}
   </div>;
@@ -192,6 +192,7 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
   const sesiones = plan.sesiones.filter((s) => s.tipo === tipo);
   const sesion = sesiones.find((s) => s.id === seleccionSesion) ?? sesiones[0];
   const numeroDia = sesion ? sesiones.indexOf(sesion) + 1 : 1;
+  const [diaAlumno, setDiaAlumno] = useState(() => (new Date().getDay() + 6) % 7 + 1);
   async function nuevaSesion() {
     if (ocupado) return;
     setOcupado(true);
@@ -201,18 +202,32 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
       avisarCambioMensual(); setSeleccionSesion(dto.id); toast.success(`Día ${sesiones.length + 1} de ${tipo.toLowerCase()} creado`);
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
   }
+  if (!editable) {
+    const delDia = plan.sesiones.filter((s) => s.dia === diaAlumno).sort((a, b) => a.orden - b.orden);
+    const sinAsignar = plan.sesiones.filter((s) => s.dia === null);
+    const hoy = (new Date().getDay() + 6) % 7 + 1;
+    return <div className="space-y-6">
+      <div className="space-y-2"><p className="text-center text-sm font-medium">Semana {semana} de {plan.semanas}</p><SemanasPlan total={plan.semanas} semana={semana} actual={actual} onSeleccionar={(s) => navegar(() => setSemana(s))} /></div>
+      <div className="space-y-3"><h3 className="text-lg font-semibold">{diaAlumno === hoy ? actual ? "Hoy te toca" : "Consultar entrenamientos" : DIAS_PLAN[diaAlumno - 1]}</h3>
+        {!actual && <p className="text-sm text-muted-foreground">{hoyISO() < plan.inicio ? "El plan todavía no empezó." : "Este plan terminó."} Podés consultar sus entrenamientos.</p>}
+        <div role="group" aria-label="Días de la semana" className="grid grid-cols-7 gap-1">{DIAS_PLAN.map((dia, i) => <Button key={dia} size="sm" className="min-w-0 px-1" variant={diaAlumno === i + 1 ? "default" : "ghost"} aria-label={dia} aria-pressed={diaAlumno === i + 1} onClick={() => navegar(() => setDiaAlumno(i + 1))}>{dia.slice(0, 3)}</Button>)}</div>
+      </div>
+      {delDia.length ? delDia.map((s) => <div key={s.id} className="space-y-3"><p className="text-sm font-medium text-primary">{s.tipo}</p><LecturaSesion sesion={s} semana={semana} /></div>) : <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No hay entrenamientos asignados para este día.</p>}
+      {sinAsignar.length > 0 && <section className="space-y-5"><h3 className="text-sm font-semibold">Entrenamientos sin día asignado</h3>{sinAsignar.map((s) => <LecturaSesion key={s.id} sesion={s} semana={semana} />)}</section>}
+    </div>;
+  }
   return <div className="space-y-4">
     {!actual && <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{hoyISO() < plan.inicio ? "Este plan todavía no empezó." : `Este plan de ${plan.semanas} semanas terminó.`} Podés consultar sus semanas.</p>}
-    <div role="group" aria-label="Tipo de entrenamiento" className="flex gap-2">{(["Fuerza", "Running"] as const).map((t) => <Button key={t} disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}</div>
+    <div role="group" aria-label="Tipo de entrenamiento" className="flex justify-center gap-2">{(["Fuerza", "Running"] as const).map((t) => <Button key={t} disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}</div>
     {(sesiones.length > 0 || editable) && <div className="space-y-2">
       <h3 className="sr-only">Días de {tipo.toLowerCase()}</h3>
-      <div role="group" aria-label="Días del entrenamiento" className="flex flex-wrap gap-2">
-        {sesiones.map((s, i) => <Button key={s.id} size="sm" variant={sesion?.id === s.id ? "secondary" : "outline"} aria-label={`Día ${i + 1}`} aria-pressed={sesion?.id === s.id} disabled={ocupado} onClick={() => navegar(() => setSeleccionSesion(s.id))}>Día {i + 1}</Button>)}
+      <div role="group" aria-label="Días del entrenamiento" className="flex flex-wrap justify-center gap-2">
+        {sesiones.map((s, i) => <Button key={s.id} size="sm" variant={sesion?.id === s.id ? "secondary" : "outline"} aria-label={`Día ${i + 1}`} aria-pressed={sesion?.id === s.id} disabled={ocupado} onClick={() => navegar(() => setSeleccionSesion(s.id))}>Día {i + 1}{s.dia && <span className="text-muted-foreground"> · {DIAS_PLAN[s.dia - 1].slice(0, 3)}</span>}</Button>)}
         {editable && <Button variant="outline" size="sm" disabled={ocupado} onClick={() => navegar(() => void nuevaSesion())}><Plus />{ocupado ? "Creando día…" : `Crear Día ${sesiones.length + 1}`}</Button>}
       </div>
     </div>}
     {sesion && <div className="min-w-0 space-y-2">
-      <p className="text-xs text-muted-foreground">Semana {semana} de {plan.semanas}</p>
+      <p className="text-center text-xs text-muted-foreground">Semana {semana} de {plan.semanas}</p>
       <SemanasPlan total={plan.semanas} semana={semana} actual={actual} onSeleccionar={setSemana} />
     </div>}
     {sesion ? editable ? <EditorSesion key={sesion.id} sesion={sesion} numeroDia={numeroDia} semana={semana} semanasVisibles={semanasVisibles} totalSemanas={plan.semanas} /> : <LecturaSesion key={sesion.id} sesion={sesion} semana={semana} /> :
@@ -228,14 +243,48 @@ function EditorSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas
   return <FormularioSesion sesion={sesion} numeroDia={numeroDia} semana={semana} semanasVisibles={semanasVisibles} totalSemanas={totalSemanas} />;
 }
 
+function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEntrenamiento; onGuardar: (sesion: SesionEntrenamiento) => void; onCerrar: () => void }) {
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+  async function guardar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    setOcupado(true); setError("");
+    try {
+      const resultado = parcheSesionApi.safeParse({ nombre: String(f.get("nombre")).trim(), dia: f.get("dia") ? Number(f.get("dia")) : null });
+      if (!resultado.success) { setError(resultado.error.issues[0]?.message ?? "Revisá los datos del entrenamiento."); return; }
+      await api.patch(`/sesiones/${sesion.id}`, resultado.data);
+      const actualizada = { ...sesion, ...resultado.data };
+      onGuardar(actualizada); avisarCambioMensual(actualizada); onCerrar();
+      toast.success("Datos del entrenamiento guardados");
+    } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
+  }
+  return <Dialog open onOpenChange={(abierto) => { if (!abierto && !ocupado) onCerrar(); }}>
+    <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md" showCloseButton={!ocupado}>
+      <form onSubmit={guardar} className="space-y-4">
+        <DialogHeader><DialogTitle>Editar entrenamiento</DialogTitle><DialogDescription>Cambiá el nombre y el día en que le toca al alumno.</DialogDescription></DialogHeader>
+        <fieldset disabled={ocupado} className="min-w-0 space-y-4">
+          <label className="block space-y-1 text-sm">Nombre del día<Input name="nombre" defaultValue={sesion.nombre} maxLength={60} autoFocus /></label>
+          <label className="block space-y-1 text-sm">Día de la semana<select name="dia" aria-label="Día de la semana" className={selector} defaultValue={sesion.dia ?? ""}><option value="">Sin asignar</option>{DIAS_PLAN.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}</select></label>
+          <p className="text-xs text-muted-foreground">Podés asignar varios entrenamientos al mismo día. Aparecen en «Hoy te toca».</p>
+        </fieldset>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <DialogFooter><Button type="button" variant="ghost" disabled={ocupado} onClick={onCerrar}>Cancelar</Button><Button type="submit" disabled={ocupado}>{ocupado ? "Guardando…" : "Guardar cambios"}</Button></DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>;
+}
+
 function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas }: { sesion: SesionEntrenamiento; numeroDia: number; semana: number; semanasVisibles: number[]; totalSemanas: number }) {
   const [borrador, setBorrador] = useState(sesion);
   const [guardado, setGuardado] = useState(sesion);
   const [altaPendiente, setAltaPendiente] = useState<EjercicioMensual | null>(null);
   const guardando = useRef(false);
+  const continuarGuardado = useRef(false);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
   const [confirmar, setConfirmar] = useState(false);
+  const [editando, setEditando] = useState(false);
   const [quitar, setQuitar] = useState<string | null>(null);
   const sucio = JSON.stringify(borrador) !== JSON.stringify(guardado);
   useEffect(() => registrarBorradorMensual(sesion.id, sucio), [sesion.id, sucio]);
@@ -280,13 +329,23 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
         setGuardado((anterior) => ({ ...anterior, ejercicios: [...anterior.ejercicios, altaPendiente] }));
         setAltaPendiente(null);
       }
-      for (const op of operaciones) await api.patch(op.ruta, op.datos);
-      setGuardado(borrador); avisarCambioMensual(); return true;
+      // El alta anterior es una dependencia; estos parches ya son independientes.
+      // Esperar el lote completo incluso si falla uno, antes de ofrecer reintento.
+      for (let i = 0; i < operaciones.length; i += 4) {
+        const resultados = await Promise.allSettled(operaciones.slice(i, i + 4).map((op) => api.patch(op.ruta, op.datos)));
+        const fallo = resultados.find((r) => r.status === "rejected");
+        if (fallo?.status === "rejected") throw fallo.reason;
+      }
+      continuarGuardado.current = true;
+      setGuardado(borrador); avisarCambioMensual(borrador); return true;
     } catch (e) { setError(mensaje(e)); return false; } finally { guardando.current = false; setOcupado(false); }
   }, [borrador, guardado, sesion.id, altaPendiente]);
   useEffect(() => {
-    if (!sucio || ocupado || error) return;
-    const timer = setTimeout(() => void guardar(), altaPendiente ? 0 : 800);
+    if (!sucio) { continuarGuardado.current = false; return; }
+    if (ocupado || error) return;
+    const espera = altaPendiente || continuarGuardado.current ? 0 : 300;
+    continuarGuardado.current = false;
+    const timer = setTimeout(() => void guardar(), espera);
     return () => clearTimeout(timer);
   }, [sucio, ocupado, error, guardar, altaPendiente]);
   function crearBloque() {
@@ -312,10 +371,10 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       avisarCambioMensual(); setConfirmar(false); setQuitar(null);
     } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
   }
-  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-center justify-between gap-2"><div><CardTitle className="text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle>{borrador.dia && <CardDescription>{DIAS_PLAN[borrador.dia - 1]}</CardDescription>}</div><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></CardHeader>
+  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle><CardDescription>{borrador.dia ? DIAS_PLAN[borrador.dia - 1] : "Sin día asignado"}</CardDescription></div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>
+    {editando && <EditarSesionDialog sesion={borrador} onCerrar={() => setEditando(false)} onGuardar={(actualizada) => { setBorrador(actualizada); setGuardado(actualizada); }} />}
     <CardContent><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50">
       <fieldset className="min-w-0 space-y-8">
-        <details className="text-xs text-muted-foreground"><summary className="w-fit cursor-pointer py-1">Editar nombre y día calendario</summary><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="block space-y-1">Nombre del día<Input value={borrador.nombre} maxLength={60} onChange={(e) => setBorrador({ ...borrador, nombre: e.target.value })} /></label><label className="block space-y-1">Día calendario (opcional)<select className={selector} value={borrador.dia ?? ""} onChange={(e) => setBorrador({ ...borrador, dia: e.target.value ? Number(e.target.value) : null })}><option value="">Sin día fijo</option>{DIAS_PLAN.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}</select></label></div></details>
         <EntradaEnCalorEditor texto={borrador.calentamiento} ejercicios={borrador.activacion} onTexto={(calentamiento) => setBorrador((anterior) => ({ ...anterior, calentamiento }))} onEjercicios={(activacion) => setBorrador((anterior) => ({ ...anterior, activacion }))} />
         <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Entrenamiento</h3><div className="flex flex-wrap gap-2">
           {semana > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setBorrador((b) => ({ ...b, ejercicios: b.ejercicios.map((e) => ({ ...e, semanas: e.semanas.map((c) => c.semana === semana ? { ...c, prescripcion: c.prescripcion.trim() ? c.prescripcion : prescripcionEfectiva(e.semanas, semana - 1) } : c) })) }))}>Completar vacíos de S{semana} con S{semana - 1}</Button>}
@@ -333,9 +392,16 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
 
 function LecturaSesion({ sesion, semana }: { sesion: SesionEntrenamiento; semana: number }) {
   const grupos = bloquesDelPlan(sesion.ejercicios, sesion.bloques).filter((grupo) => sesion.ejercicios.some((e) => e.grupo === grupo));
-  return <Card className="gap-8"><CardHeader><CardTitle>{sesion.nombre || sesion.tipo}</CardTitle><CardDescription>{sesion.tipo} · Semana {semana}</CardDescription></CardHeader><CardContent className="space-y-10 sm:space-y-12">
+  return <Card className="gap-5"><CardHeader><CardTitle role="heading" aria-level={4}>{sesion.nombre || sesion.tipo}</CardTitle><CardDescription>{sesion.tipo} · Semana {semana}</CardDescription></CardHeader><CardContent className="space-y-6 sm:space-y-8">
     {(sesion.calentamiento || sesion.activacion.length > 0) && <section className="space-y-3"><h3 className="text-sm font-semibold">Entrada en calor</h3>{sesion.activacion.length > 0 && <ol className="space-y-2 text-sm">{sesion.activacion.map((e, indice) => <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span className="min-w-0 break-words font-medium">{indice + 1}. {e.nombre || "Ejercicio sin nombre"}</span>{e.indicacion && <span className="whitespace-pre-wrap break-words text-foreground">{e.indicacion}</span>}</li>)}</ol>}{sesion.calentamiento && <div className="space-y-1 border-t pt-3"><p className="text-xs text-muted-foreground">Indicaciones generales</p><p className="whitespace-pre-wrap break-words text-sm text-foreground">{sesion.calentamiento}</p></div>}</section>}
-    {grupos.map((grupo) => <section key={grupo} aria-label={`Bloque ${grupos.indexOf(grupo) + 1}`} className="space-y-4"><div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1"><h3 className="text-base font-semibold">Bloque {grupos.indexOf(grupo) + 1}</h3><p className="text-xs text-muted-foreground">{sesion.ejercicios.filter((e) => e.grupo === grupo).length > 1 ? "Ejercicios juntos" : "Ejercicio individual"}</p></div><ul className="divide-y divide-border/50 rounded-xl bg-muted/20 px-4 ring-1 ring-border/50 sm:px-5">{sesion.ejercicios.filter((e) => e.grupo === grupo).map((e) => <li key={e.id} className="space-y-4 py-5 sm:py-6"><div className="space-y-2"><p className="break-words text-sm font-medium">{e.nombre || "Ejercicio sin nombre"}</p><p className="break-words text-base font-medium text-primary">{prescripcionEfectiva(e.semanas, semana) || "Sin indicación"}</p>{e.descanso && <p className="text-xs text-muted-foreground">Descanso: {e.descanso}</p>}</div>{sesion.tipo === "Fuerza" && <PesoSemanal key={`${e.id}:${semana}`} ejercicio={e} semana={semana} />}</li>)}</ul></section>)}
+    {grupos.map((grupo) => <section key={grupo} aria-label={`Bloque ${grupos.indexOf(grupo) + 1}`} className="space-y-3">
+      <h3 className="text-sm font-semibold">Bloque {grupos.indexOf(grupo) + 1}</h3>
+      <ul className="divide-y divide-border/50 rounded-xl bg-muted/20 px-3 ring-1 ring-border/50 sm:px-4">{sesion.ejercicios.filter((e) => e.grupo === grupo).map((e) => <li key={e.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 py-3">
+        <div className="min-w-0 flex-1 basis-40"><p className="break-words text-sm font-medium">{e.nombre || "Ejercicio sin nombre"}</p><p className="mt-1 break-words text-sm font-medium text-primary">{prescripcionEfectiva(e.semanas, semana) || "Sin indicación"}</p></div>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">{e.descanso && <p className="break-words text-xs text-muted-foreground">Descanso: {e.descanso}</p>}{sesion.tipo === "Fuerza" && <PesoSemanal key={`${e.id}:${semana}`} ejercicio={e} semana={semana} />}</div>
+      </li>)}</ul>
+    </section>)}
+
     {!sesion.ejercicios.length && <p className="text-sm text-muted-foreground">Esta sesión todavía no tiene ejercicios.</p>}
     {sesion.enfriamiento && <section><h3 className="mb-2 text-sm font-semibold">Vuelta a la calma</h3><p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{sesion.enfriamiento}</p></section>}
   </CardContent></Card>;
@@ -344,15 +410,34 @@ function LecturaSesion({ sesion, semana }: { sesion: SesionEntrenamiento; semana
 function PesoSemanal({ ejercicio, semana }: { ejercicio: EjercicioMensual; semana: number }) {
   const celda = ejercicio.semanas.find((c) => c.semana === semana);
   const [peso, setPeso] = useState(celda?.peso ?? "");
+  const [guardado, setGuardado] = useState(celda?.peso ?? "");
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
-  async function guardar(e: React.FormEvent) {
-    e.preventDefault(); setOcupado(true); setError("");
-    try {
-      const dto = parcheCeldaAlumnoApi.parse({ peso: peso || null, pesoFecha: peso ? hoyISO() : null });
-      await api.patch(`/sesion-ejercicios/${ejercicio.id}/semanas/${semana}`, dto);
-      avisarCambioMensual(); toast.success("Peso guardado para esta semana");
-    } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
-  }
-  return <form onSubmit={guardar} className="space-y-1"><div className="flex flex-wrap items-end gap-2"><label className="flex flex-col gap-2 text-xs text-muted-foreground">Peso usado · kg<Input aria-label={`Peso de ${ejercicio.nombre}, semana ${semana}`} inputMode="decimal" maxLength={10} className="w-28" value={peso} onChange={(e) => setPeso(e.target.value)} disabled={ocupado || !celda} /></label><Button type="submit" size="sm" variant="outline" disabled={ocupado || !celda || peso === (celda.peso ?? "")}>{ocupado ? "Guardando…" : "Guardar peso"}</Button></div>{celda?.pesoFecha && <p className="text-xs text-muted-foreground">Registrado el {formatFecha(celda.pesoFecha)}</p>}{error && <p role="alert" className="text-xs text-destructive">{error}</p>}</form>;
+  const sucio = peso !== guardado;
+  useEffect(() => registrarBorradorMensual(`peso:${ejercicio.id}:${semana}`, sucio || ocupado), [ejercicio.id, semana, sucio, ocupado]);
+  useEffect(() => {
+    if (!sucio && !ocupado) return;
+    const avisar = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    const alNavegar = (e: MouseEvent) => {
+      if (e.target instanceof Element && e.target.closest("a[href], [role=tab]")) {
+        e.preventDefault(); e.stopPropagation(); toast.error("Esperá a que se guarde el peso antes de cambiar de vista.");
+      }
+    };
+    window.addEventListener("beforeunload", avisar); document.addEventListener("click", alNavegar, true);
+    return () => { window.removeEventListener("beforeunload", avisar); document.removeEventListener("click", alNavegar, true); };
+  }, [sucio, ocupado]);
+  useEffect(() => {
+    if (!celda || !sucio || ocupado || error) return;
+    const timer = setTimeout(async () => {
+      setOcupado(true);
+      try {
+        const resultado = parcheCeldaAlumnoApi.safeParse({ peso: peso || null, pesoFecha: peso ? hoyISO() : null });
+        if (!resultado.success) { setError(resultado.error.issues[0]?.message ?? "Revisá el peso."); return; }
+        await api.patch(`/sesion-ejercicios/${ejercicio.id}/semanas/${semana}`, resultado.data);
+        setGuardado(peso); avisarCambioMensual();
+      } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [peso, sucio, ocupado, error, ejercicio.id, semana, celda]);
+  return <div className="space-y-1"><div className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 text-xs text-muted-foreground">kg<Input aria-label={`Peso de ${ejercicio.nombre}, semana ${semana}`} inputMode="decimal" maxLength={10} className="h-8 w-20" value={peso} onChange={(e) => { setPeso(e.target.value); setError(""); }} disabled={!celda} /></label><span role="status" className="text-xs text-muted-foreground">{ocupado ? "Guardando…" : error ? "Sin guardar" : sucio ? "Pendiente…" : guardado ? "Guardado" : ""}</span></div>{error && <div className="flex flex-wrap items-center gap-2"><p role="alert" className="text-xs text-destructive">{error}</p><Button type="button" size="sm" variant="ghost" onClick={() => setError("")}>Reintentar</Button></div>}</div>;
 }

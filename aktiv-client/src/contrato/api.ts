@@ -156,11 +156,19 @@ export const invitacionEnviadaSchema = z.object({
   expiraEn: z.string(),
 });
 
-/** Entregar el acceso sin mail: la API genera una contraseña aleatoria y se la muestra UNA vez al profe */
+/** Entrega explícita del acceso. Una cuenta existente solo se restablece con confirmación. */
+export const entregarCredencialesApi = z.object({ restablecer: z.boolean().optional() }).strict();
 export const credencialesEntregadasSchema = z.object({
   email: z.string(),
   clave: z.string(),
 });
+export const importarAlumnosApi = z.object({ alumnos: z.array(altaAlumnoApi).min(1).max(200) }).strict()
+  .refine(({ alumnos }) => alumnos.every((a) => a.dni || a.email), "Cada alumno importado necesita DNI o email para evitar duplicados")
+  .refine(({ alumnos }) => {
+    const dni = alumnos.map((a) => a.dni).filter(Boolean);
+    const emails = alumnos.map((a) => a.email.toLowerCase()).filter(Boolean);
+    return new Set(dni).size === dni.length && new Set(emails).size === emails.length && new Set(alumnos.map((a) => a.id)).size === alumnos.length;
+  }, "Hay DNI, emails o identificadores repetidos en la importación");
 
 /** Cambio de contraseña de quien tiene la sesión iniciada (profe o alumno) */
 export const cambiarClaveApi = z

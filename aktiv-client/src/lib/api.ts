@@ -111,7 +111,7 @@ export const api = {
   get: <T>(ruta: string) => llamar<T>("GET", ruta),
   post: <T = { id: string }>(ruta: string, cuerpo: unknown) => llamar<T>("POST", ruta, cuerpo),
   patch: <T = { id: string }>(ruta: string, cuerpo: unknown) => llamar<T>("PATCH", ruta, cuerpo),
-  delete: (ruta: string) => llamar<void>("DELETE", ruta),
+  delete: (ruta: string, cuerpo?: unknown) => llamar<void>("DELETE", ruta, cuerpo),
 };
 
 /* ───────────── Endpoints con forma propia ───────────── */
@@ -140,9 +140,9 @@ export async function invitar(alumnoId: string): Promise<InvitacionEnviada> {
   return invitacionEnviadaSchema.parse(await llamar<unknown>("POST", `/alumnos/${alumnoId}/invitar`, {}));
 }
 
-/** El profe le da el acceso al alumno con una contraseña aleatoria (se muestra una sola vez) */
-export async function entregarCredenciales(alumnoId: string): Promise<CredencialesEntregadas> {
-  return credencialesEntregadasSchema.parse(await llamar<unknown>("POST", `/alumnos/${alumnoId}/credenciales`, {}));
+/** Email y DNI inicial; el restablecimiento de cuentas existentes es explícito. */
+export async function entregarCredenciales(alumnoId: string, restablecer = false): Promise<CredencialesEntregadas> {
+  return credencialesEntregadasSchema.parse(await llamar<unknown>("POST", `/alumnos/${alumnoId}/credenciales`, { restablecer }));
 }
 
 /** Cambiar la propia contraseña (pide la actual) */

@@ -1,6 +1,12 @@
 import { ErrorApi, errorDeDb } from "./errores";
 
 describe("diagnóstico seguro de errores de base", () => {
+  it("orienta al diagnóstico de Lucas sin confundir caché con migración faltante", () => {
+    const r = errorDeDb({ code: "PGRST204", message: "Could not find the 'dni' column of 'alumnos' in the schema cache" });
+    expect(r.getStatus()).toBe(503);
+    expect(r.message).toContain("verificar_actualizacion_lucas.sql");
+    expect(r.message).not.toContain("Aplicá la migración");
+  });
   it("identifica la función de creación con días pendiente", () => {
     expect(errorDeDb({ code: "PGRST202", message: "Could not find public.crear_plan_con_dias in the schema cache" }).getResponse())
       .toMatchObject({ mensaje: expect.stringContaining("migración 32") });

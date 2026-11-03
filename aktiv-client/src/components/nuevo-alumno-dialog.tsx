@@ -27,6 +27,7 @@ import { LIMITES, crearAlumnoDto, validar } from "@/lib/schemas";
 import { ErrorHttp } from "@/lib/api";
 import { crearAlumno, invitarAlumno } from "@/lib/store";
 import type { Nivel } from "@/lib/types";
+import { normalizarDni } from "@aktiv/contrato";
 
 const NIVELES: Nivel[] = ["Principiante", "Intermedio", "Avanzado"];
 
@@ -35,7 +36,7 @@ export function NuevoAlumnoDialog() {
   const [abierto, setAbierto] = useState(false);
   const [nivel, setNivel] = useState<Nivel>("Principiante");
   const [error, setError] = useState("");
-  const [invitar, setInvitar] = useState(true);
+  const [invitar, setInvitar] = useState(false);
 
   async function enviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -43,6 +44,7 @@ export function NuevoAlumnoDialog() {
     const v = validar(crearAlumnoDto, {
       nombre: String(f.get("nombre")).trim(),
       email: String(f.get("email")).trim(),
+      dni: normalizarDni(String(f.get("dni") ?? "")),
       telefono: String(f.get("telefono")).trim(),
       objetivo: String(f.get("objetivo")).trim() || "Sin definir",
       nivel,
@@ -107,6 +109,7 @@ export function NuevoAlumnoDialog() {
                 autoComplete="off"
               />
             </div>
+            <label className="block space-y-2 text-sm">DNI<Input name="dni" inputMode="numeric" maxLength={12} placeholder="Sin puntos; se usa como contraseña inicial" /></label>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="n-email">Email{invitar ? " *" : ""}</Label>

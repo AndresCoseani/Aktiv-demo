@@ -26,6 +26,7 @@ let errorLectura = false;
 let demoraAlta = 0;
 let fallarAlta = false;
 let ejerciciosCatalogo = [];
+let lecturasPlanes = 0, parchesActivos = 0, maximoParalelo = 0;
 const errores = [];
 async function pagina(rol, ancho) {
   const ctx = await browser.newContext({ viewport: { width: ancho, height: 1000 }, timezoneId: "America/Argentina/Buenos_Aires" });
@@ -41,7 +42,9 @@ async function pagina(rol, ancho) {
     let body; let status = 200;
     if (path === "/auth/me") body = { session };
     else if (path === "/datos") body = datos;
+    else if (path === "/agenda") body = { horarios: [], clases: [] };
     else if (req.method() === "GET" && path.endsWith("/planes-mensuales")) {
+      lecturasPlanes++;
       if (demoraLectura) await new Promise((resolve) => setTimeout(resolve, demoraLectura));
       if (errorLectura) { status = 503; body = { codigo: "fallo_prueba", mensaje: "Fallo controlado de lectura" }; }
       else body = sinPlanes ? [] : structuredClone(planes);
@@ -99,13 +102,48 @@ async function pagina(rol, ancho) {
       for (const sesion of planes.flatMap((p) => p.sesiones)) sesion.ejercicios = sesion.ejercicios.filter((e) => !path.endsWith(e.id));
       await route.fulfill({ status: 204 }); return;
     } else throw new Error(`Pedido no esperado: ${req.method()} ${path}`);
-    if (req.method() === "PATCH" && demora) await new Promise((resolve) => setTimeout(resolve, demora));
-    await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    const parche = req.method() === "PATCH";
+    if (parche) { parchesActivos++; maximoParalelo = Math.max(maximoParalelo, parchesActivos); }
+    try {
+      if (parche && demora) await new Promise((resolve) => setTimeout(resolve, demora));
+      await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    } finally { if (parche) parchesActivos--; }
   });
   return { page, ctx };
 }
 try {
-  if (process.argv.includes("--calentamiento")) {
+  if (process.argv.includes("--guardado-rapido")) {
+    const { page, ctx } = await pagina("coach", 1440);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
+    await page.getByRole("tab", { name: "Plan", exact: true }).click();
+    await page.getByLabel("Zumo, semana 6", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("Momento del día", { exact: true }).count(), 0);
+    const lecturasAntes = lecturasPlanes;
+    await page.clock.pauseAt(new Date("2026-11-02T18:10:00Z"));
+    demora = 400;
+    for (let s = 1; s <= 6; s++) await page.getByLabel(`Zumo, semana ${s}`, { exact: true }).fill(`${s + 3}x10`);
+    await page.clock.runFor(301);
+    await page.clock.resume();
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    assert(maximoParalelo >= 2 && maximoParalelo <= 4, `Se esperaban parches paralelos acotados, hubo ${maximoParalelo}`);
+    assert.equal(lecturasPlanes, lecturasAntes, "Guardar una sesión no debe descargar todos los planes");
+    assert.deepEqual(planes[0].sesiones[0].ejercicios[0].semanas.map((s) => s.prescripcion), ["4x10", "5x10", "6x10", "7x10", "8x10", "9x10"]);
+    await page.getByRole("button", { name: "Editar entrenamiento", exact: true }).click();
+    await page.getByRole("dialog").getByLabel("Día de la semana", { exact: true }).selectOption("2");
+    await page.getByRole("dialog").getByRole("button", { name: "Guardar cambios", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.equal(lecturasPlanes, lecturasAntes);
+    assert.match(await page.getByRole("button", { name: "Día 1", exact: true }).innerText(), /Mar/);
+    await page.reload();
+    await page.getByRole("tab", { name: "Plan", exact: true }).click();
+    assert.equal(await page.getByLabel("Zumo, semana 6", { exact: true }).inputValue(), "9x10");
+    await page.getByRole("button", { name: "Editar entrenamiento", exact: true }).click();
+    assert.equal(await page.getByRole("dialog").getByLabel("Día de la semana", { exact: true }).inputValue(), "2");
+    await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
+    assert.deepEqual(errores, []);
+    await ctx.close();
+    console.log(`OK: seis semanas guardadas con hasta ${maximoParalelo} pedidos simultáneos, sin recargar planes; selector actualizado y persistencia tras recargar.`);
+  } else if (process.argv.includes("--calentamiento")) {
     ejerciciosCatalogo = [{ id: crypto.randomUUID(), nombre: "Rolo", categoria: "Movilidad" }, { id: crypto.randomUUID(), nombre: "Hip thrust", categoria: "Fuerza" }];
     const { page, ctx } = await pagina("coach", 390);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
@@ -185,8 +223,10 @@ try {
     assert(generalesLectura.y > nombreLectura.y, "Las indicaciones generales deben estar al final");
     const bloqueAlumno = alumno.page.getByRole("region", { name: "Bloque 1", exact: true });
     assert.equal(await bloqueAlumno.getByRole("heading").innerText(), "Bloque 1");
-    const espacioEjercicio = await bloqueAlumno.locator("li").first().evaluate((e) => Number.parseFloat(getComputedStyle(e).paddingTop));
-    assert(espacioEjercicio >= 20, "Cada ejercicio debe tener espacio interior para separar la lectura y el registro de peso");
+    const fila = await bloqueAlumno.locator("li").first().boundingBox();
+    const campoPeso = await bloqueAlumno.getByRole("textbox").first().boundingBox();
+    assert(fila.height <= 144, "El ejercicio debe conservar una fila compacta en celular");
+    assert(campoPeso.x >= fila.x && campoPeso.x + campoPeso.width <= fila.x + fila.width + 1 && campoPeso.y + campoPeso.height <= fila.y + fila.height, "El registro de peso debe quedar dentro de la fila sin recortarse");
     await alumno.ctx.close();
     assert.deepEqual(errores, []);
     console.log("OK: texto libre + catálogo de activación, dosis, error/reintento, otros tipos, quitar, recarga y lectura del alumno.");
@@ -266,7 +306,7 @@ try {
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await page.reload();
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
-    await primero.getByText("2 ejercicios · Se realizan juntos", { exact: true }).waitFor();
+    await primero.getByText("2 ejercicios juntos", { exact: true }).waitFor();
     assert.deepEqual(planes[0].sesiones[0].bloques, [1]);
     assert.deepEqual(errores, []);
     await ctx.close();
@@ -324,6 +364,12 @@ try {
     const bloque1 = page.getByRole("region", { name: "Bloque 1", exact: true });
     const bloque2 = page.getByRole("region", { name: "Bloque 2", exact: true });
     await bloque2.waitFor();
+    // ResizeObserver adapta la tabla despu?s del primer render.
+    await page.waitForFunction(() => {
+      const descanso = document.querySelector('[aria-label="Descanso de Zumo"]')?.getBoundingClientRect();
+      const semana = document.querySelector('[aria-label="Zumo, semana 4"]')?.getBoundingClientRect();
+      return descanso && semana && descanso.x > semana.x && Math.abs(descanso.y - semana.y) < 2;
+    });
     const descanso = await page.getByLabel("Descanso de Zumo", { exact: true }).boundingBox();
     const semana4 = await page.getByLabel("Zumo, semana 4", { exact: true }).boundingBox();
     assert(descanso.x > semana4.x && Math.abs(descanso.y - semana4.y) < 2, "Descanso fuera del final de la fila");
@@ -331,11 +377,12 @@ try {
     const ultima = await bloque2.boundingBox();
     assert(agregar.y >= ultima.y + ultima.height, "Agregar debe quedar debajo de los bloques");
     await page.getByRole("button", { name: "Arrastrar Hip thrust a otro bloque", exact: true }).dragTo(bloque1);
-    await page.getByText("2 ejercicios · Se realizan juntos", { exact: true }).waitFor();
+    await page.getByText("2 ejercicios juntos", { exact: true }).waitFor();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].ejercicios[1].grupo, 1);
     await page.screenshot({ path: join(destino, "bloques-escritorio.png"), fullPage: true });
     await page.setViewportSize({ width: 390, height: 900 });
+    await bloque1.getByText("Mover a otro bloque", { exact: true }).nth(1).click();
     await page.getByRole("combobox", { name: "Mover Hip thrust a bloque", exact: true }).selectOption("2");
     await bloque2.waitFor();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
@@ -391,7 +438,7 @@ try {
           await page.getByLabel("Zumo, semana 1", { exact: true }).waitFor();
           assert.equal(await page.getByRole("group", { name: "Semana del plan", exact: true }).getByRole("button").count(), 5);
           await page.getByRole("button", { name: "Semana 5", exact: true }).click();
-          await page.getByText("Progresión del Día 1 · Semana 5 de 5", { exact: true }).waitFor();
+          await page.getByText("Semana 5 de 5", { exact: true }).waitFor();
           await page.getByRole("button", { name: "Semana 1", exact: true }).click();
         }
         const fuera = await page.evaluate(() => [...document.querySelectorAll("main, header, nav, section, h1, [role=tablist], [role=switch], input:not([type=hidden]), button")]
@@ -421,7 +468,7 @@ try {
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await page.getByRole("button", { name: "Semanas siguientes", exact: true }).click();
     await page.getByRole("button", { name: "Semana 12", exact: true }).click();
-    await page.getByText("Progresión del Día 1 · Semana 12 de 12", { exact: true }).waitFor();
+    await page.getByText("Semana 12 de 12", { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     await ctx.close();
     console.log(`OK: planes vacíos y cargados sin controles cortados en 320, 360, 375, 390, 430, 768, 1024 y 1440 px. Capturas: ${destino}`);
@@ -557,8 +604,7 @@ try {
   await estudiante.page.getByRole("button", { name: "Semana 6", exact: true }).click();
   await estudiante.page.getByText("6×6", { exact: true }).waitFor();
   await estudiante.page.getByLabel("Peso de Zumo, semana 6", { exact: true }).fill("12,5");
-  await estudiante.page.getByRole("button", { name: "Guardar peso", exact: true }).click();
-  await estudiante.page.getByText("Peso guardado para esta semana", { exact: true }).waitFor();
+  await estudiante.page.getByText("Guardado", { exact: true }).waitFor();
   assert.equal(planes[0].sesiones[0].ejercicios[0].semanas[5].peso, "12,5");
   assert.equal(planes[0].sesiones[0].ejercicios[0].semanas[1].peso, null);
   assert.equal(planes[0].sesiones[0].ejercicios[0].semanas[0].peso, null);

@@ -157,6 +157,7 @@ export function desdeFilas(crudas: FilasCrudas, userId: string): Datos {
       userId: a.user_id,
       nombre: a.nombre,
       email: a.email,
+      dni: a.dni,
       telefono: a.telefono,
       objetivo: a.objetivo,
       nivel: a.nivel,
@@ -226,6 +227,7 @@ function aColumnas(parche: Record<string, unknown>, mapa: Mapa): Record<string, 
 
 export const columnasAlumno = (p: Record<string, unknown>) =>
   aColumnas(p, {
+    dni: "dni",
     nombre: "nombre",
     email: "email",
     telefono: "telefono",

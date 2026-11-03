@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable, Logger } from "@nestjs/common";
-import { randomBytes, randomInt } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { ErrorApi, lanzarSiError } from "../common/errores";
 import { SupabaseAdminService } from "../supabase/admin.service";
 
@@ -20,23 +20,6 @@ export class CuentasService {
   }
 
   /**
-   * Contraseña aleatoria para entregar al profe: 12 caracteres sin los que se confunden
-   * (0/O, 1/l/I), con mayúsculas, minúsculas y números. Sale de crypto.randomInt, no de Math.random.
-   */
-  claveLegible(): string {
-    const grupos = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnpqrstuvwxyz", "23456789"];
-    const todos = grupos.join("");
-    const elegir = (c: string) => c[randomInt(c.length)];
-    // una de cada grupo para que cumpla cualquier regla de complejidad, el resto de cualquiera
-    const chars = [...grupos.map(elegir), ...Array.from({ length: 9 }, () => elegir(todos))];
-    for (let i = chars.length - 1; i > 0; i--) {
-      const j = randomInt(i + 1);
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-    }
-    return chars.join("");
-  }
-
-  /**
    * Crea la cuenta y su perfil de alumno. Sin `clave`, la contraseña es una que nadie conoce
    * (el alumno elige la suya al aceptar la invitación). Devuelve el id del usuario.
    */
@@ -48,9 +31,10 @@ export class CuentasService {
       email_confirm: true,
     });
     if (error || !data.user) {
-      if (error?.code === "email_exists" || error?.status === 422) {
+      if (error?.code === "email_exists" || error?.code === "user_already_exists") {
         throw new ErrorApi(HttpStatus.CONFLICT, "email_en_uso", "Ya existe una cuenta con ese email.");
       }
+      if (error?.code === "weak_password") throw new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "clave_rechazada", "Supabase no aceptó el DNI como contraseña inicial. Revisá la configuración de contraseñas del proyecto o usá la invitación por email.");
       this.log.error(`createUser falló: ${error?.message}`);
       throw new ErrorApi(HttpStatus.BAD_GATEWAY, "cuenta_no_creada", "No se pudo crear la cuenta. Probá de nuevo.");
     }

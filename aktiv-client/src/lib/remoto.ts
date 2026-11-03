@@ -92,6 +92,7 @@ type AlumnoPlano = Pick<
   Alumno,
   | "nombre"
   | "email"
+  | "dni"
   | "telefono"
   | "objetivo"
   | "nivel"
@@ -157,6 +158,7 @@ function aEntidades(d: Omit<Datos, "alumnoIdPropio">): Entidades {
     e.alumnos.set(a.id, {
       nombre: a.nombre,
       email: a.email,
+      dni: a.dni,
       telefono: a.telefono,
       objetivo: a.objetivo,
       nivel: a.nivel,
@@ -263,6 +265,7 @@ async function enviar(prev: Entidades, act: Entidades) {
         id,
         nombre: a.nombre,
         email: a.email,
+        dni: a.dni,
         telefono: a.telefono,
         objetivo: a.objetivo,
         nivel: a.nivel,
@@ -357,7 +360,7 @@ async function enviar(prev: Entidades, act: Entidades) {
   parchar(
     prev.alumnos,
     act.alumnos,
-    ["nombre", "email", "telefono", "objetivo", "nivel", "activo", "proximoPago", "semana", "notasProfe", "notasAlumno"],
+    ["nombre", "email", "dni", "telefono", "objetivo", "nivel", "activo", "proximoPago", "semana", "notasProfe", "notasAlumno"],
     (id) => `/alumnos/${id}`,
   );
   parchar(prev.fichas, act.fichas, ["fechaNacimiento", "lugarNacimiento", "enfermedades", "contacto"], (id) => `/alumnos/${id}/ficha`);

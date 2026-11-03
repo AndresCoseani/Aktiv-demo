@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardList,
+  CalendarDays,
   Dumbbell,
   FileCheck2,
   Flag,
@@ -35,6 +36,7 @@ import type { Session } from "@/lib/types";
 
 const NAV_PROFE = [
   { href: "/dashboard", label: "Dashboard", icon: House },
+  { href: "/agenda", label: "Clases", icon: CalendarDays },
   { href: "/alumnos", label: "Alumnos", icon: Users },
   { href: "/ejercicios", label: "Ejercicios", icon: Dumbbell },
   { href: "/carreras", label: "Carreras", icon: Flag },
@@ -43,6 +45,7 @@ const NAV_PROFE = [
 
 const NAV_ALUMNO = [
   { href: "/mi-plan", label: "Mi plan", icon: ClipboardList },
+  { href: "/agenda", label: "Clases", icon: CalendarDays },
   { href: "/mis-marcas", label: "Marcas", icon: Timer },
   { href: "/carreras", label: "Carreras", icon: Flag },
   { href: "/mi-ficha", label: "Ficha", icon: HeartPulse },

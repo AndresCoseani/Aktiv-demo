@@ -23,6 +23,7 @@ import { LIMITES, emailOpcional, validar } from "@/lib/schemas";
 import { actualizarAlumno, eliminarAlumno, entregarCredenciales, invitarAlumno } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Alumno } from "@/lib/types";
+import { dniSchema, normalizarDni } from "@aktiv/contrato";
 
 type EstadoAcceso = NonNullable<Alumno["acceso"]>["estado"];
 
@@ -39,8 +40,8 @@ function mensajeDeError(e: unknown) {
 
 /**
  * Acceso del alumno a su cuenta. Dos formas de dárselo: invitación por email (el alumno elige su
- * contraseña) o credenciales con contraseña aleatoria que el profe copia y le pasa (por WhatsApp).
- * Con la cuenta ya activa no se muestra nada.
+ * contraseña) o email y DNI inicial que el profe copia y le pasa.
+ * Una cuenta activa solo cambia de clave con confirmación explícita del profesor.
  */
 export function AccesoAlumno({ alumno }: { alumno: Alumno }) {
   const acceso = alumno.acceso ?? { estado: "sin_cuenta" as const, expiraEn: null };
@@ -92,7 +93,7 @@ export function AccesoAlumno({ alumno }: { alumno: Alumno }) {
 
   return (
     <>
-      {acceso.estado !== "activo" && (
+      {(
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <>
             <Badge variant="outline" className={cn("gap-1.5 border-transparent px-2", estado.clase)}>
@@ -111,7 +112,7 @@ export function AccesoAlumno({ alumno }: { alumno: Alumno }) {
             </Button>
             <Button size="sm" variant="outline" onClick={() => setCredenciales(true)}>
               <Copy data-icon="inline-start" />
-              Copiar credenciales
+              {acceso.estado === "activo" ? "Restablecer acceso" : "Preparar acceso con DNI"}
             </Button>
           </>
         </div>
@@ -173,27 +174,33 @@ export function AccesoAlumno({ alumno }: { alumno: Alumno }) {
   );
 }
 
-/** Genera la contraseña aleatoria, la muestra UNA vez y deja copiar un mensaje listo para WhatsApp */
+/** Prepara email + DNI inicial y permite copiar el mensaje para el alumno. */
 function CredencialesForm({ alumno, onClose }: { alumno: Alumno; onClose: () => void }) {
   const tieneCuenta = (alumno.acceso?.estado ?? "sin_cuenta") !== "sin_cuenta";
   const [email, setEmail] = useState(alumno.email);
+  const [dni, setDni] = useState(alumno.dni);
+  const [confirmado, setConfirmado] = useState(false);
   const [error, setError] = useState("");
   const [generando, setGenerando] = useState(false);
   const [entregadas, setEntregadas] = useState<{ email: string; clave: string } | null>(null);
 
   async function generar() {
+    const documento = normalizarDni(dni);
+    if (!documento || !dniSchema.safeParse(documento).success) { setError("Escribí un DNI de 7 u 8 números, sin puntos."); return; }
+    if (tieneCuenta && !confirmado) { setError("Confirmá que querés restablecer la contraseña actual."); return; }
+    let destino: string | undefined;
     if (!tieneCuenta) {
       const v = validar(emailOpcional, email.trim());
       if (!v.ok || !v.datos) {
         setError(v.ok ? "Escribí el email del alumno" : v.error);
         return;
       }
-      if (v.datos !== alumno.email) actualizarAlumno(alumno.id, { email: v.datos });
+      destino = v.datos;
     }
     setGenerando(true);
     setError("");
     try {
-      setEntregadas(await entregarCredenciales(alumno.id));
+      setEntregadas(await entregarCredenciales(alumno.id, tieneCuenta, { dni: documento, ...(destino ? { email: destino } : {}) }));
     } catch (err) {
       setError(err instanceof ErrorHttp ? err.message : "No se pudieron generar las credenciales. Probá de nuevo.");
     } finally {
@@ -215,16 +222,15 @@ function CredencialesForm({ alumno, onClose }: { alumno: Alumno; onClose: () => 
       `Hola ${alumno.nombre.split(" ")[0]}! Ya tenés tu acceso a Aktiv 💪`,
       `Entrá en: ${APP_URL}`,
       `Email: ${entregadas.email}`,
-      `Contraseña: ${entregadas.clave}`,
-      "Podés cambiarla desde el menú de tu cuenta (arriba a la derecha).",
+      `Contraseña inicial (tu DNI sin puntos): ${entregadas.clave}`,
+      "Podés cambiarla si querés desde Cuenta → Cambiar contraseña. En tu dispositivo la sesión se recuerda; en uno compartido, cerrá sesión al terminar.",
     ].join("\n");
     return (
       <div className="space-y-4">
         <DialogHeader>
           <DialogTitle>Acceso de {alumno.nombre}</DialogTitle>
           <DialogDescription>
-            Copiá el mensaje y mandáselo. <strong className="font-medium text-foreground">Por seguridad la contraseña no se vuelve a
-            mostrar</strong>: si la perdés, generás una nueva.
+            Copiá el mensaje y mandáselo. La contraseña inicial es su DNI sin puntos. Si el alumno la cambia, no podremos consultar la nueva.
           </DialogDescription>
         </DialogHeader>
         <dl className="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm">
@@ -253,13 +259,15 @@ function CredencialesForm({ alumno, onClose }: { alumno: Alumno; onClose: () => 
   return (
     <div className="space-y-4">
       <DialogHeader>
-        <DialogTitle>Copiar credenciales</DialogTitle>
+        <DialogTitle>{tieneCuenta ? "Restablecer acceso" : "Preparar acceso con DNI"}</DialogTitle>
         <DialogDescription>
           {tieneCuenta
-            ? `Se genera una contraseña aleatoria para ${alumno.nombre} y la copiás para pasársela (sirve si el mail no llegó). El enlace de invitación anterior deja de funcionar.`
-            : `Se crea la cuenta de ${alumno.nombre} con una contraseña aleatoria y la copiás para pasársela, sin mandar ningún mail.`}
+            ? `La contraseña de ${alumno.nombre} pasará a ser su DNI. Los enlaces anteriores dejan de funcionar.`
+            : `Se crea la cuenta de ${alumno.nombre} con su email y el DNI como contraseña inicial. Después copiás el mensaje para enviárselo.`}
         </DialogDescription>
       </DialogHeader>
+      <label className="block space-y-2 text-sm">DNI del alumno<Input aria-label="DNI del alumno" value={dni} inputMode="numeric" maxLength={12} onChange={(e) => setDni(e.target.value)} placeholder="Sin puntos" /></label>
+      {tieneCuenta && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} className="mt-1 size-4 accent-primary" />Confirmo que quiero reemplazar su contraseña actual por el DNI.</label>}
       {!tieneCuenta && (
         <div className="space-y-2">
           <Label htmlFor="cred-email">Email del alumno</Label>
@@ -286,7 +294,7 @@ function CredencialesForm({ alumno, onClose }: { alumno: Alumno; onClose: () => 
           Cancelar
         </Button>
         <Button onClick={generar} disabled={generando}>
-          {generando ? "Generando…" : "Generar credenciales"}
+          {generando ? "Preparando…" : tieneCuenta ? "Restablecer contraseña" : "Crear acceso"}
         </Button>
       </DialogFooter>
     </div>

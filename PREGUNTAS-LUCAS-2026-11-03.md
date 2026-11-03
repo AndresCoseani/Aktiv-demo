@@ -2,6 +2,8 @@
 
 Objetivo: entender cómo trabaja con un alumno real y acordar el flujo de carga y lectura. Las decisiones actuales del MVP son provisionales; no presentarlas como reglas de su metodología.
 
+Las respuestas informadas después de la reunión y su implementación se registran en [Codex.MD](Codex.MD). Prevalecen esos acuerdos sobre las decisiones provisionales de esta agenda. Quedaron confirmados email + DNI inicial, asignación semanal con varias sesiones por día, altas por CSV de Google Forms y Clases sin cupos. Las preguntas que siguen sirven para completar los detalles todavía abiertos.
+
 ## 1. Primero, recorrer una planilla real juntos
 
 Pedirle que muestre un plan completo de fuerza y running, no solo el lunes de la foto. Que explique cómo lo crea, qué cambia durante el ciclo y qué recibe el alumno. Después pedirle que cargue un día en Aktiv sin explicarle cada botón: anotar dónde duda, qué busca y qué le sobra.
@@ -19,7 +21,7 @@ Pedirle que muestre un plan completo de fuerza y running, no solo el lunes de la
 | ¿La entrada en calor, los ejercicios, bloques y descansos se mantienen todo el ciclo o pueden cambiar según la semana? | |
 | ¿El alumno ve los cambios mientras escribís, o preferís preparar un borrador y publicarlo cuando esté listo? | |
 
-No fijar un calendario ni usar “Descanso” para un día sin asignación hasta aclarar las dos primeras preguntas. En el MVP, “Día 1” no implica lunes.
+Actualización tras la reunión: Lucas asigna el día semanal y puede indicar varios entrenamientos en el mismo día. «Día 1» sigue siendo la numeración dentro de cada tipo, no implica lunes. No se acordaron franjas mañana/tarde/noche; no agregarlas sin definirlo.
 
 ## 3. Ejercicios, bloques y prescripciones
 

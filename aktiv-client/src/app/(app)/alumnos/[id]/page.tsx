@@ -225,7 +225,9 @@ export default function AlumnoDetallePage() {
 
         <TabsContent value="plan" className="min-w-0">
           <PlanMensualPanel alumnoId={alumno.id} editable>
-            <PlanEditor alumno={alumno} />
+            {alumno.planes.length > 0 ? <PlanEditor alumno={alumno} /> : (
+              <p className="py-2 text-sm text-muted-foreground">No hay planes anteriores registrados.</p>
+            )}
           </PlanMensualPanel>
         </TabsContent>
 
