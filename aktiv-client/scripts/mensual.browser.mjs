@@ -8,7 +8,7 @@ const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).h
 const baseUrl = process.env.MENSUAL_URL ?? "http://localhost:3101";
 const destino = process.env.MENSUAL_ARTIFACTS ?? join(process.env.TEMP, "aktiv-mensual-capturas");
 await mkdir(destino, { recursive: true });
-const browser = await chromium.launch({ channel: "msedge", headless: true });
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const alumnoId = "a0000000-0000-4000-8000-000000000001";
 const usuario = "a0000000-0000-4000-8000-000000000002";
 const planId = "a0000000-0000-4000-8000-000000000003";

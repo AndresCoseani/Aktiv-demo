@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { altaHorarioApi, cambioHorarioApi, horarioClaseSchema, consultaAgendaApi, diaSemanal, desplazarFecha, fechaArgentina } from "./agenda";
+import { confirmarAsistenciaApi, referenciaClaseApi, altaHorarioApi, cambioHorarioApi, horarioClaseSchema, consultaAgendaApi, diaSemanal, desplazarFecha, fechaArgentina } from "./agenda";
 import { dniSchema, normalizarDni } from "./alumno";
 import { parcheSesionApi } from "./mensual";
 import { importarAlumnosApi } from "./api";
@@ -41,4 +41,12 @@ describe("acuerdos Lucas", () => {
     const a = { id, nombre: "Ana", email: "ana@example.test", dni: "12345678", telefono: "", objetivo: "", nivel: "Principiante" };
     expect(importarAlumnosApi.safeParse({ alumnos: [a, { ...a, id: "a0000000-0000-4000-8000-000000000002" }] }).success).toBe(false);
   });
+});
+
+it("exige hora en nuevos avisos pero no para cancelar", () => {
+ const clase={horarioId:id,fecha:"2026-11-04"};
+ expect(confirmarAsistenciaApi.safeParse(clase).success).toBe(false);
+ expect(confirmarAsistenciaApi.safeParse({...clase,horaLlegada:"24:00"}).success).toBe(false);
+ expect(confirmarAsistenciaApi.safeParse({...clase,horaLlegada:"17:30"}).success).toBe(true);
+ expect(referenciaClaseApi.safeParse(clase).success).toBe(true);
 });

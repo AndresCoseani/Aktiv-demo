@@ -41,6 +41,13 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# Respaldo privado: nunca versionar exportaciones ni archivos de certificados.
+/backups/
+*.dump
+*.tar.gz.gpg
+__pycache__/
+*.pyc
 next-env.d.ts
 
 # builds de los paquetes del workspace

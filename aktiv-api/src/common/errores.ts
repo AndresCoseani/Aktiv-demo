@@ -48,6 +48,7 @@ function traducirErrorDeDb(e: ErrorDb): HttpException {
   switch (e.code) {
     case "PGRST202":
     case "42883":
+      if (/\bconfirmar_llegada_clase\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "agenda_esquema_desactualizado", "Falta habilitar la hora de llegada. Aplic? la migraci?n 40 y reintent?.");
       if (/\bguardar_cambio_horario\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "agenda_esquema_desactualizado", "Falta habilitar los cambios de horario. Aplicá la migración 39 después de la 38 y reintentá.");
       if (/\bcrear_plan_con_dias\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "planes_esquema_desactualizado", "Falta habilitar la creación del plan con sus días. Aplicá la migración 32 después de la 31 y reintentá.");
       return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "esquema_desactualizado", "Falta actualizar una función de la base. Revisá las migraciones pendientes.");

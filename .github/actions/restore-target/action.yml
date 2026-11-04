@@ -1,0 +1,24 @@
+name: Supabase local para restore
+description: Inicia una base descartable con las migraciones de Aktiv, sin secretos remotos.
+runs:
+  using: composite
+  steps:
+    - uses: supabase/setup-cli@v1
+      with:
+        version: 2.122.1
+    - shell: bash
+      working-directory: aktiv-api
+      run: |
+        supabase start
+        supabase status -o json > "$RUNNER_TEMP/restore-target.json"
+        python3 - <<'PY'
+        import json, os
+        from urllib.parse import urlparse
+        with open(os.environ['RUNNER_TEMP']+'/restore-target.json') as f:
+            s=json.load(f)
+        assert urlparse(s['API_URL']).hostname in ('127.0.0.1','localhost')
+        assert urlparse(s['DB_URL']).hostname in ('127.0.0.1','localhost')
+        with open(os.environ['GITHUB_ENV'],'a') as f:
+            for destino,origen in [('LOCAL_SUPABASE_URL','API_URL'),('LOCAL_SUPABASE_DB_URL','DB_URL'),('LOCAL_SUPABASE_SERVICE_ROLE_KEY','SERVICE_ROLE_KEY')]:
+                f.write(f'{destino}={s[origen]}\n')
+        PY

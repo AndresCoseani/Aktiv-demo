@@ -1,0 +1,124 @@
+name: CI
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: aktiv-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: aktiv-api/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build API y contrato (nest build)
+        run: npm run build
+      - name: Comprobar backups sin conexión ni datos reales
+        run: python3 -m unittest discover -s ../scripts -p 'test_*.py'
+
+  cliente:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: aktiv-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: aktiv-client/package-lock.json
+      - run: npm ci
+      - run: npm run contrato:check
+      - run: npm run lint
+      - run: npm test
+      - name: Build frontend de producción (next build)
+        run: npm run build
+      - run: npm run typecheck
+      - name: Herramientas aisladas de navegador y PostgreSQL
+        run: |
+          npm install --prefix "$RUNNER_TEMP/checks" --no-audit --no-fund playwright@1.64.1 @electric-sql/pglite@0.5.14
+          "$RUNNER_TEMP/checks/node_modules/.bin/playwright" install --with-deps chromium
+      - name: SQL y recorridos de navegador
+        env:
+          MENSUAL_URL: http://localhost:3101
+          PLAYWRIGHT_CHANNEL: chromium
+          TEMP: ${{ runner.temp }}
+        run: |
+          export PLAYWRIGHT_MODULE="$RUNNER_TEMP/checks/node_modules/playwright/index.mjs"
+          export PGLITE_MODULE="$RUNNER_TEMP/checks/node_modules/@electric-sql/pglite/dist/index.js"
+          node ../aktiv-api/scripts/probar-mensual-sql.mjs
+          node ../aktiv-api/scripts/probar-lucas-sql.mjs
+          node ../scripts/probar-restore-sql.mjs
+          npm run start -- --port 3101 > "$RUNNER_TEMP/aktiv-next.log" 2>&1 &
+          servidor=$!
+          trap 'kill "$servidor" 2>/dev/null || true' EXIT
+          listo=0
+          for intento in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3101/login > /dev/null; then listo=1; break; fi
+            sleep 1
+          done
+          test "$listo" = 1
+          node scripts/lucas.browser.mjs
+          for modo in '' --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --bloques-vacios --bloques --responsive; do
+            node scripts/mensual.browser.mjs $modo
+          done
+
+  integracion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: aktiv-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: aktiv-api/package-lock.json
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+      - name: Iniciar Supabase descartable (nunca producción)
+        run: |
+          supabase start
+          supabase status -o json > "$RUNNER_TEMP/supabase-local.json"
+          node -e 'const fs=require("fs"); const s=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/supabase-local.json")); fs.writeFileSync("test/.env.test",`SUPABASE_URL=${s.API_URL}\nSUPABASE_ANON_KEY=${s.ANON_KEY}\nSUPABASE_SERVICE_ROLE_KEY=${s.SERVICE_ROLE_KEY}\n`);'
+      - run: npm run test:e2e
+      - run: npm run test:db
+      - name: Apagar entorno local
+        if: always()
+        run: if command -v supabase >/dev/null; then supabase stop --no-backup; fi
+
+  resultado:
+    name: CI completo
+    if: always()
+    needs: [api, cliente, integracion]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exigir todos los controles
+        env:
+          RESULTADOS: ${{ toJSON(needs) }}
+        run: |
+          python3 -c 'import json,os; assert all(v["result"] == "success" for v in json.loads(os.environ["RESULTADOS"]).values()), "Hay controles fallidos o cancelados"'

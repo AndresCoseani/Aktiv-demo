@@ -13,7 +13,9 @@ services:
     # Cuanto más cerca de la base, más rápida responde la API.
     region: ohio
     branch: main
-    autoDeploy: true
+    # main debe exigir PR + CI completo aprobado. El CI corre en la PR,
+    # no en el commit nuevo que genera el merge: desplegar al integrar a main.
+    autoDeployTrigger: commit
     # el servicio vive en esta carpeta del repo: Render corre el build y el start desde acá
     rootDir: aktiv-api
     # solo reconstruye cuando cambia algo de la API (o este archivo)
@@ -25,7 +27,7 @@ services:
     # `--include=dev` es necesario: Render usa NODE_ENV=production y sin esto no
     # instalaría `nest` ni `typescript`, y el build fallaría.
     # `npm run build` compila primero el contrato (contrato/) y después la API.
-    buildCommand: npm install --include=dev && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: node dist/main.js
     healthCheckPath: /api/health
 

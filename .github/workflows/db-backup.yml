@@ -1,0 +1,89 @@
+name: Backup nocturno Supabase a R2
+on:
+  schedule:
+    - cron: '23 6 * * *' # 03:23 Argentina. Independiente de Render.
+  workflow_dispatch:
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: backup-supabase
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.ref == 'refs/heads/main' && vars.BACKUPS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: backups
+    env:
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar configuración
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BACKUP_GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+        run: |
+          test -n "$SUPABASE_DB_URL"
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+          test "${#BACKUP_GPG_PASSPHRASE}" -ge 32
+          test -n "$RCLONE_CONFIG_R2_ACCESS_KEY_ID"
+          test -n "$RCLONE_CONFIG_R2_SECRET_ACCESS_KEY"
+          test -n "$RCLONE_CONFIG_R2_ENDPOINT"
+          [[ "$R2_BUCKET" =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$ ]]
+      - name: Instalar rclone y GPG
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone gnupg
+      - name: Descargar base y certificados (solo lectura en producción)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/backup_supabase.py "$RUNNER_TEMP/aktiv-backup"
+      - uses: ./.github/actions/restore-target
+      - name: Restaurar y validar esta copia antes de publicarla
+        run: python3 scripts/restore_drill.py "$RUNNER_TEMP/aktiv-backup"
+      - name: Cifrar todo, incluidos los certificados privados
+        env:
+          BACKUP_GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+        run: |
+          umask 077
+          nombre="aktiv-$(date -u +%Y-%m-%dT%H-%M-%SZ)-${GITHUB_RUN_ID}.tar.gz.gpg"
+          echo "BACKUP_FILE=$nombre" >> "$GITHUB_ENV"
+          tar -czf "$RUNNER_TEMP/aktiv-backup.tar.gz" -C "$RUNNER_TEMP/aktiv-backup" .
+          printf '%s' "$BACKUP_GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$RUNNER_TEMP/$nombre" "$RUNNER_TEMP/aktiv-backup.tar.gz"
+          printf '%s' "$BACKUP_GPG_PASSPHRASE" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 --decrypt "$RUNNER_TEMP/$nombre" | cmp - "$RUNNER_TEMP/aktiv-backup.tar.gz"
+      - name: Publicar en R2 y verificar la copia remota
+        run: |
+          remote="r2:$R2_BUCKET/aktiv/$BACKUP_FILE"
+          rclone copyto "$RUNNER_TEMP/$BACKUP_FILE" "$remote"
+          esperado=$(sha256sum "$RUNNER_TEMP/$BACKUP_FILE" | cut -d' ' -f1)
+          recibido=$(rclone cat "$remote" | sha256sum | cut -d' ' -f1)
+          test "$esperado" = "$recibido"
+          # El marcador identifica una copia remota completa y verificada.
+          printf '%s\n' "$esperado" > "$RUNNER_TEMP/complete"
+          rclone copyto "$RUNNER_TEMP/complete" "$remote.complete"
+      - name: Retener 35 días solo en el prefijo de Aktiv
+        run: rclone delete "r2:$R2_BUCKET/aktiv/" --min-age 35d --max-depth 1 --include 'aktiv-*.tar.gz.gpg*'
+      - name: Apagar Supabase descartable
+        if: always()
+        working-directory: aktiv-api
+        run: if command -v supabase >/dev/null; then supabase stop --no-backup; fi
+      - name: Limpiar archivos privados del runner
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/aktiv-backup"
+          rm -f -- "$RUNNER_TEMP/aktiv-backup.tar.gz" "$RUNNER_TEMP/restore-target.json"

@@ -20,13 +20,15 @@ export const cambioHorarioApi = z.object({
 }).strict().refine((v) => v.fin > v.hora, "La hora de fin debe ser posterior al inicio");
 // Los horarios anteriores pueden no tener fin/lugar; exigirlos solo en nuevas altas.
 export const horarioClaseSchema = horarioBaseSchema.safeExtend({ activo: z.boolean() }).strip();
-export const confirmarAsistenciaApi = z.object({ horarioId: z.uuid(), fecha: fechaISO }).strict();
+export const referenciaClaseApi = z.object({ horarioId: z.uuid(), fecha: fechaISO }).strict();
+export const confirmarAsistenciaApi = referenciaClaseApi.extend({ horaLlegada: horaClaseSchema });
 export const consultaAgendaApi = z.object({ desde: fechaISO, hasta: fechaISO }).strict()
   .refine((v) => v.hasta >= v.desde && (Date.parse(v.hasta) - Date.parse(v.desde)) / 86400000 <= 30, "Consultá hasta 31 días por vez");
 export const claseAgendaSchema = z.object({
   horarioId: z.uuid(), fecha: fechaISO, titulo: z.string(), hora: horaClaseSchema,
   fin: z.string(), lugar: z.string(), cancelada: z.boolean(), asistire: z.boolean(),
-  confirmados: z.array(z.object({ alumnoId: z.uuid(), nombre: z.string() })),
+  horaLlegada: horaClaseSchema.nullable().default(null),
+  confirmados: z.array(z.object({ alumnoId: z.uuid(), nombre: z.string(), horaLlegada: horaClaseSchema.nullable().default(null) })),
   personalizada: z.boolean().default(false),
 });
 export const agendaRespuestaSchema = z.object({ horarios: z.array(horarioClaseSchema), clases: z.array(claseAgendaSchema) });

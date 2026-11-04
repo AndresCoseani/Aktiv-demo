@@ -21,6 +21,7 @@ import { PlanesModule } from "./planes/planes.module";
 import { MensualesModule } from "./mensuales/mensuales.module";
 import { SupabaseModule } from "./supabase/supabase.service";
 import { AgendaModule } from "./agenda/agenda.module";
+import { RegistroCierre } from "./common/observabilidad";
 
 /** Hace disponible la configuración validada en toda la app */
 export function crearModuloConfig(env: Env) {
@@ -51,6 +52,7 @@ export function crearAppModule(env: Env, opciones: { mail?: Mail } = {}) {
     ],
     controllers: [AuthController],
     providers: [
+      RegistroCierre,
       // orden de ejecución: límite de pedidos → CSRF → autenticación → rol
       { provide: APP_GUARD, useClass: ThrottlerGuard },
       { provide: APP_GUARD, useClass: CsrfGuard },
@@ -68,7 +70,7 @@ export function crearAppModule(env: Env, opciones: { mail?: Mail } = {}) {
           res.setHeader("x-request-id", req.id);
           next();
         })
-        .forRoutes("*");
+        .forRoutes("{*path}");
     }
   }
   return AppModule;

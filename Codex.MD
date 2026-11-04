@@ -1,5 +1,9 @@
 # Aktiv — contexto único del proyecto
 
+Seguimiento CI PR #1: ejecución 41927097993 posterior al fix de lockfile pasó API e inició Supabase correctamente. Integración pasó 97/98 tests; falló la prueba antigua que esperaba throttling de /api/health. Se actualizó para comprobar 401→429 en /api/auth/me y health 200 incluso después de agotar el límite. Prueba HTTP local de ambos comportamientos y typecheck aprobados. Continúa la misma PR chore/ci-backups; pendiente resultado de la ejecución posterior antes de merge.
+
+Incidente CI PR #1 (4/11/2026): los jobs api/integracion fallaron en npm ci, antes de los tests, por falta de webpack@5.112.2 en package-lock.json. Reproducido con npm 10.9.9 en instalación temporal sin node_modules; lockfile regenerado con esa versión, sin cambiar package.json. Instalación limpia aprobada, typecheck, 53 tests API, 35 contrato y build aprobados con las dependencias nuevas. Job cliente de la primera ejecución aprobó en GitHub. Limpieza de integración ahora comprueba que exista Supabase CLI antes de apagarlo. Falta publicar esta corrección en chore/ci-backups y comprobar la nueva ejecución remota; no afirmar que integración pasó hasta verla.
+
 Actualizado el 3 de noviembre de 2026. Este documento reúne el contexto, las decisiones vigentes, la operación y los pendientes del proyecto. Reemplaza los README, CLAUDE, informes y hojas de ruta anteriores; se eliminaron repeticiones y propuestas superadas. Las preguntas para Lucas se conservan aparte en [PREGUNTAS-LUCAS-2026-11-03.md](PREGUNTAS-LUCAS-2026-11-03.md).
 
 ## 1. Producto y acuerdos vigentes
@@ -197,7 +201,7 @@ Desarrollo Nest emite en `dist-dev` sin incremental; producción en `dist`. `npm
 
 Cliente `.env.local` desde ejemplo con `API_URL` de la API. Desde `aktiv-client/`: `npm.cmd install`, `npm.cmd run dev`, `npm.cmd run contrato:check`, `npm.cmd run typecheck`, `npm.cmd test`, `npm.cmd run lint`, `npm.cmd run build`. Los tipos de rutas requieren generación previa por Next. Para pruebas propias usar `AKTIV_DIST_DIR=.next-verificacion` y puerto 3101 sin compartir `.next` del usuario; ignorado en Git/lint. Apuntar API_URL a API 4100.
 
-Render: blueprint raíz `render.yaml`, rootDir `aktiv-api`; build `npm install --include=dev && npm run build`; start `node dist/main.js`. Configurar variables de API, `WEB_ORIGIN`/`APP_URL` del frontend y revisar trust proxy según infraestructura. Vercel: rootDirectory `aktiv-client`, `API_URL` real antes de compilar; cambiarla requiere redeploy. Comprobar `/api/health/supabase` y que ambos despliegues correspondan a código compatible. SQL del Editor no actualiza por sí solo el historial de CLI. No automatizar un push/deploy por este documento.
+Render: blueprint raíz `render.yaml`, rootDir `aktiv-api`; build `npm ci --include=dev && npm run build`; start `node dist/main.js`. Configurar variables de API, `WEB_ORIGIN`/`APP_URL` del frontend y revisar trust proxy según infraestructura. Vercel: rootDirectory `aktiv-client`, `API_URL` real antes de compilar; cambiarla requiere redeploy. Comprobar `/api/health/supabase` y que ambos despliegues correspondan a código compatible. SQL del Editor no actualiza por sí solo el historial de CLI. No automatizar un push/deploy por este documento.
 
 ## 11. Validación y estado de entrega
 
@@ -264,3 +268,71 @@ Andr?s autoriz? commit y push a main. Se verific? el c?digo local sin modificar 
 - Producci?n requiere las migraciones 36, 37, 38 y 39. Verificar con [diagn?stico de solo lectura](aktiv-api/supabase/verificar_actualizacion_lucas.sql). Su aplicaci?n remota no fue confirmada por el agente.
 
 Verificaci?n adicional: Andr?s confirm? aplicadas las migraciones 36?39 en producci?n. El diagn?stico de solo lectura incluye adem?s pol?ticas, triggers activos y permisos de RPC/tablas. Probado contra las migraciones reales en PostgreSQL embebido: 85 comprobaciones aprobadas (incluidas las 24 del diagn?stico). Pendiente que Andr?s ejecute el diagn?stico en su proyecto para confirmar su estado real.
+
+## 15. Aviso de llegada a clases (4 de noviembre de 2026)
+
+Acuerdo: Lucas ofrece un bloque amplio (por ejemplo 16:00?19:00) y cada alumno avisa su hora estimada de llegada, sin cupos, turnos exclusivos ni duraci?n individual. El alumno usa ?Avisar que voy?, escribe/elige hora, confirma y luego puede cambiarla o cancelar. Disponible tanto en Clases como en Hoy entrenamos. El profesor ve los nombres ordenados por hora dentro de cada bloque, con desconocidos al final. Las confirmaciones anteriores conservan NULL y se muestran ?Hora sin indicar?.
+
+Requiere [migraci?n 40](aktiv-api/supabase/migrations/20261109000000_hora_llegada_clase.sql), despu?s de la 39. No fue ejecutada remotamente por el agente. La funci?n confirmar_llegada_clase es SECURITY INVOKER, usa RLS y hace insert/upsert at?mico actualizando solo hora_llegada; la identidad se deriva del token en la API. Triggers comprueban tambi?n cambios de hora, cancelaciones y horario vigente seg?n versiones habituales/excepciones, con bloqueo del horario para coordinar la edici?n del profesor. Se permiten llegadas en ambos extremos del bloque. Horarios legacy sin fin usan hasta 23:59 en la UI. Cancelar no exige hora.
+
+Verificaci?n local: 45 tests API, 35 contrato, 20 frontend; builds API/frontend aprobados. Lint sin errores y advertencia conocida de TanStack Table. PostgreSQL embebido: 101 comprobaciones, incluyendo l?mites, cambios de hora sin duplicados, aislamiento, excepciones y clases canceladas. Diagn?stico actualizado con migraci?n 40. No se hizo push de este cambio sin nueva autorizaci?n.
+
+Prueba de navegador del flujo Lucas aprobada contra build de producci?n aislado: aviso de llegada, error y reintento con hora preservada, cambio de hora, rechazo fuera de rango, recarga, cancelaci?n y visualizaci?n del nombre/hora por Lucas; m?vil sin desborde. API simulada; no equivale a recorrido en producci?n.
+
+## 16. CI, backup y recuperaci?n en GitHub Actions
+
+Actualizado con referencia a los workflows de Andera Booking provistos por Andr?s. Solo se leyeron esos archivos; no se modific? ese proyecto ni se copiaron secretos. En Aktiv se usa npm con package-lock, no pnpm.
+
+### CI
+
+[ci.yml](.github/workflows/ci.yml): cualquier PR, sin filtro de rama destino, y ejecuci?n manual. Se ejecuta al abrir/reabrir y al agregar commits a la PR; no en pushes de ramas sin PR ni despu?s del merge. Node 22, npm ci, tests/tipos/build de API y contrato; sincron?a de contrato, lint, tests/build/tipos del frontend. PostgreSQL embebido y diez modos de navegador m?s el flujo Lucas con Chromium, herramientas aisladas/versionadas. Job Supabase descartable ejecuta migraciones, test:e2e y test:db, sin secretos remotos. ?CI completo? exige todos los jobs. Tambi?n prueba helpers de backup/restore y detecci?n de relaciones rotas.
+
+Render blueprint: npm ci --include=dev y autoDeployTrigger: commit, rama main. Con CI solo en PR, el merge produce un commit nuevo sin otra ejecuci?n de CI: no usar checksPass para esperar checks inexistentes en ese commit. Antes de activar este flujo, proteger main con PR obligatorio, check ?CI completo?, rama actualizada y sin bypass/force push; configurar manualmente en GitHub. Si hace falta, sincronizar Blueprint o configurar Render ? Auto-Deploy ? On Commit. Vercel tambi?n despliega main tras el merge y puede generar previews en ramas. No trabajar ni pushear directo a main; usar ramas y PR. Tambi?n se valida PR entre ramas intermedias, por ejemplo feature ? submain, sin desplegar producci?n; solo integrar a main dispara producci?n. El CI no garantiza disponibilidad del proveedor.
+
+### Backups a R2
+
+[db-backup.yml](.github/workflows/db-backup.yml): todos los d?as 03:23 Argentina y manual. Se dispara desde Actions para no depender de Render; schedule puede retrasarse. Opcionalmente cron-job.org puede disparar workflow_dispatch directamente a GitHub con un token acotado, sin agregar un endpoint p?blico en la app. Esa integraci?n no se configur?.
+
+Exporta un snapshot PostgreSQL custom con cliente 17 (misma major del proyecto/config). Extrae de ese mismo archivo datos public y auth.users/auth.identities, con conteos por tabla del COPY; no hace una segunda lectura de producci?n para calcular conteos. Descarga todos los archivos Storage por API con service_role. Todo se cifra junto (GPG/AES256), incluidos certificados privados. Nunca deja copias de certificados sin cifrar en R2.
+
+Antes de publicar, levanta Supabase local descartable con migraciones y ejecuta [restore_drill.py](scripts/restore_drill.py). Reconstruye estructura/RLS desde migraciones, importa datos y Auth en transacci?n, compara conteos exactos, verifica todas las FK de public (incluidas relaciones con Auth), recupera archivos Storage y compara bytes, comprueba que cada fichas_medicas.cert_ruta exista en el backup y que certificados sea privado. No elimina FKs con sed. Los alumnos/planes pueden estar vac?os leg?timamente; exige usuarios y perfiles existentes para detectar un dump accidentalmente vac?o. No prueba login con contrase?as reales ni MFA. Los hashes y IDs de Auth se preservan en el SQL; no se env?an emails.
+
+Publica un paquete con nombre UTC y run ID en R2, prefijo exclusivo **aktiv/**. Descarga para comparar SHA-256 remoto y solo despu?s escribe marcador .complete. Retiene 35 d?as dentro de ese prefijo, sin tocar archivos de Andera ni otros prefijos. No se usa sync para propagar borrados. Las snapshots incluyen copias completas de los certificados, con costo/egreso proporcional al tama?o y frecuencia. Roles globales personalizados, configuraci?n OAuth/SMTP, secretos, root keys de Vault y Edge Functions externas no se recuperan autom?ticamente. El archivo database.dump guarda los esquemas/datos accesibles completos para recuperaci?n adicional manual; el drill solo recupera la app, Auth users/identities y archivos, no clona toda la plataforma.
+
+### Comprobacion del backup
+
+Por pedido de Andres se elimino el workflow mensual separado. Se mantiene la restauracion automatica en Supabase local descartable antes de publicar cada backup nocturno. Los scripts de restore siguen porque los necesita esa comprobacion; no recuperan produccion automaticamente. La descarga remota de R2 se verifica con SHA-256 al subir y se escribe el marcador .complete.
+
+### Activaci?n que debe hacer Andr?s (sin pasar secretos por chat)
+
+1. GitHub de Aktiv ? Settings ? Environments: crear **backups** y limitar a main. Crear un bucket R2 privado dedicado a Aktiv, o usar un prefijo exclusivo con credenciales acotadas. No reutilizar los datos Supabase de Andera.
+2. Secrets de ese environment: **SUPABASE_DB_URL** (Session pooler 5432 de Aktiv con contrase?a URL-encoded; no transaction 6543), **SUPABASE_URL**, **SUPABASE_SERVICE_ROLE_KEY** del mismo proyecto. La clave administrativa solo se usa en el job de descarga, no se expone al cliente ni se usa para el acceso cotidiano de la API.
+3. Secrets R2: **R2_ACCESS_KEY_ID**, **R2_SECRET_ACCESS_KEY**, **R2_ENDPOINT** (HTTPS del endpoint S3 de Cloudflare, sin bucket al final), **R2_BUCKET** (nombre solo, sin URL/prefijo). Acceso solo al bucket de backups. Para Aktiv no hacen falta credenciales S3 de Supabase: se usa su Storage API.
+4. **BACKUP_GPG_PASSPHRASE**: clave aleatoria >=32 caracteres, guardada tambi?n fuera de GitHub/Supabase/R2 en gestor de contrase?as. Es el mismo nombre de secret que en Andera, pero preferir una clave distinta. Reemplaza el nombre provisional BACKUP_ENCRYPTION_PASSWORD de la propuesta anterior.
+5. Variable de repositorio **BACKUPS_ENABLED=true**, despu?s de configurar lo anterior. Subir workflows a main, ejecutar manualmente el backup. Verificar que todos sus pasos est?n verdes y que R2 tenga paquete + marcador. Activar notificaciones de workflows fallidos y vigilar frescura. Antes de esto **no hay backup activo**.
+
+### Recuperaci?n manual y l?mites de validaci?n
+
+Descargar el paquete y su marcador, comparar SHA-256 y conservar una copia intacta. Descifrar con gpg --output aktiv-backup.tar.gz --decrypt archivo.tar.gz.gpg (clave por prompt, no argumento). Extraer en carpeta privada fuera de Git y ejecutar python3 scripts/backup_supabase.py --verify /ruta/copia. Nunca restaurar un archivo custom completo encima de Supabase producci?n sin seleccionar objetos/revisarlo.
+
+El script de drill **rechaza cualquier destino remoto** antes de escribir y exige Auth/perfiles vac?os. Usa LOCAL_SUPABASE_* separados de las credenciales de producci?n. No sirve para restaurar directamente producci?n; una recuperaci?n real requiere proyecto compatible nuevo, revisi?n de migraciones/RLS/Auth y pruebas de aplicaci?n antes del cambio de servicio. La migraci?n 34 solo se ejecuta con base vac?a: borra cat?logo, por lo que no debe correrse sobre los datos restaurados.
+
+Validaci?n local: seis tests Python sin red y comprobaciones PostgreSQL embebidas que verifican FKs con Auth, detectan hu?rfanos y permiten relaciones nulas. YAML de workflows/action parseado y los tres workflows validados con actionlint 1.7.7 sin errores. Docker no est? disponible localmente: falta ejecutar el circuito real de Actions con las credenciales de Aktiv, no se afirma haber realizado un backup ni restore de producci?n. No se activaron secretos, jobs ni publicaci?n remotos.
+
+Referencias: [Supabase backup/restore](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore), [pg_restore](https://www.postgresql.org/docs/current/app-pgrestore.html), [rclone S3/R2](https://rclone.org/s3/).
+
+## 17. Investigaci?n de disponibilidad: evidencia y prevenci?n
+
+Capturas del 4 de noviembre: Render Logs filtrado por Last hour muestra un arranque correcto a las 17:36; los fallos de cron comenzaron antes (~12:30). Andr?s indica que Events solo muestra el deploy del d?a anterior. No se confirm? la causa del 503: no atribuirlo a c?digo, memoria, Supabase ni suspensi?n sin respuesta HTTP/evento que lo demuestre. Se pidi? cuerpo/encabezados de un fallo de cron-job.org. El health ra?z no consulta Supabase; una secuencia 503 en ese endpoint no prueba ca?da de la base. Render Free puede suspender o reiniciar instancias; no prometer eliminar esas interrupciones con CI o un cron.
+
+Hardening local: GET /api/health excluido del throttling para que sondas del balanceador no fallen por compartir IP/l?mite con otras solicitudes. No es una causa confirmada del incidente. /api/health/supabase conserva rate limiting. Observabilidad nueva: x-aktiv-boot-id por respuesta; eventos inicio_proceso, cierre_aplicacion (hook Nest con se?al si corresponde), salida_proceso y error_fatal (uncaughtExceptionMonitor, no cambia salida fatal de Node). Muestreo de health exitoso hasta una vez/minuto y registro de solicitudes lentas >=5 s o status >=500 con status, duraci?n, uptime, RSS y arranqueId. Solo ruta plantilla, sin query, cuerpo, cookie, token, alumno ni IP. Eventos normales no se registran por cada solicitud. SIGKILL/OOM o ca?da del host pueden no emitir cierre: correlacionar Metrics/Events de Render y evidencia externa.
+
+Comprobaci?n futura: health 503 con JSON propio implica que lleg? a la app; HTML u otra respuesta de plataforma sugiere capa anterior, pero verificar encabezados/request ID. Tras desplegar, x-aktiv-boot-id distingue procesos: si cambia hubo nuevo proceso. Mismo arranqueId y uptime continuo con falla externa apunta a conectividad/proxy, no demuestra por s? solo causa. Si no aparecen eventos http durante el fallo, buscar primero si las solicitudes alcanzaron Render/instancia; ausencia de logs muestreados tampoco prueba una causa. Estado anterior contin?a pendiente de evidencia hist?rica. No se cambiaron cuenta, plan, cron ni deploy remoto.
+
+Seguimiento: Andr?s comparti? el texto gen?rico ?Service unavailable: the server is temporarily unable to handle the request?? de cron-job.org. Ese texto no identifica por s? solo origen ni causa. No se afirm? que sea una respuesta HTML de Render ni que exista error de Nest. Pasaron 8 pruebas focalizadas de health/observabilidad, typecheck y build despu?s del cambio de throttling. La suite completa anterior pas? con 52 tests API y 35 de contrato; el nuevo caso HTTP de liveness se valid? en la ejecuci?n focalizada posterior. No se despleg? esta instrumentaci?n.
+
+Captura ampliada de Logs: advertencia LegacyRouteConverter por /api/*, seguida de arranque exitoso. Se reemplaz? middleware forRoutes("*") por forRoutes("{*path}") compatible con Express 5/Nest 11. El test HTTP comprueba ausencia de conversi?n legacy y x-request-id en health. Esta advertencia no fue atribuida al 503 ni tratada como un fallo fatal.
+
+Acuerdo de trabajo confirmado: desde ahora cambios en ramas con PR hacia main; no volver al flujo de pushes directos a main de la sesi?n anterior. Se valid? el CI editado por Andr?s con actionlint; se agreg? filtro branches: [main] y se aline? el blueprint de Render con el CI solo en PR. No se cre? ni public? una rama/PR en este turno de revisi?n y configuraci?n.
+
+Correcci?n posterior de Andr?s: CI para cualquier PR, incluidas ramas destino como submain. Se retir? branches: [main]. El frontend ya ejecuta next build mediante npm run build y luego next start para pruebas; la API compila con nest build, no Next. Se nombraron expl?citamente los dos pasos de compilaci?n, sin duplicarlos. Se retiro el simulacro mensual por pedido de Andres; permanece la comprobacion de restauracion dentro del backup nocturno.

@@ -21,7 +21,7 @@ describe("agenda: HTTP, roles y datos públicos", () => {
       horarios_clase: [1, 3].map((coach) => ({ id: id(20 + coach), coach_id: id(coach), titulo: "Clase", dia: diaSemanal(hoy), hora: "18:00", fin: "", lugar: "", activo: true })),
       clases_canceladas: [],
       cambios_horario_clase: [],
-      confirmaciones_clase: [10, 11].map((alumno) => ({ horario_id: id(21), fecha: hoy, alumno_id: id(alumno), alumnos: { nombre: alumno === 10 ? "Ana" : "Sol" } })),
+      confirmaciones_clase: [10, 11].map((alumno) => ({ horario_id: id(21), fecha: hoy, alumno_id: id(alumno), hora_llegada: alumno === 10 ? "18:45" : "18:15", alumnos: { nombre: alumno === 10 ? "Ana" : "Sol" } })),
     };
     const escrituras: unknown[] = [];
     jest.spyOn(app.get(AuthService), "usuarioDesdeToken").mockImplementation(async (token) => usuarios[token]);
@@ -50,10 +50,12 @@ describe("agenda: HTTP, roles y datos públicos", () => {
       const coach = await consultar("coach");
       expect(coach.status).toBe(200);
       expect(coach.body.horarios.map((h: { id: string }) => h.id)).toEqual([id(21)]);
-      expect(coach.body.clases[0].confirmados.map((a: { nombre: string }) => a.nombre)).toEqual(["Ana", "Sol"]);
+      expect(coach.body.clases[0].confirmados.map((a: { nombre: string }) => a.nombre)).toEqual(["Sol", "Ana"]);
+      expect((await mutarSinHora()).status).toBe(400);
+      function mutarSinHora() { return request(http).post("/api/agenda/confirmaciones").set("Authorization", "Bearer alumno").set("x-requested-with", "aktiv").send({horarioId:id(21),fecha:hoy}); }
       const alumno = await consultar("alumno");
       expect(alumno.status).toBe(200);
-      expect(alumno.body.clases[0]).toMatchObject({ asistire: true, confirmados: [] });
+      expect(alumno.body.clases[0]).toMatchObject({ asistire: true, horaLlegada: "18:45", confirmados: [] });
       expect(JSON.stringify(alumno.body)).not.toContain("Sol");
       expect((await consultar("otro")).body.horarios.map((h: { id: string }) => h.id)).toEqual([id(23)]);
       const mutar = (token: string, ruta: string, body: Record<string, unknown>) => request(http).post(`/api/agenda/${ruta}`).set("Authorization", `Bearer ${token}`).set("x-requested-with", "aktiv").send(body);
@@ -61,8 +63,8 @@ describe("agenda: HTTP, roles y datos públicos", () => {
       expect((await mutar("coach", "confirmaciones", { horarioId: id(21), fecha: hoy })).status).toBe(403);
       expect((await mutar("alumno", "confirmaciones", { horarioId: id(21), fecha: hoy, alumnoId: id(11) })).status).toBe(400);
       expect(escrituras).toHaveLength(0);
-      expect((await mutar("alumno", "confirmaciones", { horarioId: id(21), fecha: hoy })).status).toBe(204);
-      expect(escrituras).toEqual([{ horario_id: id(21), fecha: hoy, alumno_id: id(10) }]);
+      expect((await mutar("alumno", "confirmaciones", { horarioId: id(21), fecha: hoy, horaLlegada: "18:30" })).status).toBe(204);
+      expect(escrituras).toEqual([{ nombre: "confirmar_llegada_clase", dto: { p_horario_id: id(21), p_fecha: hoy, p_alumno_id: id(10), p_hora_llegada: "18:30" } }]);
       const futuro=desplazarFecha(hoy,7), pasado=desplazarFecha(hoy,-7);
       filas.cambios_horario_clase.push(
         {horario_id:id(21),fecha:hoy,alcance:'habitual',titulo:'Running',hora:'19:00',fin:'20:00',lugar:'Palmar'},
