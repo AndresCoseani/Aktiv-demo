@@ -109,7 +109,7 @@ jobs:
       - run: npm run test:db
       - name: Apagar entorno local
         if: always()
-        run: supabase stop --no-backup
+        run: if command -v supabase >/dev/null; then supabase stop --no-backup; fi
 
   resultado:
     name: CI completo
