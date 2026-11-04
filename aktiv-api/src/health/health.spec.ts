@@ -33,6 +33,9 @@ describe("health: separar API de dependencia Supabase", () => {
         expect(r.headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
       }
       expect(warning).not.toHaveBeenCalled();
+      expect((await request(app.getHttpServer()).get("/api/auth/me")).status).toBe(401);
+      expect((await request(app.getHttpServer()).get("/api/auth/me")).status).toBe(429);
+      expect((await request(app.getHttpServer()).get("/api/health")).status).toBe(200);
     } finally { await app.close(); }
   });
 });

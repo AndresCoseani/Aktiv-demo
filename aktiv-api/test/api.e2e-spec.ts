@@ -687,9 +687,12 @@ describe("API de Aktiv (contra Supabase local)", () => {
       try {
         const http = request(limitada.getHttpServer());
         const estados: number[] = [];
-        for (let i = 0; i < 8; i++) estados.push((await http.get("/api/health")).status);
-        expect(estados.slice(0, 5).every((s) => s === 200)).toBe(true);
+        // Health es liveness y no comparte el límite de la API.
+        // Sin credenciales, auth/me devuelve 401 hasta agotar ese límite.
+        for (let i = 0; i < 8; i++) estados.push((await http.get("/api/auth/me")).status);
+        expect(estados.slice(0, 5).every((s) => s === 401)).toBe(true);
         expect(estados).toContain(429);
+        expect((await http.get("/api/health")).status).toBe(200);
       } finally {
         await limitada.close();
       }

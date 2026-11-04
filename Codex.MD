@@ -1,5 +1,7 @@
 # Aktiv — contexto único del proyecto
 
+Seguimiento CI PR #1: ejecución 41927097993 posterior al fix de lockfile pasó API e inició Supabase correctamente. Integración pasó 97/98 tests; falló la prueba antigua que esperaba throttling de /api/health. Se actualizó para comprobar 401→429 en /api/auth/me y health 200 incluso después de agotar el límite. Prueba HTTP local de ambos comportamientos y typecheck aprobados. Continúa la misma PR chore/ci-backups; pendiente resultado de la ejecución posterior antes de merge.
+
 Incidente CI PR #1 (4/11/2026): los jobs api/integracion fallaron en npm ci, antes de los tests, por falta de webpack@5.112.2 en package-lock.json. Reproducido con npm 10.9.9 en instalación temporal sin node_modules; lockfile regenerado con esa versión, sin cambiar package.json. Instalación limpia aprobada, typecheck, 53 tests API, 35 contrato y build aprobados con las dependencias nuevas. Job cliente de la primera ejecución aprobó en GitHub. Limpieza de integración ahora comprueba que exista Supabase CLI antes de apagarlo. Falta publicar esta corrección en chore/ci-backups y comprobar la nueva ejecución remota; no afirmar que integración pasó hasta verla.
 
 Actualizado el 3 de noviembre de 2026. Este documento reúne el contexto, las decisiones vigentes, la operación y los pendientes del proyecto. Reemplaza los README, CLAUDE, informes y hojas de ruta anteriores; se eliminaron repeticiones y propuestas superadas. Las preguntas para Lucas se conservan aparte en [PREGUNTAS-LUCAS-2026-11-03.md](PREGUNTAS-LUCAS-2026-11-03.md).
