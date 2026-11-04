@@ -2,6 +2,7 @@ import { Controller, Get, Inject, Logger, Module } from "@nestjs/common";
 import { Publico } from "../auth/guards";
 import { ENV, type Env } from "../config/env";
 import { ErrorApi } from "../common/errores";
+import { SkipThrottle } from "@nestjs/throttler";
 
 @Controller("health")
 export class HealthController {
@@ -11,6 +12,7 @@ export class HealthController {
 
   /** La API está viva */
   @Publico()
+  @SkipThrottle()
   @Get()
   vivo() {
     return { estado: "ok" };

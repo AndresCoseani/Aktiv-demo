@@ -55,3 +55,12 @@ from (values
 order by comprobacion;
 -- Si aparece false, compartir el nombre de la comprobaci?n; no reaplicar migraciones a ciegas.
 -- Todo true confirma estructura/permisos, no el deploy ni un recorrido real de la app.
+
+
+-- Migraci?n 40: las confirmaciones anteriores pueden tener hora_llegada NULL.
+select
+  exists(select 1 from information_schema.columns where table_schema='public' and table_name='confirmaciones_clase' and column_name='hora_llegada') as hora_llegada_40,
+  to_regprocedure('public.confirmar_llegada_clase(uuid,date,uuid,text)') is not null as confirmar_llegada_40,
+  exists(select 1 from pg_trigger where tgrelid=to_regclass('public.confirmaciones_clase') and tgname='z_validar_hora_llegada' and tgenabled in ('O','A') and not tgisinternal) as validacion_llegada_40,
+  exists(select 1 from pg_trigger where tgrelid=to_regclass('public.confirmaciones_clase') and tgname='validar_actualizacion_confirmacion' and tgenabled in ('O','A') and not tgisinternal) as validacion_cambio_hora_40,
+  exists(select 1 from pg_policies where schemaname='public' and tablename='confirmaciones_clase' and policyname='confirmaciones_cambiar_hora' and cmd='UPDATE') as permiso_cambiar_hora_40;

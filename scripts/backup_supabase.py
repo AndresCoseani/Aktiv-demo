@@ -1,0 +1,168 @@
+"""Respaldo de solo lectura. Los archivos privados se cifran en el workflow."""
+import hashlib
+import json
+import os
+import re
+from pathlib import Path
+import subprocess
+import sys
+import time
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlparse
+from urllib.request import Request, build_opener, HTTPRedirectHandler
+
+
+class SinRedireccion(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("Storage respondió con una redirección inesperada")
+
+
+def pedir(url, key, payload=None):
+    headers = {"apikey": key, "Authorization": f"Bearer {key}"}
+    data = None if payload is None else json.dumps(payload).encode()
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    for intento in range(3):
+        try:
+            with build_opener(SinRedireccion()).open(Request(url, data=data, headers=headers), timeout=60) as r:
+                return r.read()
+        except HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504) or intento == 2:
+                raise RuntimeError(f"Storage no pudo respaldarse (HTTP {e.code})") from None
+        except URLError:
+            if intento == 2:
+                raise RuntimeError("No se pudo conectar con Storage") from None
+        time.sleep(2 ** intento)
+
+
+def respaldar_storage(url, key, destino, request=pedir):
+    buckets = json.loads(request(f"{url}/storage/v1/bucket", key))
+    if not isinstance(buckets, list):
+        raise ValueError("La lista de buckets no es válida")
+    objetos = []
+    carpeta = destino / "storage"
+    carpeta.mkdir()
+    for bucket in buckets:
+        bucket_id = bucket["id"]
+        pendientes = [""]
+        vistos = set()
+        while pendientes:
+            prefix = pendientes.pop()
+            if prefix in vistos:
+                raise ValueError("Carpeta repetida en Storage")
+            vistos.add(prefix)
+            offset = 0
+            while True:
+                filas = json.loads(request(f"{url}/storage/v1/object/list/{quote(bucket_id, safe='')}", key,
+                    {"prefix": prefix, "limit": 100, "offset": offset, "sortBy": {"column": "name", "order": "asc"}}))
+                if not isinstance(filas, list):
+                    raise ValueError("La lista de objetos no es válida")
+                for fila in filas:
+                    nombre = f"{prefix}/{fila['name']}" if prefix else fila["name"]
+                    if fila.get("id") is None:
+                        pendientes.append(nombre)
+                        continue
+                    # El nombre remoto jamás se interpreta como una ruta local.
+                    archivo = hashlib.sha256(f"{bucket_id}\0{nombre}".encode()).hexdigest()
+                    contenido = request(f"{url}/storage/v1/object/{quote(bucket_id, safe='')}/{quote(nombre, safe='/')}", key)
+                    (carpeta / archivo).write_bytes(contenido)
+                    objetos.append({"bucket": bucket_id, "name": nombre, "file": f"storage/{archivo}",
+                                    "bytes": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest(),
+                                    "metadata": fila.get("metadata")})
+                if len(filas) < 100:
+                    break
+                offset += len(filas)
+    return {"buckets": buckets, "objects": objetos}
+
+
+def verificar(destino, manifest):
+    for entrada in manifest["files"] + manifest["objects"]:
+        path = (destino / entrada["file"]).resolve()
+        if not path.is_relative_to(destino.resolve()):
+            raise ValueError("Ruta fuera del respaldo")
+        contenido = path.read_bytes()
+        if len(contenido) != entrada["bytes"] or hashlib.sha256(contenido).hexdigest() != entrada["sha256"]:
+            raise ValueError("El respaldo tiene un archivo incompleto o alterado")
+
+
+def contar_copy(texto):
+    """Conteos del mismo snapshot que el dump, sin volver a consultar producción."""
+    counts = {}
+    tabla = None
+    for linea in texto.splitlines():
+        if tabla is not None:
+            if linea == r"\.":
+                tabla = None
+            else:
+                counts[tabla] += 1
+        else:
+            match = re.match(r'^COPY (public|auth)\.([a-z_][a-z0-9_]*) \(', linea)
+            if match:
+                tabla = f"{match[1]}.{match[2]}"
+                if tabla in counts:
+                    raise ValueError("COPY repetido")
+                counts[tabla] = 0
+    if tabla is not None:
+        raise ValueError("COPY incompleto")
+    return counts
+
+
+def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "--verify":
+        destino = Path(sys.argv[2]).resolve()
+        manifest = json.loads((destino / "manifest.json").read_text(encoding="utf8"))
+        verificar(destino, manifest)
+        print("Integridad verificada: base y archivos coinciden con el manifiesto.")
+        return
+    url = os.environ["SUPABASE_URL"].rstrip("/")
+    dsn = os.environ["SUPABASE_DB_URL"]
+    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    if urlparse(url).scheme != "https" or not urlparse(url).hostname.endswith(".supabase.co"):
+        raise ValueError("Usar la URL HTTPS del proyecto Supabase")
+    if urlparse(dsn).scheme not in ("postgres", "postgresql"):
+        raise ValueError("Falta la conexión PostgreSQL")
+    destino = Path(sys.argv[1]).resolve()
+    destino.mkdir(mode=0o700, parents=True, exist_ok=False)
+    env = {**os.environ, "PGDATABASE": dsn, "PGSSLMODE": "require", "PGCONNECT_TIMEOUT": "30"}
+    archivo = destino / "database.dump"
+    with archivo.open("wb") as salida:
+        # Misma major que el proyecto/config local. DSN solo por entorno.
+        resultado = subprocess.run(["docker", "run", "--rm", "-e", "PGDATABASE", "-e", "PGSSLMODE", "-e", "PGCONNECT_TIMEOUT",
+                                    "postgres:17", "pg_dump", "--format=custom"], env=env, stdout=salida, stderr=subprocess.PIPE)
+    if resultado.returncode != 0:
+        raise RuntimeError("Falló pg_dump. Revisar conexión, contraseña, versión y permisos; no se publica una copia parcial")
+    with archivo.open("rb") as entrada:
+        listado = subprocess.run(["docker", "run", "--rm", "-i", "postgres:17", "pg_restore", "--list"], stdin=entrada, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if listado.returncode != 0 or archivo.stat().st_size == 0:
+        raise RuntimeError("El archivo PostgreSQL no es válido")
+    manifest = respaldar_storage(url, key, destino)
+    counts = {}
+    for nombre, opciones in [("public-data.sql", ["--schema=public"]),
+                             ("auth-data.sql", ["--schema=auth", "--table=users", "--table=identities"])]:
+        with archivo.open("rb") as entrada, (destino / nombre).open("wb") as salida:
+            extraer = subprocess.run(["docker", "run", "--rm", "-i", "postgres:17", "pg_restore", "--data-only", "--no-owner", "--no-privileges", *opciones],
+                                     stdin=entrada, stdout=salida, stderr=subprocess.PIPE)
+        if extraer.returncode != 0:
+            raise RuntimeError("No se pudo preparar el ensayo de restore")
+        counts.update(contar_copy((destino / nombre).read_text(encoding="utf8")))
+    if counts.get("auth.users", 0) < 1 or counts.get("public.profiles", 0) < 1:
+        raise ValueError("El backup no contiene usuarios/perfiles de la app")
+    files = []
+    for nombre in ["database.dump", "public-data.sql", "auth-data.sql"]:
+        contenido = (destino / nombre).read_bytes()
+        files.append({"file": nombre, "bytes": len(contenido), "sha256": hashlib.sha256(contenido).hexdigest()})
+    manifest.update({"version": 1, "project": urlparse(url).hostname.split(".")[0],
+        "created_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "commit": os.environ.get("GITHUB_SHA"), "counts": counts, "files": files})
+    verificar(destino, manifest)
+    (destino / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf8")
+    print(f"Respaldo verificado: base PostgreSQL y {len(manifest['objects'])} archivos de Storage. Pendiente cifrado.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        # No imprimir trazas de librerías ni credenciales de conexión.
+        print(f"Backup fallido: {type(e).__name__}. Revisar configuración y conectividad; no se subió una copia parcial.", file=sys.stderr)
+        sys.exit(1)

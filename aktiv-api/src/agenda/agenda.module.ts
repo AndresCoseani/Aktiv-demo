@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, Patch, Post, Query } from "@nestjs/common";
 import { z } from "zod";
-import { agendaRespuestaSchema, altaHorarioApi, cambioHorarioApi, confirmarAsistenciaApi, consultaAgendaApi, desplazarFecha, diaSemanal, fechaArgentina, parcheHorarioApi, uuidSchema } from "@aktiv/contrato";
+import { agendaRespuestaSchema, altaHorarioApi, cambioHorarioApi, confirmarAsistenciaApi, consultaAgendaApi, desplazarFecha, diaSemanal, fechaArgentina, parcheHorarioApi, referenciaClaseApi, uuidSchema } from "@aktiv/contrato";
 import { Roles } from "../auth/guards";
 import { UsuarioActual, actualizarUno } from "../common/bd";
 import { existe, lanzarSiError, reglaDeNegocio } from "../common/errores";
@@ -63,7 +63,8 @@ export class AgendaService {
         clases.push({ horarioId: h.id, fecha, titulo: vigente.titulo, hora: vigente.hora, fin: vigente.fin, lugar: vigente.lugar, personalizada: Boolean(puntual),
           cancelada: canceladas.some((c) => c.horario_id === h.id && c.fecha === fecha),
           asistire: confirmaciones.some((c) => c.alumno_id === alumnoId),
-          confirmados: u.rol === "coach" ? confirmaciones.map((c) => ({ alumnoId: c.alumno_id, nombre: (c.alumnos as { nombre: string } | null)?.nombre ?? "Alumno" })) : [],
+          horaLlegada: confirmaciones.find((c) => c.alumno_id === alumnoId)?.hora_llegada ?? null,
+          confirmados: u.rol === "coach" ? confirmaciones.map((c) => ({ alumnoId: c.alumno_id, nombre: (c.alumnos as { nombre: string } | null)?.nombre ?? "Alumno", horaLlegada: c.hora_llegada ?? null })).sort((a,b) => String(a.horaLlegada ?? "99:99").localeCompare(String(b.horaLlegada ?? "99:99")) || a.nombre.localeCompare(b.nombre)) : [],
         });
       }
     }
@@ -93,13 +94,13 @@ export class AgendaService {
     });
     lanzarSiError(error); return { id };
   }
-  async confirmar(u: Usuario, horarioId: string, fecha: string, cancelar: boolean) {
+  async confirmar(u: Usuario, horarioId: string, fecha: string, cancelar: boolean, horaLlegada?: string) {
     const { db, alumnoId } = await this.contexto(u);
     if (!alumnoId) throw reglaDeNegocio("solo_alumno", "Solo el alumno puede confirmar su asistencia.");
     if (fecha < fechaArgentina() || fecha > desplazarFecha(fechaArgentina(), 60)) throw reglaDeNegocio("fecha_clase", "Elegí una clase de los próximos 60 días.");
     const r = cancelar
       ? await db.from("confirmaciones_clase").delete().eq("horario_id", horarioId).eq("fecha", fecha).eq("alumno_id", alumnoId)
-      : await db.from("confirmaciones_clase").upsert({ horario_id: horarioId, fecha, alumno_id: alumnoId }, { onConflict: "horario_id,fecha,alumno_id", ignoreDuplicates: true });
+      : await db.rpc("confirmar_llegada_clase", { p_horario_id: horarioId, p_fecha: fecha, p_alumno_id: alumnoId, p_hora_llegada: horaLlegada });
     lanzarSiError(r.error);
   }
   async cancelarClase(u: Usuario, horarioId: string, fecha: string, reabrir: boolean) {
@@ -125,13 +126,13 @@ export class AgendaController {
   @Roles("coach") @Post("horarios/:id/cambios")
   editar(@UsuarioActual() u: Usuario, @Param("id", new ZodPipe(uuidSchema)) id: string, @Body(new ZodPipe(cambioHorarioApi)) dto: z.output<typeof cambioHorarioApi>) { return this.agenda.editar(u, id, dto); }
   @Roles("alumno") @Post("confirmaciones") @HttpCode(204)
-  confirmar(@UsuarioActual() u: Usuario, @Body(new ZodPipe(confirmarAsistenciaApi)) dto: z.output<typeof confirmarAsistenciaApi>) { return this.agenda.confirmar(u, dto.horarioId, dto.fecha, false); }
+  confirmar(@UsuarioActual() u: Usuario, @Body(new ZodPipe(confirmarAsistenciaApi)) dto: z.output<typeof confirmarAsistenciaApi>) { return this.agenda.confirmar(u, dto.horarioId, dto.fecha, false, dto.horaLlegada); }
   @Roles("alumno") @Delete("confirmaciones") @HttpCode(204)
-  cancelar(@UsuarioActual() u: Usuario, @Body(new ZodPipe(confirmarAsistenciaApi)) dto: z.output<typeof confirmarAsistenciaApi>) { return this.agenda.confirmar(u, dto.horarioId, dto.fecha, true); }
+  cancelar(@UsuarioActual() u: Usuario, @Body(new ZodPipe(referenciaClaseApi)) dto: z.output<typeof referenciaClaseApi>) { return this.agenda.confirmar(u, dto.horarioId, dto.fecha, true); }
   @Roles("coach") @Post("cancelaciones") @HttpCode(204)
-  cancelarClase(@UsuarioActual() u: Usuario, @Body(new ZodPipe(confirmarAsistenciaApi)) dto: z.output<typeof confirmarAsistenciaApi>) { return this.agenda.cancelarClase(u, dto.horarioId, dto.fecha, false); }
+  cancelarClase(@UsuarioActual() u: Usuario, @Body(new ZodPipe(referenciaClaseApi)) dto: z.output<typeof referenciaClaseApi>) { return this.agenda.cancelarClase(u, dto.horarioId, dto.fecha, false); }
   @Roles("coach") @Delete("cancelaciones") @HttpCode(204)
-  reabrir(@UsuarioActual() u: Usuario, @Body(new ZodPipe(confirmarAsistenciaApi)) dto: z.output<typeof confirmarAsistenciaApi>) { return this.agenda.cancelarClase(u, dto.horarioId, dto.fecha, true); }
+  reabrir(@UsuarioActual() u: Usuario, @Body(new ZodPipe(referenciaClaseApi)) dto: z.output<typeof referenciaClaseApi>) { return this.agenda.cancelarClase(u, dto.horarioId, dto.fecha, true); }
 }
 @Module({ controllers: [AgendaController], providers: [AgendaService] })
 export class AgendaModule {}

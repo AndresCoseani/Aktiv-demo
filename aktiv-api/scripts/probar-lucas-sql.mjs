@@ -134,6 +134,29 @@ try {
   await como(coach,cambiar(f2));
   igual((await como(coach,`select * from cambios_horario_clase where fecha='${f2}' and alcance='solo_fecha'`)).rows.length,0);
   igual((await como(coach,"select * from confirmaciones_clase")).rows.length,0);
+  await como(usuario,confirmar(alumno,horario,fecha));
+  await db.exec(await readFile(new URL('../supabase/migrations/20261109000000_hora_llegada_clase.sql', import.meta.url), 'utf8'));
+  igual((await como(coach,'select hora_llegada from confirmaciones_clase')).rows[0].hora_llegada,null);
+  await como(usuario,`delete from confirmaciones_clase where alumno_id='${alumno}'`);
+  const avisar = (a,h,f,hora) => `select confirmar_llegada_clase('${h}','${f}','${a}',${hora === null ? 'null' : "'"+hora+"'"})`;
+  await como(usuario,avisar(alumno,horario,fecha,'19:30'));
+  igual((await como(coach,'select hora_llegada from confirmaciones_clase')).rows[0].hora_llegada,'19:30');
+  await como(usuario,avisar(alumno,horario,fecha,'19:45'));
+  igual((await como(coach,'select hora_llegada from confirmaciones_clase')).rows.map(c=>c.hora_llegada),['19:45']);
+  await falla(usuario,avisar(alumno,horario,fecha,'05:00'),'23514');
+  await falla(usuario,avisar(alumno,horario,fecha,'23:00'),'23514');
+  await falla(usuario,avisar(alumno,horario,fecha,null),'23514');
+  await falla(usuario,avisar(vecino,horario,fecha,'19:30'),'42501');
+  await falla(ajeno,avisar(externo,horario,fecha,'19:30'),'42501');
+  await como(usuario,`delete from confirmaciones_clase where alumno_id='${alumno}'`);
+  igual((await como(coach,'select * from confirmaciones_clase')).rows.length,0);
+  // Excepci?n puntual prevalece sobre el horario habitual.
+  await como(coach,`select guardar_cambio_horario('${horario}','${fecha}','solo_fecha','Running','08:00','10:00','Pista')`);
+  await falla(usuario,avisar(alumno,horario,fecha,'19:30'),'23514');
+  await como(usuario,avisar(alumno,horario,fecha,'08:00'));
+  await como(usuario,avisar(alumno,horario,fecha,'10:00'));
+  await como(coach,`insert into clases_canceladas values('${horario}','${fecha}')`);
+  await falla(usuario,avisar(alumno,horario,fecha,'09:00'),'P0001');
   const diagnosticos = await db.exec(await readFile(new URL('../supabase/verificar_actualizacion_lucas.sql', import.meta.url), 'utf8'));
   for (const resultado of diagnosticos) for (const fila of resultado.rows) {
     if ('ok' in fila) igual(fila.ok, true);

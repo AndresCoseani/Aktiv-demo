@@ -6,7 +6,7 @@ import { join } from "node:path";
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
 const base = process.env.MENSUAL_URL ?? "http://localhost:3101";
 const salida = join(process.env.TEMP, "aktiv-lucas-capturas"); await mkdir(salida, { recursive: true });
-const browser = await chromium.launch({ channel: "msedge", headless: true });
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const id = (n) => `a0000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const alumnoId = id(10), usuario = id(1), coachId = id(2), planId = id(20);
 const alumno = { id: alumnoId, userId: null, coachId, nombre: "Ana Pérez", email: "ana@example.test", dni: "", telefono: "", objetivo: "10K", nivel: "Intermedio", activo: true, proximoPago: null, altaEn: "2026-11-01", planes: [], semana: Array.from({length:7},()=>({correr:false,fuerza:false})), ficha: { fechaNacimiento: null, lugarNacimiento: "", enfermedades: "", lesiones: [], certificado: null, contacto: { nombre: "", parentesco: "", telefono: "" } }, marcas: [], notasProfe: "", notasAlumno: "", acceso: { estado: "sin_cuenta", expiraEn: null } };
@@ -55,7 +55,7 @@ async function pagina(rol, ancho=390) {
           const puntual=cambios.find(c=>c.horarioId===h.id&&c.alcance==='solo_fecha'&&c.fecha===f);
           const habitual=cambios.filter(c=>c.horarioId===h.id&&c.alcance==='habitual'&&c.fecha<=f).sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
           const v=puntual??habitual??h;
-          clases.push({horarioId:h.id,fecha:f,titulo:v.titulo,hora:v.hora,fin:v.fin,lugar:v.lugar,personalizada:Boolean(puntual),cancelada:canceladas.some((c)=>c.horarioId===h.id&&c.fecha===f),asistire:rol==="alumno"&&confirmadas.some((c)=>c.horarioId===h.id&&c.fecha===f),confirmados:rol==="coach"?confirmadas.filter((c)=>c.horarioId===h.id&&c.fecha===f).map(()=>({alumnoId,nombre:alumno.nombre})):[]});
+          clases.push({horarioId:h.id,fecha:f,titulo:v.titulo,hora:v.hora,fin:v.fin,lugar:v.lugar,personalizada:Boolean(puntual),cancelada:canceladas.some((c)=>c.horarioId===h.id&&c.fecha===f),asistire:rol==="alumno"&&confirmadas.some((c)=>c.horarioId===h.id&&c.fecha===f),horaLlegada:rol==="alumno"?confirmadas.find(c=>c.horarioId===h.id&&c.fecha===f)?.horaLlegada??null:null,confirmados:rol==="coach"?confirmadas.filter((c)=>c.horarioId===h.id&&c.fecha===f).map(c=>({alumnoId,nombre:alumno.nombre,horaLlegada:c.horaLlegada??null})):[]});
         }
         fecha.setUTCDate(fecha.getUTCDate()+1); f=fecha.toISOString().slice(0,10);
       }
@@ -78,7 +78,7 @@ async function pagina(rol, ancho=390) {
     else if(path.startsWith("/agenda/horarios/") && metodo==="PATCH") {Object.assign(horarios.find((h)=>path.endsWith(h.id)),dto());body={id:path.split("/").at(-1)};}
     else if(path==="/agenda/confirmaciones") {
       if(metodo==="POST"&&errorConfirmar){errorConfirmar=false;status=503;body={codigo:"fallo_prueba",mensaje:"No se pudo confirmar. Reintentá."};}
-      else {if(metodo==="POST") confirmadas.push(dto());else confirmadas.splice(confirmadas.findIndex((c)=>c.horarioId===dto().horarioId&&c.fecha===dto().fecha),1);status=204;}
+      else {if(metodo==="POST") {const anterior=confirmadas.find(c=>c.horarioId===dto().horarioId&&c.fecha===dto().fecha);if(anterior)Object.assign(anterior,dto());else confirmadas.push(dto());}else confirmadas.splice(confirmadas.findIndex((c)=>c.horarioId===dto().horarioId&&c.fecha===dto().fecha),1);status=204;}
     }
     else if(path==="/agenda/cancelaciones") {if(metodo==="POST")canceladas.push(dto());else canceladas.splice(canceladas.findIndex((c)=>c.horarioId===dto().horarioId&&c.fecha===dto().fecha),1);status=204;}
     else throw new Error(`Ruta no simulada: ${metodo} ${path}`);
@@ -153,11 +153,22 @@ try {
   assert.equal(await estudiante.page.getByRole("region",{name:"Bloque 1",exact:true}).count(),3);
   await estudiante.page.screenshot({path:join(salida,"hoy-doble-entrenamiento.png"),fullPage:true});
   await estudiante.page.goto(`${base}/agenda`);
-  await estudiante.page.getByRole("button",{name:"Voy a asistir",exact:true}).click();
+  await estudiante.page.getByRole("button",{name:"Avisar que voy",exact:true}).click();
+  await estudiante.page.getByLabel("Hora estimada de llegada",{exact:true}).fill("18:30");
+  await estudiante.page.getByRole("button",{name:"Confirmar llegada",exact:true}).click();
   await estudiante.page.getByText("No se pudo confirmar. Reintentá.",{exact:true}).waitFor(); assert.equal(confirmadas.length,0);
-  await estudiante.page.getByRole("button",{name:"Voy a asistir",exact:true}).click();
-  await estudiante.page.getByText("Confirmaste que vas a asistir",{exact:true}).waitFor();
-  await estudiante.page.reload(); await estudiante.page.getByText("Confirmaste que vas a asistir",{exact:true}).waitFor();
+  await estudiante.page.getByRole("button",{name:"Confirmar llegada",exact:true}).click();
+  await estudiante.page.getByText("Vas a las 18:30",{exact:true}).waitFor();
+  await estudiante.page.reload(); await estudiante.page.getByText("Vas a las 18:30",{exact:true}).waitFor();
+  await estudiante.page.getByRole('button',{name:'Cambiar hora',exact:true}).click();
+  await estudiante.page.getByLabel('Hora estimada de llegada',{exact:true}).fill('23:00');
+  await estudiante.page.getByRole('button',{name:'Confirmar llegada',exact:true}).click();
+  await estudiante.page.getByRole('alert').filter({hasText:'Eleg'}).waitFor();
+  assert.equal(confirmadas[0].horaLlegada,'18:30');
+  await estudiante.page.getByLabel('Hora estimada de llegada',{exact:true}).fill('18:45');
+  await estudiante.page.getByRole('button',{name:'Confirmar llegada',exact:true}).click();
+  await estudiante.page.getByText('Vas a las 18:45',{exact:true}).waitFor();
+  assert.equal(confirmadas.length,1);
   assert.equal(await estudiante.page.getByText("Ana Pérez",{exact:true}).count(),0);
   assert.equal(await estudiante.page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
   await estudiante.page.screenshot({path:join(salida,"clase-alumno.png"),fullPage:true});
@@ -168,7 +179,7 @@ try {
   await coach.page.getByText("Clase cancelada",{exact:true}).waitFor();
   await estudiante.page.reload(); await estudiante.page.getByText("Clase cancelada",{exact:true}).waitFor();
   await estudiante.page.getByRole("button",{name:"Cancelar mi confirmación",exact:true}).click();
-  await estudiante.page.getByRole("button",{name:"Voy a asistir",exact:true}).waitFor();assert.equal(confirmadas.length,0);
+  await estudiante.page.getByRole("button",{name:"Avisar que voy",exact:true}).waitFor();assert.equal(confirmadas.length,0);
   await coach.page.getByRole("button",{name:"Reabrir entrenamiento",exact:true}).click();
   await coach.page.getByRole("button",{name:"Confirmar",exact:true}).click();
   await coach.page.getByText("Clase cancelada",{exact:true}).waitFor({state:"hidden"});
@@ -281,7 +292,9 @@ try {
   const hoyCard=estudiante.page.getByRole('region',{name:'Clases de hoy',exact:true});
   const turno=hoyCard.getByRole('listitem').filter({hasText:'Fuerza tarde'});
   await turno.getByText('Pista',{exact:true}).waitFor();
-  await turno.getByRole('button',{name:'Asistiré',exact:true}).click();
+  await turno.getByRole('button',{name:'Avisar que voy',exact:true}).click();
+  await estudiante.page.getByLabel('Hora estimada de llegada',{exact:true}).fill('15:30');
+  await estudiante.page.getByRole('button',{name:'Confirmar llegada',exact:true}).click();
   await turno.getByRole('button',{name:'Cancelar mi confirmación',exact:true}).waitFor();
   await coach.page.getByRole('button',{name:'Actualizar',exact:true}).click();
   await coach.page.getByLabel('Alumnos confirmados, 2026-11-04, 15:00',{exact:true}).getByText('Ana Pérez',{exact:true}).waitFor();

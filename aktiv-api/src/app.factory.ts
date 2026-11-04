@@ -7,6 +7,7 @@ import { json } from "express";
 import { crearAppModule } from "./app.module";
 import type { Env } from "./config/env";
 import type { Mail } from "./mail/mail.service";
+import { observarSolicitud } from "./common/observabilidad";
 
 /**
  * Crea la app con TODA la configuración de seguridad. Lo usan main.ts y los
@@ -22,6 +23,8 @@ export async function crearApp(env: Env, opciones: { mail?: Mail } = {}): Promis
   // detrás de un proxy (Render, Fly, Next…) la IP real viene en X-Forwarded-For
   app.set("trust proxy", env.TRUST_PROXY);
   app.setGlobalPrefix("api");
+
+  if (env.NODE_ENV !== "test") app.use(observarSolicitud);
 
   app.use(helmet());
   app.use(cookieParser());
