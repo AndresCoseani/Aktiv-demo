@@ -8,7 +8,7 @@ import subprocess
 import sys
 from urllib.parse import quote, urlparse
 from urllib.request import Request, build_opener
-from backup_supabase import SinRedireccion, pedir, verificar
+from backup_supabase import SinRedireccion, pedir, verificar, ErrorBackup, error_postgres_seguro
 
 
 def exigir_local(db_url, api_url):
@@ -21,11 +21,11 @@ def exigir_local(db_url, api_url):
 
 
 def sql(db_url, texto):
-    result = subprocess.run(["docker", "run", "--rm", "--network=host", "-i", "-e", "PGDATABASE", "postgres:17",
-                             "psql", "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1"],
-        env={**os.environ, "PGDATABASE": db_url}, input=texto.encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    exigir_local(db_url, "http://localhost")
+    result = subprocess.run(["psql", "--dbname", db_url, "--no-password", "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1"],
+        input=texto.encode(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode:
-        raise RuntimeError("Falló validación/restauración SQL local; no se declara recuperable este backup")
+        raise ErrorBackup("Falló validación/restauración SQL local. Detalle filtrado:\n" + error_postgres_seguro(result.stderr))
     return result.stdout.decode().strip()
 
 
@@ -94,5 +94,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"Restore drill fallido: {type(e).__name__}. Nunca se ejecuta contra destinos remotos.", file=sys.stderr)
+        detalle = str(e) if isinstance(e, ErrorBackup) else type(e).__name__
+        print(f"Restore drill fallido: {detalle}. Nunca se ejecuta contra destinos remotos.", file=sys.stderr)
         sys.exit(1)

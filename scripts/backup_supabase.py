@@ -164,6 +164,32 @@ def contar_copy(texto):
     return counts
 
 
+def descargar_postgres(dsn, archivo):
+    env = {**os.environ, "PGSSLMODE": "require", "PGCONNECT_TIMEOUT": "30"}
+    with archivo.open("wb") as salida:
+        resultado = subprocess.run(["pg_dump", "--dbname", dsn, "--no-password", "--format=custom", "--no-owner", "--no-privileges",
+                                    "--schema=public", "--schema=auth"], env=env, stdout=salida, stderr=subprocess.PIPE)
+    if resultado.returncode != 0:
+        raise ErrorBackup(diagnosticar_dump(resultado.stderr))
+    with archivo.open("rb") as entrada:
+        listado = subprocess.run(["pg_restore", "--list"], stdin=entrada, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if listado.returncode != 0 or archivo.stat().st_size == 0:
+        raise ErrorBackup("El archivo PostgreSQL no es válido")
+
+
+def preparar_datos(archivo, destino):
+    counts = {}
+    for nombre, opciones in [("public-data.sql", ["--schema=public"]),
+                             ("auth-data.sql", ["--schema=auth", "--table=users", "--table=identities"])]:
+        with archivo.open("rb") as entrada, (destino / nombre).open("wb") as salida:
+            extraer = subprocess.run(["pg_restore", "--file=-", "--data-only", "--no-owner", "--no-privileges", *opciones],
+                                     stdin=entrada, stdout=salida, stderr=subprocess.PIPE)
+        if extraer.returncode != 0:
+            raise ErrorBackup(f"No se pudo extraer {nombre}. Detalle filtrado:\n" + error_postgres_seguro(extraer.stderr))
+        counts.update(contar_copy((destino / nombre).read_text(encoding="utf8")))
+    return counts
+
+
 def main():
     if len(sys.argv) == 3 and sys.argv[1] == "--verify":
         destino = Path(sys.argv[2]).resolve()
@@ -182,35 +208,14 @@ def main():
         raise ErrorBackup("SUPABASE_DB_URL debe incluir el host remoto de Supabase, no un socket ni un servidor local.")
     destino = Path(sys.argv[1]).resolve()
     destino.mkdir(mode=0o700, parents=True, exist_ok=False)
-    env = {**os.environ, "PGSSLMODE": "require", "PGCONNECT_TIMEOUT": "30"}
     archivo = destino / "database.dump"
     print("Etapa 1/4: descargar PostgreSQL con pg_dump (solo lectura).", flush=True)
-    with archivo.open("wb") as salida:
-        # Cliente nativo 17 como Andera. Un snapshot para public + Auth;
-        # excluir los esquemas internos de Storage, Vault y extensiones.
-        # Pasar la URI explícitamente, como Andera. PGDATABASE por sí solo
-        # no garantiza expandir sus parámetros de conexión. No loguear args.
-        resultado = subprocess.run(["pg_dump", "--dbname", dsn, "--no-password", "--format=custom", "--no-owner", "--no-privileges",
-                                    "--schema=public", "--schema=auth"], env=env, stdout=salida, stderr=subprocess.PIPE)
-    if resultado.returncode != 0:
-        raise ErrorBackup(diagnosticar_dump(resultado.stderr))
-    print("Etapa 2/4: verificar el archivo PostgreSQL.", flush=True)
-    with archivo.open("rb") as entrada:
-        listado = subprocess.run(["pg_restore", "--list"], stdin=entrada, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    if listado.returncode != 0 or archivo.stat().st_size == 0:
-        raise ErrorBackup("El archivo PostgreSQL no es válido")
+    descargar_postgres(dsn, archivo)
+    print("Etapa 2/4: archivo PostgreSQL verificado.", flush=True)
     print("Etapa 3/4: descargar los archivos de Storage (solo lectura).", flush=True)
     manifest = respaldar_storage(url, key, destino)
     print("Etapa 4/4: preparar y verificar datos para la restauración local.", flush=True)
-    counts = {}
-    for nombre, opciones in [("public-data.sql", ["--schema=public"]),
-                             ("auth-data.sql", ["--schema=auth", "--table=users", "--table=identities"])]:
-        with archivo.open("rb") as entrada, (destino / nombre).open("wb") as salida:
-            extraer = subprocess.run(["pg_restore", "--data-only", "--no-owner", "--no-privileges", *opciones],
-                                     stdin=entrada, stdout=salida, stderr=subprocess.PIPE)
-        if extraer.returncode != 0:
-            raise ErrorBackup("No se pudo preparar el ensayo de restore")
-        counts.update(contar_copy((destino / nombre).read_text(encoding="utf8")))
+    counts = preparar_datos(archivo, destino)
     if counts.get("auth.users", 0) < 1 or counts.get("public.profiles", 0) < 1:
         raise ValueError("El backup no contiene usuarios/perfiles de la app")
     files = []
