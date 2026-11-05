@@ -54,10 +54,31 @@ jobs:
       - name: Build frontend de producción (next build)
         run: npm run build
       - run: npm run typecheck
-      - name: Herramientas aisladas de navegador y PostgreSQL
+      - name: Recuperar herramientas de navegador y PostgreSQL
+        id: herramientas
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/checks
+          key: checks-v1-${{ runner.os }}-${{ runner.arch }}-node22-playwright1.64.1-pglite0.5.14
+      - name: Instalar herramientas si no están en caché
+        if: steps.herramientas.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        run: npm install --prefix "$RUNNER_TEMP/checks" --no-audit --no-fund playwright@1.64.1 @electric-sql/pglite@0.5.14
+      - name: Recuperar Chromium
+        id: chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-v1-${{ runner.os }}-${{ runner.arch }}-playwright1.64.1
+      # Las bibliotecas del sistema se instalan en cada runner; no van en caché.
+      - name: Instalar bibliotecas de Linux para Chromium
+        timeout-minutes: 5
+        run: '"$RUNNER_TEMP/checks/node_modules/.bin/playwright" install-deps chromium'
+      - name: Descargar Chromium si no está en caché
+        if: steps.chromium.outputs.cache-hit != 'true'
+        timeout-minutes: 5
         run: |
-          npm install --prefix "$RUNNER_TEMP/checks" --no-audit --no-fund playwright@1.64.1 @electric-sql/pglite@0.5.14
-          "$RUNNER_TEMP/checks/node_modules/.bin/playwright" install --with-deps chromium
+          "$RUNNER_TEMP/checks/node_modules/.bin/playwright" install chromium
       - name: SQL y recorridos de navegador
         env:
           MENSUAL_URL: http://localhost:3101
