@@ -8,12 +8,14 @@ import tempfile
 import unittest
 import uuid
 import threading
+import tarfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timezone
 from unittest.mock import patch
 
 from backup_supabase import descargar_postgres, preparar_datos, verificar, respaldar_storage
 from restore_drill import exigir_local, sql, main as restaurar
+from extraer_backup import extraer
 
 
 @unittest.skipUnless(os.environ.get("BACKUP_TEST_DB_URL"), "Requiere PostgreSQL local descartable")
@@ -105,12 +107,26 @@ class BackupPostgresTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "restauración SQL"):
                     sql(target, Path(__file__).with_name("restore_fks.sql").read_text())
                 # Cifrado y recuperación reales con una clave únicamente de prueba.
+                paquete = root / "check.tar.gz"
+                with tarfile.open(paquete, 'w:gz') as tar:
+                    for nombre in ['manifest.json'] + [f['file'] for f in manifest['files'] + manifest['objects']]:
+                        tar.add(root / nombre, arcname='./' + nombre)
                 cifrado = root / "check.gpg"
-                subprocess.run(["gpg", "--batch", "--yes", "--pinentry-mode", "loopback", "--passphrase-fd", "0", "--symmetric", "--cipher-algo", "AES256", "--output", str(cifrado), str(archivo)],
+                subprocess.run(["gpg", "--batch", "--yes", "--pinentry-mode", "loopback", "--passphrase-fd", "0", "--symmetric", "--cipher-algo", "AES256", "--output", str(cifrado), str(paquete)],
                                input=b"clave-ficticia-para-esta-prueba", check=True, capture_output=True)
                 recuperado = subprocess.run(["gpg", "--batch", "--quiet", "--pinentry-mode", "loopback", "--passphrase-fd", "0", "--decrypt", str(cifrado)],
                                              input=b"clave-ficticia-para-esta-prueba", check=True, capture_output=True)
-                self.assertEqual(recuperado.stdout, archivo.read_bytes())
+                self.assertEqual(recuperado.stdout, paquete.read_bytes())
+                descifrado = root / 'recuperado.tar.gz'
+                descifrado.write_bytes(recuperado.stdout)
+                recuperacion = root / 'recuperacion'
+                extraer(descifrado, recuperacion)
+                verificar(recuperacion, manifest)
+                sql(target, 'truncate auth.users cascade; truncate public.horarios_clase,public.fichas_medicas;')
+                with patch.dict(os.environ, {"LOCAL_SUPABASE_DB_URL": target, "LOCAL_SUPABASE_URL": api, "LOCAL_SUPABASE_SERVICE_ROLE_KEY": "ficticia"}), \
+                     patch("sys.argv", ["restore_drill.py", str(recuperacion)]):
+                    restaurar()
+                self.assertEqual(sql(target, 'select user_id from public.alumnos;'), '1')
         finally:
             storage.shutdown()
             storage.server_close()

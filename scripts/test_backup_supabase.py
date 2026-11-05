@@ -3,14 +3,43 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import io
+import tarfile
 from unittest.mock import patch
 from types import SimpleNamespace
 import backup_supabase
 from backup_supabase import respaldar_storage, verificar, contar_copy, diagnosticar_dump, error_postgres_seguro
 from restore_drill import exigir_local
+from extraer_backup import extraer
 
 
 class BackupTests(unittest.TestCase):
+    def test_extraer_backup_rechaza_rutas_y_enlaces(self):
+        for nombre, tipo in [('../fuera', tarfile.REGTYPE), ('/fuera', tarfile.REGTYPE), ('enlace', tarfile.SYMTYPE), ('enlace', tarfile.LNKTYPE)]:
+            with self.subTest(nombre=nombre, tipo=tipo), tempfile.TemporaryDirectory() as tmp:
+                archivo = Path(tmp) / 'paquete.tar.gz'
+                with tarfile.open(archivo, 'w:gz') as tar:
+                    miembro = tarfile.TarInfo(nombre)
+                    miembro.type = tipo
+                    miembro.linkname = '/fuera'
+                    tar.addfile(miembro, io.BytesIO())
+                with self.assertRaises(ValueError):
+                    extraer(archivo, Path(tmp) / 'extraido')
+                self.assertFalse((Path(tmp) / 'fuera').exists())
+
+    def test_extraer_backup_valido_y_rechazar_destino_existente(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archivo = Path(tmp) / 'paquete.tar.gz'
+            with tarfile.open(archivo, 'w:gz') as tar:
+                miembro = tarfile.TarInfo('./manifest.json')
+                miembro.size = 2
+                tar.addfile(miembro, io.BytesIO(b'{}'))
+            destino = Path(tmp) / 'extraido'
+            extraer(archivo, destino)
+            self.assertEqual((destino / 'manifest.json').read_bytes(), b'{}')
+            with self.assertRaises(FileExistsError):
+                extraer(archivo, destino)
+
     def test_backup_rechaza_conexiones_sin_host_remoto(self):
         for dsn in ("postgresql:///postgres", "postgresql://localhost/postgres", "postgresql://127.0.0.1/postgres"):
             with self.subTest(dsn=dsn), \
