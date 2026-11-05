@@ -37,7 +37,7 @@ jobs:
           import os, subprocess
           if os.environ['EVENTO'] == 'pull_request':
               archivos = subprocess.check_output(['git', 'diff', '--name-only', os.environ['BASE'], os.environ['HEAD']], text=True).splitlines()
-              backup = {'Codex.MD', '.github/workflows/ci.yml', '.github/workflows/db-backup.yml', 'scripts/backup_supabase.py', 'scripts/restore_drill.py', 'scripts/restore_fks.sql', 'scripts/test_backup_supabase.py', 'scripts/test_backup_postgres.py', '.github/actions/restore-target/action.yml'}
+              backup = {'Codex.MD', '.github/workflows/ci.yml', '.github/workflows/db-backup.yml', 'scripts/backup_supabase.py', 'scripts/restore_drill.py', 'scripts/restore_fks.sql', 'scripts/extraer_backup.py', 'scripts/test_backup_supabase.py', 'scripts/test_backup_postgres.py', 'scripts/probar_backup_supabase_local.py', '.github/actions/restore-target/action.yml'}
               app = any(p not in backup for p in archivos)
           else:
               app = os.environ['SOLO_BACKUP'] != 'true'
