@@ -1,5 +1,7 @@
 # Aktiv — contexto único del proyecto
 
+Optimización CI (5/11/2026): el job cliente conserva todas las pruebas y agrega cachés separadas para herramientas aisladas (Node 22, Playwright 1.64.1, PGlite 0.5.14) y Chromium. Claves por versión/SO/arquitectura; actualizar las claves si cambian versiones. Bibliotecas Linux se instalan siempre porque cada runner es nuevo. Instalaciones separadas con límite de cinco minutos; primera ejecución sin caché todavía descarga. YAML validado localmente; tiempos reales pendientes de ejecución en GitHub.
+
 CI (5/11/2026): ejecución 42039269535 aprobó API, integración y build de Next; falló el recorrido mensual al leer un ejercicio antes de terminar su creación optimista. El smoke ahora espera la respuesta POST 201 antes de comprobar sus ocho semanas. Build actualizado y recorrido mensual completo aprobados localmente; pendiente publicar la corrección y comprobar CI remoto. Environment de backups: `backup` en singular, con los ocho secrets ya cargados por Andrés.
 
 Seguimiento CI PR #1: ejecución 41927097993 posterior al fix de lockfile pasó API e inició Supabase correctamente. Integración pasó 97/98 tests; falló la prueba antigua que esperaba throttling de /api/health. Se actualizó para comprobar 401→429 en /api/auth/me y health 200 incluso después de agotar el límite. Prueba HTTP local de ambos comportamientos y typecheck aprobados. Continúa la misma PR chore/ci-backups; pendiente resultado de la ejecución posterior antes de merge.
