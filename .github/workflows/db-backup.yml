@@ -17,7 +17,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && vars.BACKUPS_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    environment: backups
+    environment: backup
     env:
       RCLONE_CONFIG_R2_TYPE: s3
       RCLONE_CONFIG_R2_PROVIDER: Cloudflare

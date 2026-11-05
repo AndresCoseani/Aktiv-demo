@@ -305,7 +305,7 @@ Por pedido de Andres se elimino el workflow mensual separado. Se mantiene la res
 
 ### Activaci?n que debe hacer Andr?s (sin pasar secretos por chat)
 
-1. GitHub de Aktiv ? Settings ? Environments: crear **backups** y limitar a main. Crear un bucket R2 privado dedicado a Aktiv, o usar un prefijo exclusivo con credenciales acotadas. No reutilizar los datos Supabase de Andera.
+1. GitHub de Aktiv ? Settings ? Environments: usar **backup** (singular), donde están los ocho secrets, y limitar a main. El workflow debe declarar exactamente `environment: backup`; `backups` fue una discrepancia de configuración y quedó vacío. Crear un bucket R2 privado dedicado a Aktiv, o usar un prefijo exclusivo con credenciales acotadas. No reutilizar los datos Supabase de Andera.
 2. Secrets de ese environment: **SUPABASE_DB_URL** (Session pooler 5432 de Aktiv con contrase?a URL-encoded; no transaction 6543), **SUPABASE_URL**, **SUPABASE_SERVICE_ROLE_KEY** del mismo proyecto. La clave administrativa solo se usa en el job de descarga, no se expone al cliente ni se usa para el acceso cotidiano de la API.
 3. Secrets R2: **R2_ACCESS_KEY_ID**, **R2_SECRET_ACCESS_KEY**, **R2_ENDPOINT** (HTTPS del endpoint S3 de Cloudflare, sin bucket al final), **R2_BUCKET** (nombre solo, sin URL/prefijo). Acceso solo al bucket de backups. Para Aktiv no hacen falta credenciales S3 de Supabase: se usa su Storage API.
 4. **BACKUP_GPG_PASSPHRASE**: clave aleatoria >=32 caracteres, guardada tambi?n fuera de GitHub/Supabase/R2 en gestor de contrase?as. Es el mismo nombre de secret que en Andera, pero preferir una clave distinta. Reemplaza el nombre provisional BACKUP_ENCRYPTION_PASSWORD de la propuesta anterior.
