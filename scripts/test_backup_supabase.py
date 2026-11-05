@@ -6,11 +6,40 @@ import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
 import backup_supabase
-from backup_supabase import respaldar_storage, verificar, contar_copy, diagnosticar_dump
+from backup_supabase import respaldar_storage, verificar, contar_copy, diagnosticar_dump, error_postgres_seguro
 from restore_drill import exigir_local
 
 
 class BackupTests(unittest.TestCase):
+    def test_error_postgres_conserva_causa_y_oculta_secretos_codificados(self):
+        dsn = "postgresql://usuario_demo:Clave%40privada%21@hostprivado.supabase.co/postgres"
+        error = (
+            f'pg_dump: error: connection to server at "hostprivado.supabase.co" failed: {dsn}\n'
+            'FATAL: Max client connections reached; Clave@privada! usuario_demo\n'
+            'pg_dump: error: token=token-privado password=otra-clave\n'
+            'pg_dump: error: query failed: ERROR: invalid value "dato personal"\n'
+            'pg_dump: detail: Query was: SELECT datos_privados FROM tabla;\n'
+            'CONTEXT: datos personales\n'
+        )
+        with patch.dict("os.environ", {"SUPABASE_DB_URL": dsn, "SUPABASE_SERVICE_ROLE_KEY": "token-privado"}, clear=True):
+            mensaje = diagnosticar_dump(error.encode())
+        self.assertIn("Max client connections reached", mensaje)
+        for privado in (dsn, "Clave%40privada%21", "Clave@privada!", "usuario_demo", "hostprivado", "token-privado", "otra-clave", "dato personal", "SELECT", "datos personales"):
+            self.assertNotIn(privado, mensaje)
+
+    def test_error_postgres_oculta_urls_y_valores_sin_secretos_en_entorno(self):
+        with patch.dict("os.environ", {}, clear=True):
+            mensaje = error_postgres_seguro(b'pg_dump: error: invalid connection option "secreto" postgresql://user:pass@host/db\n')
+        self.assertIn("invalid connection option", mensaje)
+        for privado in ("secreto", "user:pass", "@host"):
+            self.assertNotIn(privado, mensaje)
+
+    def test_error_postgres_limita_salida_y_no_muestra_texto_arbitrario(self):
+        self.assertNotIn("dato sensible", error_postgres_seguro(b"dato sensible"))
+        mensaje = error_postgres_seguro((("pg_dump: error: " + "x" * 3000 + "\n") * 20).encode())
+        self.assertLessEqual(len(mensaje.splitlines()), 6)
+        self.assertTrue(all(len(linea) <= 500 for linea in mensaje.splitlines()))
+
     def test_snapshot_nativo_prepara_auth_y_public_sin_exponer_dsn(self):
         dsn = "postgresql://usuario:privada@pooler/postgres"
         with tempfile.TemporaryDirectory() as tmp:
