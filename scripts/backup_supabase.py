@@ -8,12 +8,43 @@ import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 
 class ErrorBackup(RuntimeError):
     """Mensaje controlado por el script, sin salida cruda ni credenciales."""
+
+
+def error_postgres_seguro(stderr):
+    """Solo líneas de error, sin SQL ni valores privados, incluso sin mask de GitHub."""
+    texto = stderr.decode("utf8", errors="replace")
+    privados = set()
+    for nombre, valor in os.environ.items():
+        if valor and (nombre.startswith(("SUPABASE_", "R2_")) or
+                      nombre in ("PGDATABASE", "PGPASSWORD", "BACKUP_GPG_PASSPHRASE")):
+            privados.update((valor, unquote(valor), quote(valor, safe="")))
+            if nombre in ("SUPABASE_DB_URL", "PGDATABASE"):
+                try:
+                    uri = urlparse(valor)
+                    for parte in (uri.username, uri.password, uri.hostname, uri.path.lstrip("/")):
+                        if parte:
+                            privados.update((parte, unquote(parte), quote(unquote(parte), safe="")))
+                except ValueError:
+                    pass
+    for privado in sorted(privados, key=len, reverse=True):
+        texto = re.sub(re.escape(privado), "[oculto]", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"[a-z][a-z0-9+.-]*://[^\s]+", "[URL oculta]", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"\b(?:password|passwd|pwd|token|apikey|authorization)\s*[:=]\s*[^\s]+", "[credencial oculta]", texto, flags=re.IGNORECASE)
+    # PostgreSQL puede citar usuarios, rutas, nombres o valores de una fila.
+    texto = re.sub(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*' ''', "[valor oculto]", texto, flags=re.VERBOSE)
+    lineas = []
+    for linea in texto.splitlines():
+        if re.match(r"^(?:pg_(?:dump|restore): (?:error|warning):|FATAL:|ERROR:)", linea.strip(), re.IGNORECASE):
+            # No imprimir el SQL que pg_dump adjunta a ciertos errores.
+            linea = re.split(r"query was:|statement:", linea, maxsplit=1, flags=re.IGNORECASE)[0]
+            lineas.append("".join(c for c in linea if c.isprintable())[:500])
+    return "\n".join(lineas[:6]) or "PostgreSQL no devolvió una línea de error reconocible."
 
 
 def diagnosticar_dump(stderr):
@@ -34,7 +65,7 @@ def diagnosticar_dump(stderr):
     for patrones, mensaje in causas:
         if any(patron in texto for patron in patrones):
             return mensaje
-    return "pg_dump falló por una causa no clasificada. No se imprime stderr porque puede contener credenciales."
+    return "pg_dump falló por una causa no clasificada. Detalle filtrado:\n" + error_postgres_seguro(stderr)
 
 
 class SinRedireccion(HTTPRedirectHandler):
