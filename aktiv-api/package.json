@@ -8,6 +8,7 @@
     "build": "npm run contrato && nest build --path tsconfig.build.json",
     "start": "node dist/main.js",
     "start:dev": "npm run contrato && nest start --watch --path tsconfig.dev.json",
+    "dev": "npm run start:dev",
     "typecheck": "npm run contrato && tsc --noEmit -p tsconfig.json",
     "test": "npm run contrato && jest && npm run test -w @aktiv/contrato",
     "test:e2e": "npm run contrato && jest --config test/jest-e2e.json --runInBand",

@@ -150,6 +150,13 @@ export async function cambiarClave(claveActual: string, claveNueva: string) {
   await llamar<void>("POST", "/auth/clave", { claveActual, claveNueva });
 }
 
+export function recuperarClave(email: string) {
+  return llamar<void>("POST", "/auth/recuperar-clave", { email }, { reintentar: false });
+}
+export function restablecerClave(token: string, claveNueva: string) {
+  return llamar<void>("POST", "/auth/restablecer-clave", { token, claveNueva }, { reintentar: false });
+}
+
 /** A quién pertenece el enlace del mail (público, antes de elegir contraseña) */
 export async function consultarInvitacion(token: string): Promise<InvitacionConsulta> {
   return invitacionConsultaSchema.parse(

@@ -54,6 +54,14 @@ export const altaMensualApi = planMensualSchema.pick({ id: true, nombre: true, i
 // No heredar el default en un PATCH: no mandar duración nunca debe cambiarla.
 export const parcheMensualApi = noVacio({ nombre: textoOpcional(120), inicio, activo: z.boolean(), semanas: cantidadSemanasSchema });
 export const altaSesionApi = sesionEntrenamientoSchema.omit({ ejercicios: true, orden: true }).strict();
+export const duplicarSesionApi = z.object({
+  id, nombre: z.string().trim().min(1, "Escribí un nombre para la copia").max(60),
+  dia: z.number().int().min(1).max(7).nullable(),
+}).strict();
+export const duplicarPlanApi = z.object({
+  id, alumnoId: id, inicio,
+  nombre: z.string().trim().min(1, "Escribí un nombre para la copia").max(120),
+}).strict();
 export const parcheSesionApi = noVacio({ ...sesionEntrenamientoSchema.omit({ id: true, ejercicios: true }).shape, franja: z.enum(["Mañana", "Tarde", "Noche", "Sin definir"]), bloques: bloquesSesionSchema, activacion: activacionSesionSchema });
 export const altaEjercicioMensualApi = ejercicioMensualSchema.omit({ semanas: true, orden: true }).strict();
 export const parcheEjercicioMensualApi = noVacio(ejercicioMensualSchema.omit({ id: true, semanas: true }).shape);

@@ -178,6 +178,11 @@ export const cambiarClaveApi = z
   })
   .strict();
 
+export const recuperarClaveApi = z.object({ email: z.email().trim().toLowerCase().max(254) }).strict();
+export const restablecerClaveApi = z.object({
+  token: z.string().min(20).max(8192), claveNueva: claveNuevaSchema,
+}).strict();
+
 /** Lo que ve quien abre el enlace antes de elegir su contraseña */
 export const invitacionConsultaSchema = z.object({
   nombre: z.string(),

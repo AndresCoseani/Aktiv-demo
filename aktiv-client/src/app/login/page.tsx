@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowRight, Lock, User } from "lucide-react";
 import { LogoBadge, LogoLockup, LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -109,6 +110,7 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <Link href="/recuperar-clave" className="block text-right text-sm text-primary underline-offset-4 hover:underline">¿Olvidaste tu contraseña?</Link>
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}

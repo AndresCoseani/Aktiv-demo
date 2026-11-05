@@ -41,6 +41,7 @@ export * from "./plan";
 export * from "./sesion";
 export * from "./api";
 export * from "./mensual";
+export * from "./seguimiento";
 export * from "./agenda";
 
 /* ───────────── Tipos de dominio (inferidos de los esquemas) ───────────── */

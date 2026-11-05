@@ -173,7 +173,8 @@ jobs:
           done
           test "$listo" = 1
           node scripts/lucas.browser.mjs
-          for modo in '' --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --bloques-vacios --bloques --responsive; do
+          node scripts/recuperacion.browser.mjs
+          for modo in '' --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --bloques-vacios --bloques --responsive; do
             node scripts/mensual.browser.mjs $modo
           done
 

@@ -45,9 +45,12 @@ export function errorDeDb(e: ErrorDb): HttpException {
 }
 
 function traducirErrorDeDb(e: ErrorDb): HttpException {
+  if (/\bseguimientos_sesion\b/.test(e.message) && ["PGRST205", "42P01"].includes(e.code ?? "")) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "seguimiento_esquema_desactualizado", "Falta habilitar el seguimiento. Aplicá la migración 43 y reintentá.");
   switch (e.code) {
     case "PGRST202":
     case "42883":
+      if (/\bduplicar_plan\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "planes_esquema_desactualizado", "Falta habilitar la copia de planes. Aplicá la migración 42 y reintentá.");
+      if (/\bduplicar_sesion\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "sesiones_esquema_desactualizado", "Falta habilitar la copia de días. Aplicá la migración 41 y reintentá.");
       if (/\bconfirmar_llegada_clase\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "agenda_esquema_desactualizado", "Falta habilitar la hora de llegada. Aplic? la migraci?n 40 y reintent?.");
       if (/\bguardar_cambio_horario\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "agenda_esquema_desactualizado", "Falta habilitar los cambios de horario. Aplicá la migración 39 después de la 38 y reintentá.");
       if (/\bcrear_plan_con_dias\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "planes_esquema_desactualizado", "Falta habilitar la creación del plan con sus días. Aplicá la migración 32 después de la 31 y reintentá.");
@@ -88,6 +91,8 @@ function traducirErrorDeDb(e: ErrorDb): HttpException {
         "esquema_desactualizado",
         "Faltan tablas de esta versión en la base de datos. Revisá las migraciones pendientes.",
       );
+    case "P0002":
+      return noEncontrado();
     case "42501": // RLS o trigger de permisos
       return sinPermiso();
     case "23505":
