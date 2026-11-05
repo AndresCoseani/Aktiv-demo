@@ -50,6 +50,7 @@ def error_postgres_seguro(stderr):
 def diagnosticar_dump(stderr):
     texto = stderr.decode("utf8", errors="replace").lower()
     causas = [
+        (("connection to server on socket",), "pg_dump intentó conectarse a un PostgreSQL local. Revisar que SUPABASE_DB_URL incluya el host remoto y se pase con --dbname."),
         (("password authentication failed", "authentication failed", "wrong password"), "Autenticación PostgreSQL rechazada. Revisar usuario y contraseña URL-encoded de SUPABASE_DB_URL."),
         (("tenant or user not found",), "El pooler no reconoce el proyecto o usuario. Copiar la conexión Session pooler del proyecto correcto."),
         (("could not translate host name", "name or service not known", "temporary failure in name resolution"), "No se pudo resolver el servidor PostgreSQL. Revisar el host de SUPABASE_DB_URL."),
@@ -177,16 +178,19 @@ def main():
         raise ValueError("Usar la URL HTTPS del proyecto Supabase")
     if urlparse(dsn).scheme not in ("postgres", "postgresql"):
         raise ValueError("Falta la conexión PostgreSQL")
+    if not urlparse(dsn).hostname or urlparse(dsn).hostname in ("localhost", "127.0.0.1", "::1"):
+        raise ErrorBackup("SUPABASE_DB_URL debe incluir el host remoto de Supabase, no un socket ni un servidor local.")
     destino = Path(sys.argv[1]).resolve()
     destino.mkdir(mode=0o700, parents=True, exist_ok=False)
-    env = {**os.environ, "PGDATABASE": dsn, "PGSSLMODE": "require", "PGCONNECT_TIMEOUT": "30"}
+    env = {**os.environ, "PGSSLMODE": "require", "PGCONNECT_TIMEOUT": "30"}
     archivo = destino / "database.dump"
     print("Etapa 1/4: descargar PostgreSQL con pg_dump (solo lectura).", flush=True)
     with archivo.open("wb") as salida:
         # Cliente nativo 17 como Andera. Un snapshot para public + Auth;
         # excluir los esquemas internos de Storage, Vault y extensiones.
-        # DSN solo por entorno, nunca como argumento ni en los logs.
-        resultado = subprocess.run(["pg_dump", "--format=custom", "--no-owner", "--no-privileges",
+        # Pasar la URI explícitamente, como Andera. PGDATABASE por sí solo
+        # no garantiza expandir sus parámetros de conexión. No loguear args.
+        resultado = subprocess.run(["pg_dump", "--dbname", dsn, "--no-password", "--format=custom", "--no-owner", "--no-privileges",
                                     "--schema=public", "--schema=auth"], env=env, stdout=salida, stderr=subprocess.PIPE)
     if resultado.returncode != 0:
         raise ErrorBackup(diagnosticar_dump(resultado.stderr))

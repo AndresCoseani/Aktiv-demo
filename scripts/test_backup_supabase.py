@@ -11,6 +11,15 @@ from restore_drill import exigir_local
 
 
 class BackupTests(unittest.TestCase):
+    def test_backup_rechaza_conexiones_sin_host_remoto(self):
+        for dsn in ("postgresql:///postgres", "postgresql://localhost/postgres", "postgresql://127.0.0.1/postgres"):
+            with self.subTest(dsn=dsn), \
+                 patch.dict("os.environ", {"SUPABASE_URL": "https://prueba.supabase.co", "SUPABASE_DB_URL": dsn, "SUPABASE_SERVICE_ROLE_KEY": "prueba"}), \
+                 patch("backup_supabase.subprocess.run") as ejecutar:
+                with self.assertRaisesRegex(backup_supabase.ErrorBackup, "host remoto"):
+                    backup_supabase.main()
+                ejecutar.assert_not_called()
+
     def test_error_postgres_conserva_causa_y_oculta_secretos_codificados(self):
         dsn = "postgresql://usuario_demo:Clave%40privada%21@hostprivado.supabase.co/postgres"
         error = (
@@ -45,13 +54,14 @@ class BackupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             destino = Path(tmp) / "backup"
             def ejecutar(args, **kwargs):
-                self.assertNotIn(dsn, " ".join(args))
                 if args[0] == "pg_dump":
-                    self.assertEqual(kwargs["env"]["PGDATABASE"], dsn)
+                    self.assertEqual(args[args.index("--dbname") + 1], dsn)
+                    self.assertIn("--no-password", args)
                     self.assertIn("--schema=public", args)
                     self.assertIn("--schema=auth", args)
                     kwargs["stdout"].write(b"archivo custom simulado")
                 elif "--list" not in args:
+                    self.assertNotIn(dsn, args)
                     self.assertEqual(kwargs["stdin"].read(), b"archivo custom simulado")
                     schema = "auth.users" if "--schema=auth" in args else "public.profiles"
                     kwargs["stdout"].write(f"COPY {schema} (id) FROM stdin;\nusuario\n\\.\n".encode())
@@ -68,6 +78,7 @@ class BackupTests(unittest.TestCase):
     def test_diagnostico_dump_no_expone_salida_ni_credenciales(self):
         secreto = "postgresql://usuario:clave-super-privada@host/postgres"
         for error, esperado in [
+            ("connection to server on socket", "PostgreSQL local"),
             ("password authentication failed", "Autenticación"),
             ("Tenant or user not found", "pooler"),
             ("Network is unreachable", "IPv6"),
