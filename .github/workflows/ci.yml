@@ -2,6 +2,11 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      solo_backup:
+        description: Ejecutar solo verificaciones del backup con datos ficticios
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,7 +18,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cambios:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.detectar.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: detectar
+        env:
+          EVENTO: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          SOLO_BACKUP: ${{ inputs.solo_backup }}
+        run: |
+          python3 - <<'PY'
+          import os, subprocess
+          if os.environ['EVENTO'] == 'pull_request':
+              archivos = subprocess.check_output(['git', 'diff', '--name-only', os.environ['BASE'], os.environ['HEAD']], text=True).splitlines()
+              backup = {'Codex.MD', '.github/workflows/ci.yml', '.github/workflows/db-backup.yml', 'scripts/backup_supabase.py', 'scripts/restore_drill.py', 'scripts/restore_fks.sql', 'scripts/test_backup_supabase.py', 'scripts/test_backup_postgres.py', '.github/actions/restore-target/action.yml'}
+              app = any(p not in backup for p in archivos)
+          else:
+              app = os.environ['SOLO_BACKUP'] != 'true'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'app={str(app).lower()}\n')
+          print('Verificación completa de app' if app else 'Cambios exclusivos de backup: controles PostgreSQL reales y pruebas offline')
+          PY
+
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: prueba-ci
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar workflows de GitHub Actions
+        run: |
+          curl --fail --location --retry 3 https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz --output "$RUNNER_TEMP/actionlint.tar.gz"
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck= .github/workflows/ci.yml .github/workflows/db-backup.yml
+      - name: Preparar cliente PostgreSQL 17 y GPG
+        run: |
+          if [ ! -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+            sudo apt-get update
+            sudo apt-get install -y curl ca-certificates gnupg lsb-release
+            sudo install -d /usr/share/postgresql-common/pgdg
+            sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+            echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client-17
+          fi
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+          command -v gpg
+      - name: Pruebas del backup, dump y restore reales sin secretos de producción
+        env:
+          BACKUP_TEST_DB_URL: postgresql://postgres:prueba-ci@localhost:5432/postgres
+        run: python3 -m unittest discover -s scripts -p 'test_backup*.py'
+
   api:
+    needs: cambios
+    if: needs.cambios.outputs.app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -35,6 +106,8 @@ jobs:
         run: python3 -m unittest discover -s ../scripts -p 'test_*.py'
 
   cliente:
+    needs: cambios
+    if: needs.cambios.outputs.app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -105,6 +178,8 @@ jobs:
           done
 
   integracion:
+    needs: cambios
+    if: needs.cambios.outputs.app == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -135,11 +210,17 @@ jobs:
   resultado:
     name: CI completo
     if: always()
-    needs: [api, cliente, integracion]
+    needs: [cambios, backup, api, cliente, integracion]
     runs-on: ubuntu-latest
     steps:
       - name: Exigir todos los controles
         env:
           RESULTADOS: ${{ toJSON(needs) }}
         run: |
-          python3 -c 'import json,os; assert all(v["result"] == "success" for v in json.loads(os.environ["RESULTADOS"]).values()), "Hay controles fallidos o cancelados"'
+          python3 - <<'PY'
+          import json, os
+          r = json.loads(os.environ['RESULTADOS'])
+          assert r['cambios']['result'] == r['backup']['result'] == 'success', 'Falló la detección o el backup'
+          esperado = 'success' if r['cambios']['outputs']['app'] == 'true' else 'skipped'
+          assert all(r[j]['result'] == esperado for j in ('api', 'cliente', 'integracion')), 'Hay controles fallidos, cancelados o inesperadamente omitidos'
+          PY
