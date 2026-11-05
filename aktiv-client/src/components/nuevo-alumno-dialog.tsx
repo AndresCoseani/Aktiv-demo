@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,8 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LIMITES, crearAlumnoDto, validar } from "@/lib/schemas";
-import { ErrorHttp } from "@/lib/api";
-import { crearAlumno, invitarAlumno } from "@/lib/store";
+import { crearAlumno } from "@/lib/store";
 import type { Nivel } from "@/lib/types";
 import { normalizarDni } from "@aktiv/contrato";
 
@@ -36,9 +34,8 @@ export function NuevoAlumnoDialog() {
   const [abierto, setAbierto] = useState(false);
   const [nivel, setNivel] = useState<Nivel>("Principiante");
   const [error, setError] = useState("");
-  const [invitar, setInvitar] = useState(false);
 
-  async function enviar(e: React.FormEvent<HTMLFormElement>) {
+  function enviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const v = validar(crearAlumnoDto, {
@@ -53,27 +50,12 @@ export function NuevoAlumnoDialog() {
       setError(v.error);
       return;
     }
-    if (invitar && !v.datos.email) {
-      setError("Para mandarle la invitación necesitamos su email");
-      return;
-    }
     const alumno = crearAlumno(v.datos);
     setError("");
     setAbierto(false);
     setNivel("Principiante");
     router.push(`/alumnos/${alumno.id}`);
-    if (!invitar) {
-      toast.success(`${alumno.nombre} se sumó al club`);
-      return;
-    }
-    try {
-      await invitarAlumno(alumno.id);
-      toast.success(`${alumno.nombre} se sumó al club. Le mandamos el acceso a ${alumno.email}`);
-    } catch (err) {
-      toast.error(
-        `${alumno.nombre} se creó, pero no pudimos mandarle la invitación${err instanceof ErrorHttp ? `: ${err.message}` : ""} Reintentá desde su ficha.`,
-      );
-    }
+    toast.success(`${alumno.nombre} se sumó al club`);
   }
 
   return (
@@ -112,7 +94,7 @@ export function NuevoAlumnoDialog() {
             <label className="block space-y-2 text-sm">DNI<Input name="dni" inputMode="numeric" maxLength={12} placeholder="Sin puntos; se usa como contraseña inicial" /></label>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="n-email">Email{invitar ? " *" : ""}</Label>
+                <Label htmlFor="n-email">Email</Label>
                 <Input
                   id="n-email"
                   name="email"
@@ -161,21 +143,6 @@ export function NuevoAlumnoDialog() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3">
-              <Checkbox
-                id="n-invitar"
-                checked={invitar}
-                onCheckedChange={(v) => setInvitar(v === true)}
-                className="mt-0.5"
-              />
-              <Label htmlFor="n-invitar" className="block cursor-pointer text-sm leading-snug font-normal">
-                Mandarle una invitación por email
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  Recibe un enlace para elegir su contraseña y ver su plan desde su celu.
-                </span>
-              </Label>
             </div>
 
             {error && (

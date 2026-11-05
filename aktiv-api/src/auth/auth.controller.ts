@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { cambiarClaveApi, loginDto, type Session } from "@aktiv/contrato";
+import { cambiarClaveApi, recuperarClaveApi, restablecerClaveApi, loginDto, type Session } from "@aktiv/contrato";
 import { Inject } from "@nestjs/common";
 import { ENV, type Env } from "../config/env";
 import { noAutenticado } from "../common/errores";
@@ -76,6 +76,22 @@ export class AuthController {
   }
 
   /** Cambiar la propia contraseña (profe o alumno) */
+  @Publico()
+  @Post("recuperar-clave")
+  @HttpCode(204)
+  async recuperar(@Body() body: unknown, @Req() req: RequestConUsuario) {
+    const { email } = validarOLanzar(recuperarClaveApi, body);
+    await this.auth.recuperarClave(email, req.ip ?? "desconocida");
+  }
+
+  @Publico()
+  @Post("restablecer-clave")
+  @HttpCode(204)
+  async restablecer(@Body() body: unknown) {
+    const { token, claveNueva } = validarOLanzar(restablecerClaveApi, body);
+    await this.auth.restablecerClave(token, claveNueva);
+  }
+
   @Post("clave")
   @HttpCode(204)
   async cambiarClave(@Body() body: unknown, @Req() req: RequestConUsuario) {

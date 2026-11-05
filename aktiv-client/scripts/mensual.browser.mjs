@@ -10,6 +10,7 @@ const destino = process.env.MENSUAL_ARTIFACTS ?? join(process.env.TEMP, "aktiv-m
 await mkdir(destino, { recursive: true });
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const alumnoId = "a0000000-0000-4000-8000-000000000001";
+const otroAlumnoId = "a0000000-0000-4000-8000-000000000098";
 const usuario = "a0000000-0000-4000-8000-000000000002";
 const planId = "a0000000-0000-4000-8000-000000000003";
 const sesionId = "a0000000-0000-4000-8000-000000000004";
@@ -25,8 +26,11 @@ let demoraLectura = 0;
 let errorLectura = false;
 let demoraAlta = 0;
 let fallarAlta = false;
+let fallarCopia = false;
 let ejerciciosCatalogo = [];
 let lecturasPlanes = 0, parchesActivos = 0, maximoParalelo = 0;
+const seguimientos = new Map();
+let fallarSeguimiento = false;
 const errores = [];
 async function pagina(rol, ancho) {
   const ctx = await browser.newContext({ viewport: { width: ancho, height: 1000 }, timezoneId: "America/Argentina/Buenos_Aires" });
@@ -39,15 +43,28 @@ async function pagina(rol, ancho) {
     const datos = { session, alumnos: [{ id: alumnoId, userId: usuario, coachId: usuario, nombre: "Alumno Apellido Compuesto", email: "alumno.apellido.compuesto@entrenamiento.test", telefono: "+54 11 5555-0040", objetivo: "10K", nivel: "Intermedio", activo: true, proximoPago: "2026-11-19", altaEn: "2026-10-01", planes: [], semana: Array.from({ length: 7 }, () => ({ correr: false, fuerza: false })), ficha: { fechaNacimiento: null, lugarNacimiento: "", enfermedades: "", lesiones: [], certificado: null, contacto: { nombre: "", parentesco: "", telefono: "" } }, marcas: [], notasProfe: "Cuidar la carga del gemelo", notasAlumno: "", acceso: { estado: "activo", expiraEn: null } }], carreras: [], inscripciones: [], ejerciciosCustom: [] };
     if (process.argv.includes("--carga")) datos.alumnos[0].semana = Array.from({ length: 7 }, () => ({ correr: true, fuerza: true }));
     datos.ejerciciosCustom = ejerciciosCatalogo;
+    if (process.argv.includes("--duplicar-plan")) datos.alumnos.push({ ...structuredClone(datos.alumnos[0]), id: otroAlumnoId, userId: null, nombre: "Otro alumno", email: "otro@entrenamiento.test" });
     let body; let status = 200;
     if (path === "/auth/me") body = { session };
     else if (path === "/datos") body = datos;
     else if (path === "/agenda") body = { horarios: [], clases: [] };
+    else if (/^\/sesiones\/[^/]+\/seguimiento\/\d+$/.test(path)) {
+      const semana = Number(path.split("/").at(-1));
+      if (req.method() === "PATCH") {
+        if (fallarSeguimiento) {
+          fallarSeguimiento = false;
+          await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ codigo: "fallo_prueba", mensaje: "No se pudo guardar el seguimiento" }) }); return;
+        }
+        const dto = req.postDataJSON();
+        seguimientos.set(path, { semana, ...dto, fecha: dto.completado ? "2026-11-02T18:00:00Z" : null });
+      }
+      body = { registro: seguimientos.get(path) ?? { semana, completado: false, sensacion: null, nota: "", fecha: null }, habilitado: rol === "alumno" };
+    }
     else if (req.method() === "GET" && path.endsWith("/planes-mensuales")) {
       lecturasPlanes++;
       if (demoraLectura) await new Promise((resolve) => setTimeout(resolve, demoraLectura));
       if (errorLectura) { status = 503; body = { codigo: "fallo_prueba", mensaje: "Fallo controlado de lectura" }; }
-      else body = sinPlanes ? [] : structuredClone(planes);
+      else body = sinPlanes ? [] : structuredClone(planes.filter((p) => path.includes(p.alumnoId ?? alumnoId)));
     }
     else if (req.method() === "PATCH" && /^\/planes-mensuales\/[^/]+$/.test(path)) {
       if (fallar) { fallar = false; status = 503; body = { codigo: "fallo_prueba", mensaje: "Fallo controlado al guardar" }; }
@@ -78,6 +95,32 @@ async function pagina(rol, ancho) {
     } else if (req.method() === "PATCH" && /^\/sesion-ejercicios\/[^/]+$/.test(path)) {
       const ejercicio = planes.flatMap((p) => p.sesiones).flatMap((s) => s.ejercicios).find((e) => path.endsWith(e.id));
       Object.assign(ejercicio, req.postDataJSON()); body = { id: ejercicio.id };
+    } else if (req.method() === "POST" && /^\/planes-mensuales\/[^/]+\/duplicar$/.test(path)) {
+      if (fallarCopia) {
+        fallarCopia = false;
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ codigo: "fallo_prueba", mensaje: "No se pudo duplicar el plan" }) }); return;
+      }
+      const dto = req.postDataJSON();
+      const copia = structuredClone(planes.find((p) => path.includes(p.id)));
+      Object.assign(copia, dto, { activo: false, orden: planes.length });
+      copia.sesiones = copia.sesiones.map((s) => ({ ...s, id: crypto.randomUUID(),
+        activacion: (s.activacion ?? []).map((a) => ({ ...a, id: crypto.randomUUID() })),
+        ejercicios: s.ejercicios.map((e) => ({ ...e, id: crypto.randomUUID(), semanas: e.semanas.map((c) => ({ ...c, peso: null, pesoFecha: null })) })),
+      }));
+      planes.push(copia); status = 201; body = { id: dto.id };
+    } else if (req.method() === "POST" && path.endsWith("/duplicar")) {
+      if (fallarCopia) {
+        fallarCopia = false;
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ codigo: "fallo_prueba", mensaje: "No se pudo duplicar el día" }) }); return;
+      }
+      const dto = req.postDataJSON();
+      const plan = planes.find((p) => p.sesiones.some((s) => path.includes(s.id)));
+      const origen = plan.sesiones.find((s) => path.includes(s.id));
+      const copia = structuredClone(origen);
+      Object.assign(copia, dto, { orden: Math.max(...plan.sesiones.map((s) => s.orden)) + 1 });
+      copia.activacion = (copia.activacion ?? []).map((e) => ({ ...e, id: crypto.randomUUID() }));
+      copia.ejercicios = copia.ejercicios.map((e) => ({ ...e, id: crypto.randomUUID(), semanas: e.semanas.map((c) => ({ ...c, peso: null, pesoFecha: null })) }));
+      plan.sesiones.push(copia); status = 201; body = { id: dto.id };
     } else if (req.method() === "POST" && path.endsWith("/planes-mensuales")) {
       const { diasIniciales, ...dto } = req.postDataJSON();
       const sesiones = [];
@@ -112,6 +155,145 @@ async function pagina(rol, ancho) {
   return { page, ctx };
 }
 try {
+  if (process.argv.includes("--seguimiento")) {
+    for (const ancho of [1440, 390]) {
+      const { page, ctx } = await pagina("alumno", ancho);
+      await page.goto(`${baseUrl}/mi-plan`);
+      const seguimiento = page.getByRole("region", { name: "Seguimiento de semana 1", exact: true });
+      await seguimiento.getByRole("button", { name: "Marcar como completado", exact: true }).click();
+      await seguimiento.getByRole("group", { name: "Cómo te sentiste" }).getByRole("button", { name: "Bien", exact: true }).click();
+      fallarSeguimiento = true;
+      await seguimiento.getByLabel("Comentario para Lucas").fill(`Comentario ${ancho}`);
+      await seguimiento.getByRole("alert").waitFor();
+      assert.equal(await seguimiento.getByLabel("Comentario para Lucas").inputValue(), `Comentario ${ancho}`);
+      await seguimiento.getByRole("button", { name: "Reintentar seguimiento" }).click();
+      await seguimiento.getByRole("status").filter({ hasText: "Guardado automáticamente" }).waitFor();
+      await page.reload();
+      assert.equal(await seguimiento.getByRole("button", { name: "Completado", exact: true }).getAttribute("aria-pressed"), "true");
+      assert.equal(await seguimiento.getByLabel("Comentario para Lucas").inputValue(), `Comentario ${ancho}`);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await ctx.close();
+      const profe = await pagina("coach", ancho);
+      await profe.page.goto(`${baseUrl}/alumnos/${alumnoId}`);
+      await profe.page.getByRole("tab", { name: "Plan", exact: true }).click();
+      await profe.page.getByText(`Comentario ${ancho}`, { exact: true }).waitFor();
+      assert.equal(await profe.page.getByRole("button", { name: "Marcar como completado", exact: true }).count(), 0);
+      await profe.ctx.close();
+      seguimientos.clear();
+    }
+    assert.deepEqual(errores, []);
+    console.log("OK: seguimiento alumno/profe escritorio/móvil, completado, sensación, autoguardado, error/reintento y recarga.");
+  } else
+  if (process.argv.includes("--calendario")) {
+    const fuerza = structuredClone(planes[0].sesiones[0]);
+    planes[0].sesiones.push({ ...structuredClone(fuerza), id: crypto.randomUUID(), tipo: "Running", nombre: "Running A", orden: 1, ejercicios: [] });
+    planes[0].sesiones.push({ ...structuredClone(fuerza), id: crypto.randomUUID(), tipo: "Running", nombre: "Running B", dia: 4, orden: 2, ejercicios: [] });
+    for (const ancho of [1440, 390]) {
+      const { page, ctx } = await pagina("alumno", ancho);
+      await page.goto(`${baseUrl}/mi-plan`);
+      const calendario = page.getByRole("group", { name: "Días de la semana", exact: true });
+      const lunes = calendario.getByRole("button", { name: "Lunes", exact: true });
+      assert.match(await lunes.innerText(), /Fuerza\s+Día 1/);
+      assert.match(await lunes.innerText(), /Running\s+Día 1/);
+      const jueves = calendario.getByRole("button", { name: "Jueves", exact: true });
+      assert.match(await jueves.innerText(), /Running\s+Día 2/);
+      const filas = await calendario.getByRole("button").evaluateAll((botones) => botones.map((b) => Math.round(b.getBoundingClientRect().top)));
+      assert.equal(new Set(filas).size, ancho === 1440 ? 1 : 2);
+      assert.equal(await calendario.evaluate((e) => e.scrollWidth <= e.clientWidth), true);
+      await jueves.click();
+      assert.equal(await jueves.getAttribute("aria-pressed"), "true");
+      await page.getByText("Running B", { exact: true }).waitFor();
+      await page.screenshot({ path: join(destino, `calendario-alumno-${ancho}.png`) });
+      const domingo = calendario.getByRole("button", { name: "Domingo", exact: true });
+      assert.match(await domingo.innerText(), /Descanso/);
+      await domingo.click();
+      await page.getByText("No hay entrenamientos asignados para este día.", { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await ctx.close();
+    }
+    assert.deepEqual(errores, []);
+    console.log("OK: calendario del alumno con días numerados por tipo, doble entrenamiento, selección y descanso en escritorio/móvil.");
+  } else
+  if (process.argv.includes("--duplicar-plan")) {
+    for (const ancho of [1440, 390]) {
+      const { page, ctx } = await pagina("coach", ancho);
+      await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
+      await page.getByRole("tab", { name: "Plan", exact: true }).click();
+      const cantidad = planes.length;
+      await page.getByRole("button", { name: "Duplicar plan de entrenamiento", exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
+      assert.equal(planes.length, cantidad);
+      await page.getByRole("button", { name: "Duplicar plan de entrenamiento", exact: true }).click();
+      const modal = page.getByRole("dialog");
+      const nombre = `Plan copiado ${ancho}`;
+      await modal.getByLabel("Nombre del plan", { exact: true }).fill(nombre);
+      fallarCopia = true;
+      await modal.getByRole("button", { name: "Duplicar plan", exact: true }).click();
+      await modal.getByRole("alert").waitFor();
+      assert.equal(await modal.getByLabel("Nombre del plan", { exact: true }).inputValue(), nombre);
+      assert.equal(planes.length, cantidad);
+      await modal.getByRole("button", { name: "Duplicar plan", exact: true }).click();
+      await modal.waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "Activar plan", exact: true }).waitFor();
+      assert.equal(planes.at(-1).nombre, nombre);
+      assert.equal(planes.at(-1).activo, false);
+      assert.equal(planes[0].activo, true);
+      assert.equal(planes.at(-1).semanas, 6);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+      await page.getByRole("button", { name: "Duplicar plan de entrenamiento", exact: true }).click();
+      const alumno = modal.getByRole("combobox", { name: "Alumno de destino", exact: true });
+      await alumno.fill("Otro alumno");
+      await page.getByRole("option", { name: /Otro alumno/ }).click();
+      await modal.getByLabel("Nombre del plan", { exact: true }).fill(`Destino ${ancho}`);
+      await modal.getByRole("button", { name: "Duplicar plan", exact: true }).click();
+      await modal.waitFor({ state: "hidden" });
+      assert.equal(planes.at(-1).alumnoId, otroAlumnoId);
+      await page.getByRole("button", { name: "Ver alumno", exact: true }).click();
+      await page.waitForURL(`**/alumnos/${otroAlumnoId}`);
+      await page.getByRole("tab", { name: "Plan", exact: true }).click();
+      await page.getByRole("paragraph").filter({ hasText: `Destino ${ancho}` }).waitFor();
+      await ctx.close();
+    }
+    assert.deepEqual(errores, []);
+    console.log("OK: duplicar plan en escritorio/móvil, cancelar, error/reintento, borrador y destino otro alumno.");
+  } else
+  if (process.argv.includes("--duplicar")) {
+    for (const ancho of [1440, 390]) {
+      const { page, ctx } = await pagina("coach", ancho);
+      await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
+      await page.getByRole("tab", { name: "Plan", exact: true }).click();
+      const cantidad = planes[0].sesiones.length;
+      await page.getByRole("button", { name: "Duplicar día de entrenamiento", exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
+      assert.equal(planes[0].sesiones.length, cantidad);
+      await page.getByRole("button", { name: "Duplicar día de entrenamiento", exact: true }).click();
+      const modal = page.getByRole("dialog");
+      const nombre = `Copia ${ancho}`;
+      await modal.getByLabel("Nombre del día", { exact: true }).fill(nombre);
+      await modal.getByLabel("Día de la semana", { exact: true }).selectOption("3");
+      fallarCopia = true;
+      await modal.getByRole("button", { name: "Duplicar día", exact: true }).click();
+      await modal.getByRole("alert").waitFor();
+      assert.equal(await modal.getByLabel("Nombre del día", { exact: true }).inputValue(), nombre);
+      assert.equal(planes[0].sesiones.length, cantidad);
+      await modal.getByRole("button", { name: "Duplicar día", exact: true }).click();
+      await modal.waitFor({ state: "hidden" });
+      await page.getByText(nombre, { exact: true }).waitFor();
+      const copia = planes[0].sesiones.at(-1);
+      assert.equal(copia.dia, 3);
+      assert.equal(planes[0].sesiones.length, cantidad + 1);
+      assert.notEqual(copia.ejercicios[0].id, ejercicioId);
+      assert(copia.ejercicios[0].semanas.every((c) => c.peso === null && c.pesoFecha === null));
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+      await page.reload();
+      await page.getByRole("tab", { name: "Plan", exact: true }).click();
+      await page.getByRole("button", { name: `Día ${cantidad + 1}`, exact: true }).click();
+      await page.getByText(nombre, { exact: true }).waitFor();
+      await ctx.close();
+    }
+    assert.deepEqual(errores, []);
+    console.log("OK: duplicar día en escritorio/móvil, cancelar, error/reintento sin perder datos, selección de copia y recarga.");
+  } else
   if (process.argv.includes("--guardado-rapido")) {
     const { page, ctx } = await pagina("coach", 1440);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);

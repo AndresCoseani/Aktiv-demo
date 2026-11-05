@@ -29,6 +29,7 @@ async function pagina(rol, ancho=390) {
     if(path==="/auth/me") body={session};
     else if(path==="/datos") body={session,alumnos:rol==="coach"?alumnos:[alumno],carreras:[],inscripciones:[],ejerciciosCustom:[]};
     else if(path.endsWith("/planes-mensuales")) body=planes;
+    else if (/\/seguimiento\/\d+$/.test(path)) body={ registro: { semana: Number(path.split('/').at(-1)), completado:false, sensacion:null, nota:'', fecha:null }, habilitado: rol==='alumno' };
     else if(path===`/alumnos/${alumnoId}` && metodo==="PATCH") {
       if(errorDatosAcceso){errorDatosAcceso=false;status=503;body={codigo:"fallo_prueba",mensaje:"Fallo controlado de datos de acceso"};}
       else {Object.assign(alumno,dto()); body={id:alumnoId};}

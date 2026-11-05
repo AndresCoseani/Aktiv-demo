@@ -47,6 +47,8 @@ Actualización tras la reunión: Lucas asigna el día semanal y puede indicar va
 
 ## 5. Trabajo diario y reutilización
 
+- Importar los Excel existentes: ¿tenés un formato habitual o cambian entre alumnos? ¿Podés compartir un .xlsx completo y representativo, con hojas de Fuerza/Running y varias semanas, sin datos personales?
+- Para esa importación: ¿qué indican colores, celdas combinadas, filas vacías y fórmulas? ¿Una hoja corresponde a un alumno, a un tipo o a un ciclo? Revisar cómo asociarlo al alumno y confirmar una previsualización antes de crear el plan como borrador.
 - ¿Desde dónde empezás normalmente: alumno, objetivo, carrera, plan anterior o plantilla?
 - Al crear el plan, ¿te sirve elegir tipos y cantidad de días de cada uno? ¿Qué valores usarías normalmente?
 - ¿Qué copiás con más frecuencia: un ejercicio, un bloque, un día, una semana o un plan completo?

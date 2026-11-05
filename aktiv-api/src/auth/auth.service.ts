@@ -147,6 +147,39 @@ export class AuthService {
     }
   }
 
+  async recuperarClave(email: string, ip: string) {
+    // Contar también solicitudes exitosas: no agotar el cupo de correo compartido.
+    this.verificarLimiteLogin(`recuperacion:${ip}`, email);
+    this.registrarFallo(`recuperacion:${ip}`, email);
+    const { error } = await this.supa.anonimo().auth.resetPasswordForEmail(email, {
+      redirectTo: `${this.env.appUrl}/restablecer-clave`,
+    });
+    if (error) {
+      if (error.status === 429) throw new ErrorApi(HttpStatus.TOO_MANY_REQUESTS, "correo_limite", "Se alcanzó el límite de correos. Esperá antes de reintentar.");
+      throw new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "correo_no_disponible", "No pudimos solicitar el correo de recuperación. Probá más tarde o pedile ayuda a Lucas.");
+    }
+  }
+
+  async restablecerClave(token: string, nueva: string) {
+    // Validar con Supabase antes de confiar en cualquier campo del JWT.
+    const { data, error } = await this.supa.anonimo().auth.getUser(token);
+    if (error || !data.user) throw new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "recuperacion_invalida", "El enlace venció o no es válido. Pedí uno nuevo.");
+    let recuperacion = false;
+    try {
+      const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8")) as { amr?: { method: string }[] };
+      // Supabase Auth usa "otp" en el enlace de recovery de algunas versiones.
+      // Ambos prueban posesión del correo; un login con contraseña no alcanza.
+      recuperacion = Boolean(data.user.email) && Array.isArray(claims.amr) && claims.amr.some((a) => a.method === "recovery" || a.method === "otp");
+    } catch { /* Un token sin prueba de recuperación no habilita el cambio. */ }
+    if (!recuperacion) throw new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "recuperacion_invalida", "Abrí el enlace que recibiste para recuperar tu contraseña.");
+    const r = await fetch(`${this.env.SUPABASE_URL}/auth/v1/user`, {
+      method: "PUT", headers: { apikey: this.env.SUPABASE_ANON_KEY, Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ password: nueva }), signal: AbortSignal.timeout(8_000),
+    });
+    if (!r.ok) throw new ErrorApi(HttpStatus.UNPROCESSABLE_ENTITY, "clave_rechazada", "No se aceptó esa contraseña. Elegí una distinta, de al menos 8 caracteres.");
+    await this.cerrarSesion(token);
+  }
+
   /** Revoca la sesión en Supabase (mejor esfuerzo; las cookies se borran igual) */
   async cerrarSesion(accessToken: string | undefined) {
     if (!accessToken) return;

@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, type CeldaSemanal } from "./mensual";
+import { prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, duplicarSesionApi, duplicarPlanApi, type CeldaSemanal } from "./mensual";
 const celdas = ["4×8", "", "5×8", ""].map((prescripcion, i): CeldaSemanal => ({ semana: i + 1, prescripcion, peso: String(i + 10), pesoFecha: null }));
 describe("plan mensual", () => {
+  it("copia planes con destino y fecha válidos sin permitir activar ni sobrescribir contenido", () => {
+    const dto = { id: "a0000000-0000-4000-8000-000000000099", alumnoId: "a0000000-0000-4000-8000-000000000098", nombre: " Copia ", inicio: "2026-12-01" };
+    expect(duplicarPlanApi.parse(dto).nombre).toBe("Copia");
+    for (const campos of [{ nombre: " " }, { alumnoId: "otro" }, { inicio: "2026-02-30" }, { activo: true }, { semanas: 4 }, { sesiones: [] }]) {
+      expect(duplicarPlanApi.safeParse({ ...dto, ...campos }).success).toBe(false);
+    }
+  });
+  it("valida la copia sin aceptar pesos, contenido ni cambio de tipo/plan", () => {
+    const dto = { id: "a0000000-0000-4000-8000-000000000099", nombre: " Copia ", dia: null };
+    expect(duplicarSesionApi.parse(dto)).toEqual({ ...dto, nombre: "Copia" });
+    for (const campos of [{ nombre: " " }, { dia: 8 }, { tipo: "Running" }, { plan_id: dto.id }, { ejercicios: [] }, { peso: "12" }]) {
+      expect(duplicarSesionApi.safeParse({ ...dto, ...campos }).success).toBe(false);
+    }
+  });
   it("combina texto y activación sin inyectar listas al editar otro campo", () => {
     const activacion = [{ id: "a0000000-0000-4000-8000-000000000001", nombre: "Rolo", indicacion: "1 min por grupo muscular" }];
     expect(parcheSesionApi.parse({ calentamiento: "Una serie", activacion })).toEqual({ calentamiento: "Una serie", activacion });

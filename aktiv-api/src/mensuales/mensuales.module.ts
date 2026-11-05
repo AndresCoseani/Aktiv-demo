@@ -3,8 +3,9 @@ import { z } from "zod";
 import {
   altaMensualApi, altaSesionApi, altaEjercicioMensualApi, parcheMensualApi,
   parcheSesionApi, parcheEjercicioMensualApi, parcheCeldaAlumnoApi, parcheCeldaProfeApi,
-  planesMensualesRespuesta, uuidSchema,
+  planesMensualesRespuesta, uuidSchema, duplicarSesionApi, duplicarPlanApi,
   MAX_SEMANAS_PLAN,
+  guardarSeguimientoApi, seguimientoRespuesta,
 } from "@aktiv/contrato";
 import { Roles } from "../auth/guards";
 import { UsuarioActual, asegurarAlumno, actualizarUno, borrarUno, parchePorRol } from "../common/bd";
@@ -98,6 +99,53 @@ export class MensualesService {
     return { id: recursoId };
   }
 
+  async duplicarPlan(u: Usuario, origen: string, body: unknown) {
+    const dto = validarOLanzar(duplicarPlanApi, body);
+    const db = this.supa.delUsuario(u.token);
+    await this.existe(db, TABLAS.plan, origen);
+    await asegurarAlumno(db, dto.alumnoId);
+    const r = await db.rpc("duplicar_plan", { p_origen: origen, p_id: dto.id, p_alumno: dto.alumnoId, p_nombre: dto.nombre, p_inicio: dto.inicio });
+    lanzarSiError(r.error);
+    return { id: dto.id };
+  }
+
+  async seguimiento(u: Usuario, sesionId: string, semana: number) {
+    const db = this.supa.delUsuario(u.token);
+    const sesion = await this.existe(db, TABLAS.sesion, sesionId);
+    const plan = await this.existe(db, TABLAS.plan, String(sesion.plan_id));
+    if (semana > Number(plan.semanas)) throw noEncontrado("La semana");
+    const r = await db.from("seguimientos_sesion").select("semana,completado,sensacion,nota,fecha").eq("sesion_id", sesionId).eq("semana", semana).maybeSingle();
+    lanzarSiError(r.error);
+    const inicio = new Date(`${plan.inicio}T12:00:00Z`);
+    inicio.setUTCDate(inicio.getUTCDate() + (semana - 1) * 7);
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+    const alumno = await db.from("alumnos").select("activo").eq("id", plan.alumno_id).single();
+    lanzarSiError(alumno.error);
+    return seguimientoRespuesta.parse({
+      registro: r.data ?? { semana, completado: false, sensacion: null, nota: "", fecha: null },
+      habilitado: Boolean(u.rol === "alumno" && alumno.data?.activo && plan.activo && inicio.toISOString().slice(0, 10) <= hoy),
+    });
+  }
+
+  async guardarSeguimiento(u: Usuario, sesionId: string, semana: number, body: unknown) {
+    const dto = validarOLanzar(guardarSeguimientoApi, body);
+    const db = this.supa.delUsuario(u.token);
+    await this.existe(db, TABLAS.sesion, sesionId);
+    const r = await db.from("seguimientos_sesion").upsert({ sesion_id: sesionId, semana, ...dto }, { onConflict: "sesion_id,semana" })
+      .select("semana,completado,sensacion,nota,fecha").single();
+    lanzarSiError(r.error);
+    return seguimientoRespuesta.parse({ registro: r.data, habilitado: true });
+  }
+
+  async duplicarSesion(u: Usuario, origen: string, body: unknown) {
+    const dto = validarOLanzar(duplicarSesionApi, body);
+    const db = this.supa.delUsuario(u.token);
+    await this.existe(db, TABLAS.sesion, origen);
+    const r = await db.rpc("duplicar_sesion", { p_origen: origen, p_id: dto.id, p_nombre: dto.nombre, p_dia: dto.dia });
+    lanzarSiError(r.error);
+    return { id: dto.id };
+  }
+
   async eliminar(u: Usuario, recurso: Recurso, recursoId: string) {
     await borrarUno(this.supa.delUsuario(u.token), TABLAS[recurso], recursoId, "El recurso");
   }
@@ -129,8 +177,16 @@ export class MensualesController {
   borrarPlan(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string) { return this.servicio.eliminar(u, "plan", recurso); }
   @Roles("coach") @Post("planes-mensuales/:id/sesiones")
   sesion(@UsuarioActual() u: Usuario, @Param("id", id()) padre: string, @Body() body: unknown) { return this.servicio.crear(u, "sesion", padre, body); }
+  @Roles("coach") @Post("planes-mensuales/:id/duplicar")
+  duplicarPlan(@UsuarioActual() u: Usuario, @Param("id", id()) origen: string, @Body() body: unknown) { return this.servicio.duplicarPlan(u, origen, body); }
   @Roles("coach") @Patch("sesiones/:id")
   parcheSesion(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string, @Body() body: unknown) { return this.servicio.parchear(u, "sesion", recurso, body); }
+  @Roles("coach") @Post("sesiones/:id/duplicar")
+  duplicarSesion(@UsuarioActual() u: Usuario, @Param("id", id()) origen: string, @Body() body: unknown) { return this.servicio.duplicarSesion(u, origen, body); }
+  @Get("sesiones/:id/seguimiento/:semana")
+  seguimiento(@UsuarioActual() u: Usuario, @Param("id", id()) sesion: string, @Param("semana", numeroSemana()) semana: number) { return this.servicio.seguimiento(u, sesion, semana); }
+  @Roles("alumno") @Patch("sesiones/:id/seguimiento/:semana")
+  guardarSeguimiento(@UsuarioActual() u: Usuario, @Param("id", id()) sesion: string, @Param("semana", numeroSemana()) semana: number, @Body() body: unknown) { return this.servicio.guardarSeguimiento(u, sesion, semana, body); }
   @Roles("coach") @Delete("sesiones/:id") @HttpCode(204)
   borrarSesion(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string) { return this.servicio.eliminar(u, "sesion", recurso); }
   @Roles("coach") @Post("sesiones/:id/ejercicios")

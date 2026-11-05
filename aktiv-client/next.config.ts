@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     // el enlace de la invitación lleva el token en la URL: que no se filtre por Referer
-    return [{ source: "/invitacion", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] }];
+    return ["/invitacion", "/restablecer-clave"].map((source) => ({ source, headers: [{ key: "Referrer-Policy", value: "no-referrer" }, { key: "Cache-Control", value: "no-store" }] }));
   },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];

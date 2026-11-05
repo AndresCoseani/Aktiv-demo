@@ -108,7 +108,8 @@ export function Navbar({ session }: { session: Session }) {
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger
-              aria-label="Cuenta"
+              aria-label="Mi perfil"
+              title="Mi perfil"
               className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Avatar>
