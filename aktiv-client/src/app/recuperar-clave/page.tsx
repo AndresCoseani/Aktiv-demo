@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { recuperarClaveApi } from "@aktiv/contrato";
 import { recuperarClave } from "@/lib/api";
+import { useHydrated } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoLockup } from "@/components/logo";
 
 export default function RecuperarClavePage() {
+  const listo = useHydrated();
   const [email, setEmail] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [enviado, setEnviado] = useState(false);
@@ -29,9 +31,9 @@ export default function RecuperarClavePage() {
         <div className="space-y-2"><h1 className="text-xl font-semibold">Recuperar contraseña</h1>
           <p className="text-sm text-muted-foreground">Ingresá el email con el que entrás a Aktiv.</p></div>
         {enviado ? <p role="status" className="text-sm">Si ese email tiene una cuenta, recibirás un enlace para elegir una contraseña nueva. Revisá también la carpeta de spam.</p> : <>
-          <div className="space-y-2"><Label htmlFor="recuperar-email">Email</Label><Input id="recuperar-email" type="email" autoComplete="email" autoCapitalize="none" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} required disabled={ocupado} /></div>
+          <div className="space-y-2"><Label htmlFor="recuperar-email">Email</Label><Input id="recuperar-email" type="email" autoComplete="email" autoCapitalize="none" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} required disabled={!listo || ocupado} /></div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button className="w-full" type="submit" disabled={ocupado}>{ocupado ? "Solicitando…" : "Enviar enlace"}</Button>
+          <Button className="w-full" type="submit" disabled={!listo || ocupado}>{ocupado ? "Solicitando…" : "Enviar enlace"}</Button>
         </>}
         <Link href="/login" className="block text-center text-sm text-primary underline-offset-4 hover:underline">Volver a ingresar</Link>
       </form>

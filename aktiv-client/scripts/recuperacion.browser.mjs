@@ -4,11 +4,18 @@ import { pathToFileURL } from "node:url";
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const base = process.env.MENSUAL_URL ?? "http://localhost:3101";
+let paginaActual;
 try {
   for (const width of [1440, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
+    paginaActual = page;
     const errores = []; page.on("pageerror", (e) => errores.push(e.message));
     let pedidos = 0, cambios = 0;
+    // Simular descarga lenta del JS: nunca escribir en un formulario sin hidratar.
+    await page.route("**/_next/static/chunks/**", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      await route.continue();
+    });
     await page.route("**/api/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/auth/me") return route.fulfill({ status: 401, contentType: "application/json", body: '{"codigo":"sin_sesion","mensaje":"Sin sesión"}' });
@@ -19,6 +26,9 @@ try {
     });
     await page.goto(`${base}/login`);
     await page.getByRole("link", { name: "¿Olvidaste tu contraseña?" }).click();
+    await page.waitForURL(`${base}/recuperar-clave`);
+    await page.getByRole("heading", { name: "Recuperar contraseña", exact: true }).waitFor();
+    await page.reload({ waitUntil: "domcontentloaded" });
     await page.getByLabel("Email", { exact: true }).fill("alumno@example.test");
     await page.getByRole("button", { name: "Enviar enlace" }).click();
     await page.getByRole("status").filter({ hasText: "Si ese email" }).waitFor();
@@ -42,4 +52,13 @@ try {
     await page.close();
   }
   console.log("OK: recuperación en escritorio/móvil, enlace inválido, fragmento eliminado, confirmación y contraseña nueva.");
+} catch (e) {
+  if (paginaActual && !paginaActual.isClosed()) console.error("Estado de recuperación al fallar:", await paginaActual.evaluate(() => ({
+    ruta: location.pathname,
+    texto: document.body.innerText,
+    emailValido: document.querySelector('input[type="email"]')?.checkValidity(),
+    email: document.querySelector('input[type="email"]')?.value,
+    validacion: document.querySelector('input[type="email"]')?.validationMessage,
+  })));
+  throw e;
 } finally { await browser.close(); }
