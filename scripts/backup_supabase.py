@@ -12,6 +12,31 @@ from urllib.parse import quote, urlparse
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 
+class ErrorBackup(RuntimeError):
+    """Mensaje controlado por el script, sin salida cruda ni credenciales."""
+
+
+def diagnosticar_dump(stderr):
+    texto = stderr.decode("utf8", errors="replace").lower()
+    causas = [
+        (("password authentication failed", "authentication failed", "wrong password"), "Autenticación PostgreSQL rechazada. Revisar usuario y contraseña URL-encoded de SUPABASE_DB_URL."),
+        (("tenant or user not found",), "El pooler no reconoce el proyecto o usuario. Copiar la conexión Session pooler del proyecto correcto."),
+        (("could not translate host name", "name or service not known", "temporary failure in name resolution"), "No se pudo resolver el servidor PostgreSQL. Revisar el host de SUPABASE_DB_URL."),
+        (("network is unreachable", "no route to host"), "El servidor PostgreSQL no es accesible desde el runner. Usar Session pooler en el puerto 5432 si la conexión directa requiere IPv6."),
+        (("connection timed out", "timeout expired"), "La conexión PostgreSQL agotó el tiempo de espera. Revisar red y restricciones de acceso."),
+        (("connection refused",), "PostgreSQL rechazó la conexión. Revisar servidor, puerto y estado del proyecto."),
+        (("server version mismatch", "aborting because of server version"), "La versión de pg_dump es anterior a la del servidor. Actualizar la imagen PostgreSQL del backup."),
+        (("permission denied", "must be owner",), "El usuario PostgreSQL no tiene permisos para leer todo el respaldo."),
+        (("ssl error", "certificate verify failed", "server does not support ssl"), "Falló la conexión TLS de PostgreSQL. Revisar los parámetros SSL."),
+        (("invalid uri", "invalid percent-encoded", "invalid integer value", "missing key/value separator"), "SUPABASE_DB_URL tiene un formato inválido. Revisar la URL y codificar los caracteres especiales de la contraseña."),
+        (("cannot connect to the docker daemon", "error during connect", "pull access denied", "failed to resolve reference"), "Docker no pudo iniciar o descargar la imagen PostgreSQL."),
+    ]
+    for patrones, mensaje in causas:
+        if any(patron in texto for patron in patrones):
+            return mensaje
+    return "pg_dump falló por una causa no clasificada. No se imprime stderr porque puede contener credenciales."
+
+
 class SinRedireccion(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ValueError("Storage respondió con una redirección inesperada")
@@ -28,10 +53,10 @@ def pedir(url, key, payload=None):
                 return r.read()
         except HTTPError as e:
             if e.code not in (429, 500, 502, 503, 504) or intento == 2:
-                raise RuntimeError(f"Storage no pudo respaldarse (HTTP {e.code})") from None
+                raise ErrorBackup(f"Storage no pudo respaldarse (HTTP {e.code}). Revisar SUPABASE_URL, clave service_role y permisos.") from None
         except URLError:
             if intento == 2:
-                raise RuntimeError("No se pudo conectar con Storage") from None
+                raise ErrorBackup("No se pudo conectar con Storage") from None
         time.sleep(2 ** intento)
 
 
@@ -114,9 +139,9 @@ def main():
         verificar(destino, manifest)
         print("Integridad verificada: base y archivos coinciden con el manifiesto.")
         return
-    url = os.environ["SUPABASE_URL"].rstrip("/")
-    dsn = os.environ["SUPABASE_DB_URL"]
-    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    url = os.environ["SUPABASE_URL"].strip().rstrip("/")
+    dsn = os.environ["SUPABASE_DB_URL"].strip()
+    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"].strip()
     if urlparse(url).scheme != "https" or not urlparse(url).hostname.endswith(".supabase.co"):
         raise ValueError("Usar la URL HTTPS del proyecto Supabase")
     if urlparse(dsn).scheme not in ("postgres", "postgresql"):
@@ -125,25 +150,31 @@ def main():
     destino.mkdir(mode=0o700, parents=True, exist_ok=False)
     env = {**os.environ, "PGDATABASE": dsn, "PGSSLMODE": "require", "PGCONNECT_TIMEOUT": "30"}
     archivo = destino / "database.dump"
+    print("Etapa 1/4: descargar PostgreSQL con pg_dump (solo lectura).", flush=True)
     with archivo.open("wb") as salida:
-        # Misma major que el proyecto/config local. DSN solo por entorno.
-        resultado = subprocess.run(["docker", "run", "--rm", "-e", "PGDATABASE", "-e", "PGSSLMODE", "-e", "PGCONNECT_TIMEOUT",
-                                    "postgres:17", "pg_dump", "--format=custom"], env=env, stdout=salida, stderr=subprocess.PIPE)
+        # Cliente nativo 17 como Andera. Un snapshot para public + Auth;
+        # excluir los esquemas internos de Storage, Vault y extensiones.
+        # DSN solo por entorno, nunca como argumento ni en los logs.
+        resultado = subprocess.run(["pg_dump", "--format=custom", "--no-owner", "--no-privileges",
+                                    "--schema=public", "--schema=auth"], env=env, stdout=salida, stderr=subprocess.PIPE)
     if resultado.returncode != 0:
-        raise RuntimeError("Falló pg_dump. Revisar conexión, contraseña, versión y permisos; no se publica una copia parcial")
+        raise ErrorBackup(diagnosticar_dump(resultado.stderr))
+    print("Etapa 2/4: verificar el archivo PostgreSQL.", flush=True)
     with archivo.open("rb") as entrada:
-        listado = subprocess.run(["docker", "run", "--rm", "-i", "postgres:17", "pg_restore", "--list"], stdin=entrada, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        listado = subprocess.run(["pg_restore", "--list"], stdin=entrada, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     if listado.returncode != 0 or archivo.stat().st_size == 0:
-        raise RuntimeError("El archivo PostgreSQL no es válido")
+        raise ErrorBackup("El archivo PostgreSQL no es válido")
+    print("Etapa 3/4: descargar los archivos de Storage (solo lectura).", flush=True)
     manifest = respaldar_storage(url, key, destino)
+    print("Etapa 4/4: preparar y verificar datos para la restauración local.", flush=True)
     counts = {}
     for nombre, opciones in [("public-data.sql", ["--schema=public"]),
                              ("auth-data.sql", ["--schema=auth", "--table=users", "--table=identities"])]:
         with archivo.open("rb") as entrada, (destino / nombre).open("wb") as salida:
-            extraer = subprocess.run(["docker", "run", "--rm", "-i", "postgres:17", "pg_restore", "--data-only", "--no-owner", "--no-privileges", *opciones],
+            extraer = subprocess.run(["pg_restore", "--data-only", "--no-owner", "--no-privileges", *opciones],
                                      stdin=entrada, stdout=salida, stderr=subprocess.PIPE)
         if extraer.returncode != 0:
-            raise RuntimeError("No se pudo preparar el ensayo de restore")
+            raise ErrorBackup("No se pudo preparar el ensayo de restore")
         counts.update(contar_copy((destino / nombre).read_text(encoding="utf8")))
     if counts.get("auth.users", 0) < 1 or counts.get("public.profiles", 0) < 1:
         raise ValueError("El backup no contiene usuarios/perfiles de la app")
@@ -164,5 +195,6 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         # No imprimir trazas de librerías ni credenciales de conexión.
-        print(f"Backup fallido: {type(e).__name__}. Revisar configuración y conectividad; no se subió una copia parcial.", file=sys.stderr)
+        detalle = str(e) if isinstance(e, ErrorBackup) else f"{type(e).__name__}. Revisar configuración y conectividad."
+        print(f"Backup fallido: {detalle} No se subió una copia parcial.", file=sys.stderr)
         sys.exit(1)
