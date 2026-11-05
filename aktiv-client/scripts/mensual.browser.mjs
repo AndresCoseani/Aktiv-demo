@@ -562,8 +562,13 @@ try {
   assert.equal(planes.at(-1).sesiones.length, 3);
   assert.equal(planes.at(-1).sesiones[0].dia, null);
   await page.getByRole("button", { name: "Crear bloque", exact: true }).click();
+  const ejercicioCreado = page.waitForResponse((respuesta) =>
+    respuesta.request().method() === "POST" &&
+    /\/sesiones\/[^/]+\/ejercicios$/.test(new URL(respuesta.url()).pathname) &&
+    respuesta.status() === 201);
   await page.getByRole("button", { name: "Agregar ejercicio", exact: true }).click();
   await page.getByLabel("Ejercicio, semana 1", { exact: true }).waitFor();
+  await ejercicioCreado;
   assert.equal(planes.at(-1).sesiones[0].ejercicios[0].semanas.length, 8);
   assert.equal(planes.at(-1).inicio, "2026-12-04", "La fecha enviada debe conservar ISO");
   await page.getByRole("button", { name: "Crear Día 3", exact: true }).click();
