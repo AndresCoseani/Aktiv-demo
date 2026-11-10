@@ -183,6 +183,7 @@ jobs:
           node scripts/carga-sesion.browser.mjs
           node scripts/manual.browser.mjs
           node scripts/registro.browser.mjs
+          node scripts/ejercicios.browser.mjs
           for modo in '' --simultaneos --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --movilidad --carreras --modelos --bloques-vacios --bloques --responsive; do
             node scripts/mensual.browser.mjs $modo
           done

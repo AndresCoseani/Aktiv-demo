@@ -37,7 +37,8 @@ type Fila = { nombre: string; categoria: CategoriaEjercicio; propio?: EjercicioC
 export default function EjerciciosPage() {
   const session = useRol("coach");
   const { ejerciciosCustom, categoriasEjercicio, alumnos } = useStore();
-  const categorias = categoriasDelCatalogo(ejerciciosCustom, categoriasEjercicio);
+  const categorias = categoriasDelCatalogo(ejerciciosCustom, categoriasEjercicio)
+    .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base", numeric: true }));
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState<CategoriaEjercicio | "todas">("todas");
   /** "nuevo", un ejercicio propio que se edita, o cerrado */
@@ -58,10 +59,11 @@ export default function EjerciciosPage() {
   );
 
   const visibles = useMemo(() => {
-    const q = claveEjercicio(busqueda);
+    const palabras = busqueda.trim().split(/\s+/).map(claveEjercicio).filter(Boolean);
     return filas.filter(
-      (f) => (categoria === "todas" || f.categoria === categoria) && claveEjercicio(f.nombre).includes(q),
-    );
+      (f) => (categoria === "todas" || f.categoria === categoria)
+        && palabras.every((p) => claveEjercicio(`${f.nombre} ${f.categoria}`).includes(p)),
+    ).sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base", numeric: true }));
   }, [filas, busqueda, categoria]);
 
   /** cuántos planes usan cada ejercicio, para avisar al borrarlo */
@@ -90,7 +92,7 @@ export default function EjerciciosPage() {
         return;
       }
       setDialogo(null);
-      toast.success(`“${v.datos.nombre}” se actualizó`);
+      toast.success(`“${v.datos.nombre}” se actualizó en ${v.datos.categoria}`);
       return;
     }
     const yaEstaba = filas.some((f) => claveEjercicio(f.nombre) === claveEjercicio(v.datos.nombre));
@@ -144,7 +146,7 @@ export default function EjerciciosPage() {
           <Input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar ejercicio…"
+            placeholder="Buscar por nombre o categoría…"
             aria-label="Buscar ejercicio"
             className="h-10 pl-9"
           />
@@ -159,13 +161,18 @@ export default function EjerciciosPage() {
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                 categoria === c
-                  ? "border-primary/40 bg-primary/12 text-primary"
+                  ? "border-primary bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
               {c === "todas" ? "Todos" : c}
+              <span className="ml-1.5 tabular-nums opacity-75">{c === "todas" ? filas.length : filas.filter((f) => f.categoria === c).length}</span>
             </button>
           ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p role="status" className="text-sm text-muted-foreground">{visibles.length} de {filas.length} ejercicios</p>
+          {(busqueda || categoria !== "todas") && <Button type="button" variant="ghost" size="sm" onClick={() => { setBusqueda(""); setCategoria("todas"); }}>Limpiar filtros</Button>}
         </div>
       </div>
 
@@ -266,7 +273,7 @@ export default function EjerciciosPage() {
               <DialogDescription>
                 {dialogo === "nuevo" || dialogo === null
                   ? "Se suma a tu lista y ya lo podés elegir en los planes. En los de fuerza el alumno anota el peso."
-                  : "Si lo renombrás, los planes que ya lo usan también cambian."}
+                  : "Podés cambiar su categoría. Si lo renombrás, los planes que ya lo usan también cambian."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">
