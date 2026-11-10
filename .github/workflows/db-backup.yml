@@ -21,10 +21,13 @@ concurrency:
 
 jobs:
   backup:
-    if: github.ref == 'refs/heads/main' && vars.BACKUPS_ENABLED == 'true'
+    name: Guardar copia cifrada en R2
+    if: github.ref == 'refs/heads/main' && vars.BACKUPS_ENABLED == 'true' && inputs.operacion != 'simulacro'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: backup
+    outputs:
+      archivo: ${{ steps.publicar.outputs.archivo }}
     env:
       RCLONE_CONFIG_R2_TYPE: s3
       RCLONE_CONFIG_R2_PROVIDER: Cloudflare
@@ -71,27 +74,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 scripts/backup_supabase.py "$RUNNER_TEMP/aktiv-backup"
-      - name: Recuperar última copia completa de R2 y descifrarla
-        if: inputs.operacion == 'simulacro'
-        env:
-          BACKUP_GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
-        run: |
-          umask 077
-          marcador=$(rclone lsf "r2:$R2_BUCKET/aktiv/" --files-only --max-depth 1 --include 'aktiv-*.tar.gz.gpg.complete' | sort | tail -n 1)
-          [[ "$marcador" =~ ^aktiv-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z-[0-9]+\.tar\.gz\.gpg\.complete$ ]]
-          nombre=${marcador%.complete}
-          esperado=$(rclone cat "r2:$R2_BUCKET/aktiv/$marcador")
-          [[ "$esperado" =~ ^[a-f0-9]{64}$ ]]
-          rclone copyto "r2:$R2_BUCKET/aktiv/$nombre" "$RUNNER_TEMP/backup-recuperado.gpg"
-          recibido=$(sha256sum "$RUNNER_TEMP/backup-recuperado.gpg" | cut -d' ' -f1)
-          test "$esperado" = "$recibido"
-          printf '%s' "$BACKUP_GPG_PASSPHRASE" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 --output "$RUNNER_TEMP/backup-recuperado.tar.gz" --decrypt "$RUNNER_TEMP/backup-recuperado.gpg"
-          python3 scripts/extraer_backup.py "$RUNNER_TEMP/backup-recuperado.tar.gz" "$RUNNER_TEMP/aktiv-backup"
-          python3 scripts/backup_supabase.py --verify "$RUNNER_TEMP/aktiv-backup"
-          echo "Copia de R2 descargada, descifrada e íntegra; pendiente restauración local."
-      - uses: ./.github/actions/restore-target
-      - name: Restaurar y validar la copia en Supabase descartable
-        run: python3 scripts/restore_drill.py "$RUNNER_TEMP/aktiv-backup"
       - name: Cifrar todo, incluidos los certificados privados
         if: inputs.operacion != 'simulacro'
         env:
@@ -104,6 +86,7 @@ jobs:
           printf '%s' "$BACKUP_GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$RUNNER_TEMP/$nombre" "$RUNNER_TEMP/aktiv-backup.tar.gz"
           printf '%s' "$BACKUP_GPG_PASSPHRASE" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 --decrypt "$RUNNER_TEMP/$nombre" | cmp - "$RUNNER_TEMP/aktiv-backup.tar.gz"
       - name: Publicar en R2 y verificar la copia remota
+        id: publicar
         if: inputs.operacion != 'simulacro'
         run: |
           remote="r2:$R2_BUCKET/aktiv/$BACKUP_FILE"
@@ -111,12 +94,95 @@ jobs:
           esperado=$(sha256sum "$RUNNER_TEMP/$BACKUP_FILE" | cut -d' ' -f1)
           recibido=$(rclone cat "$remote" | sha256sum | cut -d' ' -f1)
           test "$esperado" = "$recibido"
-          # El marcador identifica una copia remota completa y verificada.
+          # .complete certifica integridad; .restore-ok se crea en otro job.
           printf '%s\n' "$esperado" > "$RUNNER_TEMP/complete"
           rclone copyto "$RUNNER_TEMP/complete" "$remote.complete"
+          echo "archivo=$BACKUP_FILE" >> "$GITHUB_OUTPUT"
+          echo "Copia completa, cifrada y verificada en R2. La restauración se prueba por separado." >> "$GITHUB_STEP_SUMMARY"
       - name: Retener 35 días solo en el prefijo de Aktiv
         if: inputs.operacion != 'simulacro'
-        run: rclone delete "r2:$R2_BUCKET/aktiv/" --min-age 35d --max-depth 1 --include 'aktiv-*.tar.gz.gpg*'
+        run: |
+          # Conservar además la última copia con recuperación comprobada.
+          validada=$(rclone lsf "r2:$R2_BUCKET/aktiv/" --files-only --max-depth 1 --include 'aktiv-*.tar.gz.gpg.restore-ok' | sort | tail -n 1)
+          if [ -n "$validada" ]; then
+            [[ "$validada" =~ ^aktiv-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z-[0-9]+\.tar\.gz\.gpg\.restore-ok$ ]]
+            rclone delete "r2:$R2_BUCKET/aktiv/" --min-age 35d --max-depth 1 --filter "- ${validada%.restore-ok}*" --filter '+ aktiv-*.tar.gz.gpg*' --filter '- **'
+          else
+            echo "Todavía no hay marcador de recuperación; se omite la limpieza para conservar las copias anteriores."
+          fi
+      - name: Limpiar archivos privados del runner
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/aktiv-backup"
+          rm -f -- "$RUNNER_TEMP/aktiv-backup.tar.gz" "$RUNNER_TEMP/restore-target.json"
+          rm -f -- "$RUNNER_TEMP/backup-recuperado.gpg" "$RUNNER_TEMP/backup-recuperado.tar.gz"
+
+  validacion:
+    name: Probar recuperación de la copia guardada
+    needs: backup
+    if: >-
+      ${{ !cancelled() && github.ref == 'refs/heads/main' && vars.BACKUPS_ENABLED == 'true'
+          && (needs.backup.result == 'success' || inputs.operacion == 'simulacro') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: backup
+    # Este job no recibe credenciales de Supabase de producción.
+    env:
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: 'true'
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar PostgreSQL 17, rclone y GPG
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg lsb-release rclone
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Descargar y verificar la copia de R2
+        env:
+          ARCHIVO_NUEVO: ${{ needs.backup.outputs.archivo }}
+          OPERACION: ${{ inputs.operacion }}
+          BACKUP_GPG_PASSPHRASE: ${{ secrets.BACKUP_GPG_PASSPHRASE }}
+        run: |
+          umask 077
+          test "${#BACKUP_GPG_PASSPHRASE}" -ge 32
+          nombre="$ARCHIVO_NUEVO"
+          if [ "$OPERACION" = simulacro ]; then
+            marcador=$(rclone lsf "r2:$R2_BUCKET/aktiv/" --files-only --max-depth 1 --include 'aktiv-*.tar.gz.gpg.complete' | sort | tail -n 1)
+            nombre=${marcador%.complete}
+          fi
+          [[ "$nombre" =~ ^aktiv-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z-[0-9]+\.tar\.gz\.gpg$ ]]
+          esperado=$(rclone cat "r2:$R2_BUCKET/aktiv/$nombre.complete")
+          [[ "$esperado" =~ ^[a-f0-9]{64}$ ]]
+          rclone copyto "r2:$R2_BUCKET/aktiv/$nombre" "$RUNNER_TEMP/backup-recuperado.gpg"
+          recibido=$(sha256sum "$RUNNER_TEMP/backup-recuperado.gpg" | cut -d' ' -f1)
+          test "$esperado" = "$recibido"
+          printf '%s' "$BACKUP_GPG_PASSPHRASE" | gpg --batch --quiet --pinentry-mode loopback --passphrase-fd 0 --output "$RUNNER_TEMP/backup-recuperado.tar.gz" --decrypt "$RUNNER_TEMP/backup-recuperado.gpg"
+          python3 scripts/extraer_backup.py "$RUNNER_TEMP/backup-recuperado.tar.gz" "$RUNNER_TEMP/aktiv-backup"
+          python3 scripts/backup_supabase.py --verify "$RUNNER_TEMP/aktiv-backup"
+          echo "BACKUP_FILE=$nombre" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/restore-target
+      - name: Restaurar y validar en Supabase descartable
+        run: python3 scripts/restore_drill.py "$RUNNER_TEMP/aktiv-backup"
+      - name: Marcar recuperación comprobada
+        run: |
+          printf 'Restauración comprobada en run %s\n' "$GITHUB_RUN_ID" > "$RUNNER_TEMP/restore-ok"
+          rclone copyto "$RUNNER_TEMP/restore-ok" "r2:$R2_BUCKET/aktiv/$BACKUP_FILE.restore-ok"
+          echo "La copia de R2 se descargó, descifró y restauró correctamente en Supabase local." >> "$GITHUB_STEP_SUMMARY"
+      - name: Informar fallo sin eliminar la copia
+        if: failure()
+        run: |
+          echo "::error::Falló la prueba de recuperación. La copia íntegra de R2 se conserva; revisar esquema y migraciones del entorno de prueba."
+          echo "La validación falló. No se borra ni se invalida la copia guardada en R2; todavía no tiene recuperación comprobada en este run." >> "$GITHUB_STEP_SUMMARY"
       - name: Apagar Supabase descartable
         if: always()
         working-directory: aktiv-api
@@ -125,5 +191,4 @@ jobs:
         if: always()
         run: |
           rm -rf -- "$RUNNER_TEMP/aktiv-backup"
-          rm -f -- "$RUNNER_TEMP/aktiv-backup.tar.gz" "$RUNNER_TEMP/restore-target.json"
-          rm -f -- "$RUNNER_TEMP/backup-recuperado.gpg" "$RUNNER_TEMP/backup-recuperado.tar.gz"
+          rm -f -- "$RUNNER_TEMP/restore-target.json" "$RUNNER_TEMP/backup-recuperado.gpg" "$RUNNER_TEMP/backup-recuperado.tar.gz"

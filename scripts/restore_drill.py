@@ -38,6 +38,24 @@ def escribir_local(url, key, ruta, metodo, contenido, content_type="application/
         return response.read()
 
 
+def comprobar_esquema_local(db_url, counts):
+    """Detecta tablas ausentes antes de importar datos; no imprime filas privadas."""
+    existentes = set(json.loads(sql(db_url, """
+        select coalesce(json_agg(schemaname||'.'||tablename),'[]'::json)
+        from pg_tables where schemaname in ('public','auth');
+    """)))
+    faltan = sorted(set(counts) - existentes)
+    if faltan:
+        # Los nombres ya se validaron como identificadores simples del manifiesto.
+        raise ErrorBackup(
+            "El esquema local de validación está desactualizado: faltan "
+            + ", ".join(faltan[:12])
+            + (f" y {len(faltan)-12} tablas más" if len(faltan) > 12 else "")
+            + ". Actualizar las migraciones del entorno de prueba y repetir el simulacro. "
+            "No se modificó el archivo de respaldo."
+        )
+
+
 def main():
     db_url, url, key = (os.environ[k] for k in ["LOCAL_SUPABASE_DB_URL", "LOCAL_SUPABASE_URL", "LOCAL_SUPABASE_SERVICE_ROLE_KEY"])
     exigir_local(db_url, url)
@@ -54,6 +72,7 @@ def main():
     for tabla, n in counts.items():
         if not re.fullmatch(r"(public|auth)\.[a-z_][a-z0-9_]*", tabla) or type(n) is not int or n < 0:
             raise ValueError("Manifiesto de conteos inválido")
+    comprobar_esquema_local(db_url, counts)
     sql(db_url, "do $$ begin if exists(select 1 from auth.users) or exists(select 1 from public.profiles) then raise exception 'Destino no vacío'; end if; end $$;")
     # Reconstruye triggers/RLS desde migraciones. Importa solo datos, sin borrar FKs.
     auth = (root / "auth-data.sql").read_text(encoding="utf8")

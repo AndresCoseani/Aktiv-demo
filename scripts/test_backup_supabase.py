@@ -9,11 +9,22 @@ from unittest.mock import patch
 from types import SimpleNamespace
 import backup_supabase
 from backup_supabase import respaldar_storage, verificar, contar_copy, diagnosticar_dump, error_postgres_seguro
-from restore_drill import exigir_local
+from restore_drill import exigir_local, comprobar_esquema_local
 from extraer_backup import extraer
 
 
 class BackupTests(unittest.TestCase):
+    def test_esquema_viejo_informa_tablas_faltantes_sin_importar_datos(self):
+        with patch("restore_drill.sql", return_value='["public.profiles", "auth.users"]') as consulta:
+            with self.assertRaisesRegex(backup_supabase.ErrorBackup, "desactualizado: faltan public.categorias_ejercicio"):
+                comprobar_esquema_local("postgresql://localhost/postgres", {"public.profiles": 1, "auth.users": 1, "public.categorias_ejercicio": 2})
+            self.assertEqual(consulta.call_count, 1)
+            self.assertNotIn("COPY", consulta.call_args.args[1])
+
+    def test_esquema_compatible_admite_tablas_locales_adicionales(self):
+        with patch("restore_drill.sql", return_value='["public.profiles", "auth.users", "public.nueva"]'):
+            comprobar_esquema_local("postgresql://localhost/postgres", {"public.profiles": 1, "auth.users": 1})
+
     def test_extraer_backup_rechaza_rutas_y_enlaces(self):
         for nombre, tipo in [('../fuera', tarfile.REGTYPE), ('/fuera', tarfile.REGTYPE), ('enlace', tarfile.SYMTYPE), ('enlace', tarfile.LNKTYPE)]:
             with self.subTest(nombre=nombre, tipo=tipo), tempfile.TemporaryDirectory() as tmp:

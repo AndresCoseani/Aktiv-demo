@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from backup_supabase import descargar_postgres, preparar_datos, verificar, respaldar_storage
+from backup_supabase import descargar_postgres, preparar_datos, verificar, respaldar_storage, ErrorBackup
 from restore_drill import exigir_local, sql, main as restaurar
 from extraer_backup import extraer
 
@@ -77,6 +77,8 @@ class BackupPostgresTests(unittest.TestCase):
                 insert into public.fichas_medicas values (1,'certificado.pdf');
             """)
             sql(target, estructura)
+            # Producción recibe una migración antes de que llegue a main.
+            sql(source, "create table public.categorias_prueba(id int primary key); insert into public.categorias_prueba values (1);")
             with tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 archivo = root / "database.dump"
@@ -97,6 +99,16 @@ class BackupPostgresTests(unittest.TestCase):
                             "files": files, **respaldar_storage(api, "clave-ficticia", root)}
                 (root / "manifest.json").write_text(json.dumps(manifest))
                 verificar(root, manifest)
+                # La copia ya es íntegra y se conserva aunque el ensayo use un esquema viejo.
+                with patch.dict(os.environ, {"LOCAL_SUPABASE_DB_URL": target, "LOCAL_SUPABASE_URL": api, "LOCAL_SUPABASE_SERVICE_ROLE_KEY": "ficticia"}), \
+                     patch("sys.argv", ["restore_drill.py", str(root)]):
+                    with self.assertRaisesRegex(ErrorBackup, "desactualizado: faltan public.categorias_prueba"):
+                        restaurar()
+                verificar(root, manifest)
+                self.assertEqual(sql(target, "select count(*) from auth.users;"), "0")
+                self.assertEqual(escrituras, {})
+                # Al actualizar solamente el destino de pruebas, el mismo backup restaura.
+                sql(target, "create table public.categorias_prueba(id int primary key);")
                 with patch.dict(os.environ, {"LOCAL_SUPABASE_DB_URL": target, "LOCAL_SUPABASE_URL": api, "LOCAL_SUPABASE_SERVICE_ROLE_KEY": "ficticia"}), \
                      patch("sys.argv", ["restore_drill.py", str(root)]):
                     restaurar()
@@ -122,7 +134,7 @@ class BackupPostgresTests(unittest.TestCase):
                 recuperacion = root / 'recuperacion'
                 extraer(descifrado, recuperacion)
                 verificar(recuperacion, manifest)
-                sql(target, 'truncate auth.users cascade; truncate public.horarios_clase,public.fichas_medicas;')
+                sql(target, 'truncate auth.users cascade; truncate public.horarios_clase,public.fichas_medicas,public.categorias_prueba;')
                 with patch.dict(os.environ, {"LOCAL_SUPABASE_DB_URL": target, "LOCAL_SUPABASE_URL": api, "LOCAL_SUPABASE_SERVICE_ROLE_KEY": "ficticia"}), \
                      patch("sys.argv", ["restore_drill.py", str(recuperacion)]):
                     restaurar()
