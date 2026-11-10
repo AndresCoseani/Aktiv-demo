@@ -101,7 +101,7 @@ try {
     await foto(p, "editor-vuelta-calma", [[p.getByRole("textbox").last(), "Indicaciones finales"]]);
   });
   await grupo("alumnos", async p => {
-    await p.goto(`${base}/alumnos`); await boton(p, "Nuevo alumno").waitFor(); await foto(p, "alumnos-lista", [[boton(p, "Nuevo alumno"), "1 · Alta manual"], [boton(p, "Aprobar todos"), "2 · Aprobar las solicitudes"]]);
+    await p.goto(`${base}/alumnos`); await boton(p, "Nuevo alumno").waitFor(); await foto(p, "alumnos-lista", [[boton(p, "Nuevo alumno"), "1 · Alta manual"]]);
     await boton(p, "Nuevo alumno").click(); await foto(p, "alumno-nuevo", [], true); await cerrar(p);
     await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("tab", { name: "Plan", exact: true }), "Abrir sus planes"]]);
     await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p);
@@ -141,6 +141,10 @@ try {
     await boton(p, "Mi perfil").click(); await foto(p, "perfil-menu", [[p.getByRole("menuitem", { name: "Manual de uso", exact: true }), "Abrir este manual"]]);
     await p.getByRole("menuitem", { name: "Cambiar contraseña", exact: true }).click(); await foto(p, "clave-cambiar", [], true); await cerrar(p);
     await p.goto(`${base}/certificados`); await foto(p, "certificados-lista");
+  });
+  await grupo("solicitudes", async p => {
+    await p.goto(base+"/dashboard");await boton(p,"Aprobar todos").waitFor();await foto(p,"dashboard");await foto(p,"dashboard-solicitudes",[[boton(p,"Copiar enlace de registro"),"Compartí el registro"],[boton(p,"Aprobar todos"),"Aprobá las solicitudes"]]);
+    await p.goto(base+"/alumnos");await boton(p,"Nuevo alumno").waitFor();await foto(p,"alumnos-lista",[[boton(p,"Nuevo alumno"),"1 · Alta manual"]]);
   });
   await grupo("alumno", async p => {
     await p.goto(`${base}/mi-plan`); await p.getByRole("heading", { name: "Plan de entrenamiento", exact: true }).waitFor(); await foto(p, "alumno-mi-plan");

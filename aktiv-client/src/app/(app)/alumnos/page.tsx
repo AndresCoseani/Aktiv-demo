@@ -1,7 +1,6 @@
 "use client";
 
 import { AlumnosTable } from "@/components/alumnos-table";
-import { SolicitudesAlta } from "@/components/solicitudes-alta";
 import { NuevoAlumnoDialog } from "@/components/nuevo-alumno-dialog";
 import { ImportarAlumnosDialog } from "@/components/importar-alumnos-dialog";
 import { useRol } from "@/lib/guards";
@@ -26,7 +25,6 @@ export default function AlumnosPage() {
         </div>
         <div className="flex flex-wrap gap-2"><ImportarAlumnosDialog /><NuevoAlumnoDialog /></div>
       </header>
-      <SolicitudesAlta />
       <AlumnosTable alumnos={alumnos} />
     </div>
   );
