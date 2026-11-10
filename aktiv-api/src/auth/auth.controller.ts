@@ -44,7 +44,7 @@ export class AuthController {
     borrarCookies(res, this.env);
   }
   @Publico() @Get("registro")
-  estadoRegistro() { return { habilitado: this.registro.habilitado }; }
+  async estadoRegistro() { return { habilitado: Boolean(await this.registro.profesor()) }; }
 
   @Publico() @Post("registro") @HttpCode(204)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })

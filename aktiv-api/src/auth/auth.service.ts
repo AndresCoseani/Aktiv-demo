@@ -229,7 +229,7 @@ export class AuthService {
         const u=await this.supa.anonimo().auth.getUser(token);
         if(u.data.user?.user_metadata.origen==="registro_aktiv") {
           await this.registro.completar(token);
-          throw new ErrorApi(403,"registro_pendiente","Tu email está confirmado. Lucas todavía tiene que aprobar tu alta. Tu solicitud no vence; volvé a ingresar cuando te avise.");
+          throw new ErrorApi(403,"registro_pendiente","Lucas todavía tiene que aprobar tu alta. Tu solicitud no vence; volvé a ingresar cuando te avise.");
         }
       }
       throw sinPermiso("Tu cuenta todavía no está habilitada. Hablá con tu profe.");

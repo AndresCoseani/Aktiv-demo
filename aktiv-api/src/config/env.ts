@@ -27,7 +27,7 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(20, "Falta SUPABASE_ANON_KEY (la clave pública publishable/anon)"),
   /** clave secret/service_role: solo para el módulo de invitaciones (ver arriba) */
   SUPABASE_SERVICE_ROLE_KEY: opcional(z.string().min(20)),
-  /** Profesor al que se vinculan las altas públicas; vacío deshabilita el registro. */
+  /** Profesor de las altas públicas. Opcional si hay un único coach; necesario para distinguir varios. */
   REGISTRO_COACH_ID: opcional(z.uuid()),
 
   /** orígenes del frontend permitidos (CORS y verificación anti-CSRF), separados por coma */

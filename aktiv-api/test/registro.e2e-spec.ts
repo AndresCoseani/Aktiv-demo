@@ -12,16 +12,25 @@ describe("Registro público con aprobación",()=>{
   const r=await env.admin.auth.admin.createUser({email,password:dni,email_confirm:true,user_metadata:{origen:"registro_aktiv",nombre,dni,telefono:"3511234567",rol:"coach"}});
   expect(r.error).toBeNull();usuarios.push(r.data.user!.id);const sb=cliente();const login=await sb.auth.signInWithPassword({email,password:dni});expect(login.error).toBeNull();return {sb,id:r.data.user!.id,email,token:login.data.session!.access_token,dni};
  }
- it("registra con email real; antes de confirmar no crea ficha ni solicitud",async()=>{
-  const email=`registro-mail-${uuid()}@test.local`,dni="45111222";
-  const r=await new Sesion(app).post("/api/auth/registro",{nombre:"Alumno correo",dni,email,telefono:""});expect(r.status).toBe(204);
-  const lista=await env.admin.auth.admin.listUsers();const u=lista.data.users.find((u)=>u.email===email);expect(u).toBeDefined();usuarios.push(u!.id);expect(u!.email_confirmed_at).toBeFalsy();
+ it("registra sin correo ni ficha; Lucas aprueba y se ingresa con email y DNI",async()=>{
+  const email=`registro-simple-${uuid()}@test.local`,dni="45111222";
+  const c=new Sesion(app);
+  const r=await c.post("/api/auth/registro",{nombre:"Alumno nuevo",dni,email});expect(r.status).toBe(204);
+  const lista=await env.admin.auth.admin.listUsers();const u=lista.data.users.find((u)=>u.email===email);expect(u).toBeDefined();usuarios.push(u!.id);
+  // Confirmado administrativamente: no OTP, enlace ni correo para el alumno.
+  expect(u!.email_confirmed_at).toBeTruthy();
   expect((await env.admin.from("profiles").select("id").eq("id",u!.id)).data).toEqual([]);
-  expect((await A.get("/api/auth/solicitudes-alta")).body).toEqual([]);
-  const enlace=await env.admin.auth.admin.generateLink({type:"signup",email,password:dni});expect(enlace.error).toBeNull();
-  const verificacion=await cliente().auth.verifyOtp({type:"signup",token_hash:enlace.data.properties!.hashed_token});expect(verificacion.error).toBeNull();
-  expect((await new Sesion(app).post("/api/auth/confirmar-registro",{token:verificacion.data.session!.access_token})).status).toBe(204);
-  expect((await A.get("/api/auth/solicitudes-alta")).body).toEqual([expect.objectContaining({nombre:"Alumno correo",dni})]);
+  expect((await env.admin.from("alumnos").select("id").eq("user_id",u!.id)).data).toEqual([]);
+  const solicitud=(await A.get("/api/auth/solicitudes-alta")).body.find((s:{email:string})=>s.email===email);
+  expect(solicitud).toMatchObject({nombre:"Alumno nuevo",dni,telefono:""});
+  expect((await c.login(email,dni)).body.codigo).toBe("registro_pendiente");
+  expect((await A.post(`/api/auth/solicitudes-alta/${solicitud.id}/aprobar`,{})).status).toBe(201);
+  expect((await c.login(email,dni)).body.session.role).toBe("alumno");
+  const ficha=(await env.admin.from("alumnos").select("dni,telefono").eq("user_id",u!.id).single()).data;
+  expect(ficha).toMatchObject({dni,telefono:""});
+  // Repetir el alta no cambia el DNI/contraseña ni la identidad existente.
+  expect((await new Sesion(app).post("/api/auth/registro",{nombre:"Otro nombre",dni:"45999999",email})).status).toBe(204);
+  expect((await new Sesion(app).login(email,dni)).body.session.role).toBe("alumno");
  });
  it("un pendiente no entra, no ve datos ni se aprueba solo; otro profesor tampoco",async()=>{
   const u=await crearCuenta("45111223");const c=new Sesion(app);
