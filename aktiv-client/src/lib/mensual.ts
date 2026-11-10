@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { planesMensualesRespuesta, type PlanMensual, type SesionEntrenamiento } from "@aktiv/contrato";
+import { planesMensualesRespuesta, type Running, type PlanMensual, type SesionEntrenamiento } from "@aktiv/contrato";
 import { api } from "./api";
 import { useStore } from "./store";
 
+export const EVENTO_RUNNING="aktiv:running-confirmado";
+export function avisarCambioRunning(planId:string,running:Running){window.dispatchEvent(new CustomEvent(EVENTO_RUNNING,{detail:{planId,running}}));}
 export const EVENTO_MENSUAL = "aktiv:planes-mensuales";
 export function avisarCambioMensual(sesion?: SesionEntrenamiento) {
   window.dispatchEvent(new CustomEvent(EVENTO_MENSUAL, { detail: { sesion } }));
@@ -23,9 +25,12 @@ export function usePlanesMensuales(alumnoId?: string) {
   const [revision, setRevision] = useState(0);
   const confirmaciones = useRef(new Map<string, { version: number; sesion: SesionEntrenamiento }>());
   const versionConfirmada = useRef(0);
+  const runningConfirmado=useRef(new Map<string,{version:number;running:Running}>());
   const [estado, setEstado] = useState<{ identidad: string; planes: PlanMensual[]; error: string | null }>({ identidad: "", planes: [], error: null });
   useEffect(() => {
-    confirmaciones.current.clear();
+    confirmaciones.current.clear(); runningConfirmado.current.clear();
+    const alGuardarRunning=(e:Event)=>{const {planId,running}=(e as CustomEvent<{planId:string;running:Running}>).detail;runningConfirmado.current.set(planId,{version:++versionConfirmada.current,running});setEstado(prev=>({...prev,planes:prev.planes.map(p=>p.id===planId?{...p,running}:p)}));};
+    window.addEventListener(EVENTO_RUNNING,alGuardarRunning);
     const refrescar = (evento?: Event) => {
       const sesion = evento instanceof CustomEvent ? (evento.detail as { sesion?: SesionEntrenamiento } | undefined)?.sesion : undefined;
       if (!sesion) { setRevision((v) => v + 1); return; }
@@ -40,7 +45,7 @@ export function usePlanesMensuales(alumnoId?: string) {
     window.addEventListener(EVENTO_MENSUAL, refrescar);
     document.addEventListener("visibilitychange", alVolver);
     return () => {
-      window.removeEventListener(EVENTO_MENSUAL, refrescar);
+      window.removeEventListener(EVENTO_MENSUAL, refrescar); window.removeEventListener(EVENTO_RUNNING,alGuardarRunning);
       document.removeEventListener("visibilitychange", alVolver);
     };
   }, [identidad]);
@@ -49,7 +54,7 @@ export function usePlanesMensuales(alumnoId?: string) {
     let vigente = true;
     const versionAlLeer = versionConfirmada.current;
     api.get<unknown>(`/alumnos/${alumnoId}/planes-mensuales`).then((r) => {
-      const planes = planesMensualesRespuesta.parse(r).map((p) => ({ ...p, sesiones: p.sesiones.map((s) => {
+      const planes = planesMensualesRespuesta.parse(r).map((p) => ({ ...p, running:(runningConfirmado.current.get(p.id)?.version ?? -1)>versionAlLeer?runningConfirmado.current.get(p.id)!.running:p.running, sesiones: p.sesiones.map((s) => {
         const confirmada = confirmaciones.current.get(s.id);
         return confirmada && confirmada.version > versionAlLeer ? confirmada.sesion : s;
       }) }));

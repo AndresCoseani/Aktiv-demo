@@ -69,3 +69,5 @@ export type Alumno = z.infer<typeof alumnoSchema>;
 export type Acceso = z.infer<typeof accesoSchema>;
 export type EstadoAcceso = z.infer<typeof estadoAccesoSchema>;
 export type EjercicioCustom = z.infer<typeof ejercicioCustomSchema>;
+
+export * from "./running";

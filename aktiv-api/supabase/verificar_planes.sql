@@ -1,6 +1,6 @@
 -- Diagnóstico de solo lectura. Ejecutar en SQL Editor del proyecto usado por la API.
 -- No crea ni altera tablas, y no lee datos de alumnos.
--- Resultado 1: detalle de planes. Resultado 2: resumen de TODAS las migraciones 19-43.
+-- Resultado 1: detalle de planes. Resultado 2: resumen de TODAS las migraciones 19-51.
 -- La 34 reemplaza datos del catálogo, no agrega estructura.
 -- Todo true = estas piezas están presentes; no equivale a probar el flujo completo.
 -- Si algo da false, revisar la migración indicada; no reejecutar todas a ciegas.
@@ -236,6 +236,14 @@ with comprobaciones(migracion, descripcion, pieza, ok) as (values
     exists(select 1 from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
       where d.adrelid=to_regclass('public.alumnos') and a.attname='alta_en'
         and pg_get_expr(d.adbin,d.adrelid) like '%America/Argentina/Buenos_Aires%'))
+  ,(51, 'Grilla semanal de Running', 'columnas de planes y modelos',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_mensuales' and column_name='running') and
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_modelo' and column_name='running'))
+  ,(51, 'Grilla semanal de Running', 'guardado atómico y permisos',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.guardar_running(uuid,jsonb,boolean)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.guardar_running(uuid,jsonb,boolean)'),'EXECUTE'),true))
+  ,(51, 'Grilla semanal de Running', 'validadores de planes y modelos',
+    (select count(*)=2 from pg_trigger where tgname in ('validar_running_plan','validar_running_modelo') and tgenabled in ('O','A') and not tgisinternal))
 )
 select migracion, descripcion,
   case when bool_and(ok) then 'OK' when bool_or(ok=false) then 'REVISAR' else 'MANUAL' end as estado,

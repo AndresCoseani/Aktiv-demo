@@ -9,6 +9,7 @@ import {
   altaMensualApi, altaSesionApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi,
   parcheCeldaAlumnoApi, parcheCeldaProfeApi, parcheMensualApi, type PlanMensual, type SesionEntrenamiento, type EjercicioMensual,
 } from "@aktiv/contrato";
+import { RunningSemanal } from "./running-semanal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,7 +186,7 @@ function SemanasPlan({ total, semana, actual, onSeleccionar }: { total: number; 
   </div>;
 }
 
-export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" | "semanas" | "sesiones"> & { inicio?: string }; editable: boolean }) {
+export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" | "semanas" | "sesiones" | "running"> & { inicio?: string }; editable: boolean }) {
   const { api } = usePlanEditor();
   const inicio = plan.inicio ?? hoyISO();
   const actual = plan.inicio ? semanaDelPlan(inicio, hoyISO(), plan.semanas) : null;
@@ -193,6 +194,8 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
   const semanasVisibles = semanasDelPlan(plan.semanas);
   const { actividades, crear: crearActividad, error: errorActividad } = useActividadesPlan();
   const tipos = [...new Set([...actividades, ...plan.sesiones.map((s) => s.tipo)])];
+  const [running,setRunning]=useState(plan.running??{});
+  const [anteriorRunning,setAnteriorRunning] = useState(false);
   const [tipo, setTipo] = useState<string>(plan.sesiones[0]?.tipo ?? "Fuerza");
   const [seleccionSesion, setSeleccionSesion] = useState<string | null>(null);
   const [duplicando, setDuplicando] = useState<SesionEntrenamiento | null>(null);
@@ -235,7 +238,14 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
       {sinAsignar.length > 0 && <section className="space-y-5"><h3 className="text-sm font-semibold">Entrenamientos sin día asignado</h3>{sinAsignar.map((s) => <LecturaSesion key={s.id} sesion={s} semana={semana} />)}</section>}
     </div>;
   }
+  if(editable && tipo==="Running" && !anteriorRunning) return <div className="space-y-5">
+    <div role="group" aria-label="Tipo de entrenamiento" className="flex flex-wrap justify-center gap-2">{tipos.map(t=><Button key={t} variant={tipo===t?"secondary":"outline"} aria-pressed={tipo===t} onClick={()=>navegar(()=>setTipo(t))}>{t}</Button>)}</div>
+    <RunningSemanal key={plan.id+":"+plan.semanas} plan={{...plan,running}} editable onDatos={setRunning} />
+    {sesiones.length>0&&<Button variant="outline" onClick={()=>navegar(()=>setAnteriorRunning(true))}>Ver sesiones anteriores de Running</Button>}
+    <p className="text-sm text-muted-foreground">La grilla no borra ni convierte las sesiones anteriores. Podés consultarlas y editarlas desde su botón.</p>
+  </div>;
   return <div className="space-y-4">
+    {tipo==="Running"&&<Button variant="outline" onClick={()=>navegar(()=>setAnteriorRunning(false))}>Volver a la grilla de Running</Button>}
     {plan.inicio && !actual && <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{hoyISO() < inicio ? "Este plan todavía no empezó." : `Este plan de ${plan.semanas} semanas terminó.`} Podés consultar sus semanas.</p>}
     <div role="group" aria-label="Tipo de entrenamiento" className="flex flex-wrap justify-center gap-2">{tipos.map((t) => <Button key={t} className="max-w-full whitespace-normal break-words" disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}</div>
     <div className="flex justify-center"><NuevaActividad crear={crearActividad} onCreada={(nueva) => navegar(() => { setTipo(nueva); setSeleccionSesion(null); })} /></div>
@@ -460,16 +470,23 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
   const [filtro, setFiltro] = useState<string | null>(null);
   const lunes = lunesDe(fecha);
   const dias = DIAS_PLAN.map((nombre, i) => ({ nombre, fecha: desplazarDia(lunes, i), numero: i + 1 }));
-  const tipos = [...new Set(planes.flatMap((p) => p.sesiones.map((s) => s.tipo)))];
+  const tipos = [...new Set(planes.flatMap(p=>[...p.sesiones.map(s=>s.tipo),...(Object.keys(p.running??{}).length?["Running"]:[])]))];
+  const tieneContenidoAnterior=(s:SesionEntrenamiento)=>Boolean(s.calentamiento.trim()||s.enfriamiento.trim()||s.activacion.length||s.ejercicios.length||(s.nombre.trim()&&!/^Running\s*[·-]?\s*Día\s*\d+$/i.test(s.nombre)));
+  const mostrarAnterior=(p:PlanMensual,s:SesionEntrenamiento)=>s.tipo!=="Running"||!Object.keys(p.running??{}).length||tieneContenidoAnterior(s);
+  const sinCargaRunning=(fecha:string,numero:number)=>planes.some(p=>{const semana=semanaDelPlan(p.inicio,fecha,p.semanas);return semana!==null&&Object.keys(p.running??{}).length>0&&!p.running?.[semana]?.[(["lunes","martes","miercoles","jueves","viernes","sabado","domingo"] as const)[numero-1]]?.trim();});
   const entradas = (dia: string, numero: number) => planes.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, dia, plan.semanas);
-    return semana ? plan.sesiones.filter((s) => s.dia === numero && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
+    if(!semana)return [];
+    const anteriores=plan.sesiones.filter(s=>s.dia===numero&&mostrarAnterior(plan,s)&&(filtro===null||s.tipo===filtro)).map(sesion=>({plan,sesion,semana}));
+    const texto=plan.running?.[semana]?.[(["lunes","martes","miercoles","jueves","viernes","sabado","domingo"] as const)[numero-1]];
+    if(texto?.trim()&&(filtro===null||filtro==="Running"))anteriores.push({plan,semana,sesion:{id:"running:"+plan.id+":"+numero,nombre:texto,tipo:"Running",dia:numero,orden:0,franja:"Sin definir",calentamiento:"",enfriamiento:"",activacion:[],bloques:[],ejercicios:[]}});
+    return anteriores;
   });
   const numeroDia = (new Date(`${fecha}T12:00:00Z`).getUTCDay() + 6) % 7 + 1;
   const seleccionadas = entradas(fecha, numeroDia);
   const sinAsignar = planes.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, fecha, plan.semanas);
-    return semana ? plan.sesiones.filter((s) => s.dia === null && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
+    return semana ? plan.sesiones.filter((s) => s.dia === null && mostrarAnterior(plan,s) && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
   });
   return <div className="min-w-0 space-y-6">
     <div className="flex flex-wrap items-center justify-center gap-2"><Button size="icon-sm" variant="outline" aria-label="Semana anterior" disabled={lunes <= "2000-01-08"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, -7)))}><ArrowLeft /></Button><p className="text-sm font-medium">{formatFecha(lunes)} al {formatFecha(desplazarDia(lunes, 6), { conAnio: true })}</p><Button size="icon-sm" variant="outline" aria-label="Semana siguiente" disabled={fecha >= "2100-12-20"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, 7)))}><ArrowRight /></Button><Button size="sm" variant="ghost" onClick={() => navegar(() => setFecha(hoyISO()))}>Hoy</Button></div>
@@ -477,10 +494,11 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
     <div role="group" aria-label="Días de la semana" className="flex min-w-0 flex-wrap justify-center gap-2">{dias.map((dia) => {
       const delDia = entradas(dia.fecha, dia.numero);
       const seleccionada = fecha === dia.fecha;
-      return <Button key={dia.fecha} variant="ghost" aria-label={dia.nombre} aria-pressed={seleccionada} onClick={() => navegar(() => setFecha(dia.fecha))} className={`h-auto min-h-20 min-w-0 basis-[calc((100%-1.5rem)/4)] flex-col justify-start gap-2 self-stretch whitespace-normal rounded-xl border px-1.5 py-3 sm:basis-[calc((100%-3rem)/7)] ${seleccionada ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-transparent bg-muted/40"}`}><span className="text-sm font-semibold">{dia.nombre.slice(0, 3)} {Number(dia.fecha.slice(8))}</span><span className="flex w-full flex-col gap-2 text-xs text-muted-foreground">{delDia.length ? delDia.map(({plan, sesion}) => <span key={sesion.id} className="break-words">{sesion.tipo}<span className="block font-semibold text-foreground">Día {plan.sesiones.filter((s) => s.tipo === sesion.tipo).findIndex((s) => s.id === sesion.id) + 1}</span></span>) : "Descanso"}</span></Button>;
+      return <Button key={dia.fecha} variant="ghost" aria-label={dia.nombre} aria-pressed={seleccionada} onClick={() => navegar(() => setFecha(dia.fecha))} className={`h-auto min-h-20 min-w-0 basis-[calc((100%-1.5rem)/4)] flex-col justify-start gap-2 self-stretch whitespace-normal rounded-xl border px-1.5 py-3 sm:basis-[calc((100%-3rem)/7)] ${seleccionada ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-transparent bg-muted/40"}`}><span className="text-sm font-semibold">{dia.nombre.slice(0, 3)} {Number(dia.fecha.slice(8))}</span><span className="flex w-full flex-col gap-2 text-xs text-muted-foreground">{delDia.length ? delDia.map(({plan, sesion}) => <span key={sesion.id} className="break-words">{sesion.tipo}<span className="block font-semibold text-foreground">{sesion.id.startsWith("running:")?"Planilla": "Día "+(plan.sesiones.filter((s) => s.tipo === sesion.tipo).findIndex((s) => s.id === sesion.id) + 1)}</span></span>) : (filtro===null||filtro==="Running")&&sinCargaRunning(dia.fecha,dia.numero)?"Sin cargar":"Descanso"}</span></Button>;
     })}</div>
-    <section className="space-y-5"><h3 className="text-lg font-semibold">{fecha === hoyISO() ? "Hoy te toca" : formatFecha(fecha, { conAnio: true })}</h3>{seleccionadas.length ? seleccionadas.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p><LecturaSesion sesion={sesion} semana={semana} /></div>) : <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No hay entrenamientos asignados para este día{filtro === null ? "." : ` de ${filtro.toLowerCase()}.`}</p>}</section>
+    <section className="space-y-5"><h3 className="text-lg font-semibold">{fecha === hoyISO() ? "Hoy te toca" : formatFecha(fecha, { conAnio: true })}</h3>{seleccionadas.length ? seleccionadas.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p>{sesion.id.startsWith("running:")?<div className="rounded-xl border bg-card p-5"><h4 className="font-semibold">Running</h4><p className="mt-3 whitespace-pre-wrap break-words leading-7">{sesion.nombre}</p></div>:<LecturaSesion sesion={sesion} semana={semana} />}</div>) : <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No hay entrenamientos asignados para este día{filtro === null ? "." : ` de ${filtro.toLowerCase()}.`}</p>}</section>
     {sinAsignar.length > 0 && <section className="space-y-5"><h3 className="font-semibold">Entrenamientos sin día asignado</h3>{sinAsignar.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p><LecturaSesion sesion={sesion} semana={semana} /></div>)}</section>}
+    {(filtro===null||filtro==="Running")&&planes.filter(p=>Object.keys(p.running??{}).length>0&&semanaDelPlan(p.inicio,fecha,p.semanas)!==null).map(p=><RunningSemanal key={p.id+":"+fecha} plan={p} semanaInicial={semanaDelPlan(p.inicio,fecha,p.semanas)??1} />)}
     <section className="space-y-3 border-t pt-5"><h3 className="text-sm font-semibold">Tus planes activos</h3>{planes.map((p) => <div key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm"><p className="min-w-0 break-words font-medium">{p.nombre}</p><p className="text-muted-foreground">{formatFecha(p.inicio)} · {p.semanas} semanas · {semanaDelPlan(p.inicio, fecha, p.semanas) ? `Semana ${semanaDelPlan(p.inicio, fecha, p.semanas)}` : fecha < p.inicio ? "Todavía no empezó" : "Finalizado"}</p></div>)}</section>
   </div>;
 }

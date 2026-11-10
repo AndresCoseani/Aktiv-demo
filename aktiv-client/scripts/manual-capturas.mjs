@@ -69,7 +69,7 @@ async function foto(page, nombre, marcas = [], modal = false) {
   let clip;
   if (modal) { const b = await page.getByRole("dialog").boundingBox(); clip = { x: Math.max(0, Math.floor(b.x - 24)), y: Math.max(0, Math.floor(b.y - 40)), width: Math.min(1280 - Math.max(0, Math.floor(b.x - 24)), Math.ceil(b.width + 48)), height: Math.min(900 - Math.max(0, Math.floor(b.y - 40)), Math.ceil(b.height + 64)) }; }
   await page.screenshot({ path: join(salida, `${nombre}.png`), ...(clip ? { clip } : {}) });
-  capturas[nombre] = { src: `/manual/${nombre}.png`, ancho: clip?.width ?? 1280, alto: clip?.height ?? 900 };
+  capturas[nombre] = { src: `/manual/${nombre}.png`, ancho: clip?.width ?? page.viewportSize().width, alto: clip?.height ?? page.viewportSize().height };
   await writeFile(archivo, JSON.stringify(capturas, null, 2) + "\n");
   await page.evaluate(() => document.querySelectorAll("[data-manual-marca]").forEach(n => n.remove()));
   console.log(`Captura: ${nombre}`);
@@ -146,6 +146,15 @@ try {
     await p.goto(`${base}/mi-plan`); await p.getByRole("heading", { name: "Plan de entrenamiento", exact: true }).waitFor(); await foto(p, "alumno-mi-plan");
     await p.goto(`${base}/agenda`); await foto(p, "alumno-asistencia");
   }, "alumno");
+  await grupo("running", async p=>{
+    plan.running={"1":{lunes:"Gimnasio",martes:"10 min suaves + 4 × 200 m + afloje",miercoles:"Descanso",jueves:"Rodaje suave",viernes:"Descanso",sabado:"Técnica y progresivos",domingo:"Fondo suave",volumen:"25,5",sugerencias:"Datos ficticios para explicar la carga."},"2":{martes:"Rodaje progresivo",volumen:"28"}};
+    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("tab",{name:"Plan",exact:true}).click();await boton(p,"Running").click();
+    await foto(p,"running-grilla",[[p.getByRole("textbox",{name:"Martes, semana 1",exact:true}),"Escribí la sesión completa"]]);
+    await foto(p,"running-volumen",[[p.getByRole("textbox",{name:"Volumen semanal, semana 1",exact:true}),"Kilómetros de la semana"],[p.getByRole("textbox",{name:"Sugerencias, semana 1",exact:true}),"Indicaciones generales"]]);
+    await boton(p,"Copiar semana").click();await foto(p,"running-copiar",[],true);await cerrar(p);
+    await p.setViewportSize({width:390,height:900});await foto(p,"running-movil",[[p.getByRole("textbox",{name:"Martes, semana 1",exact:true}),"Día y semana seleccionados"]]);
+    const alumnoDemo=await pagina("alumno");await alumnoDemo.page.goto(base+"/mi-plan");await foto(alumnoDemo.page,"running-alumno",[[alumnoDemo.page.getByRole("region",{name:"Planilla de Running",exact:true}),"Lectura del alumno"]]);await alumnoDemo.ctx.close();
+  });
   await grupo("extras", async p => {
  await p.goto(base+"/planes"); await boton(p,"Nuevo plan").click(); await boton(p,"Agregar actividad").click(); await p.getByRole("textbox",{name:"Nombre de la actividad"}).fill("Recuperación"); await foto(p,"actividad-crear",[[boton(p,"Crear actividad"),"Crear una actividad propia"]],true); await cerrar(p);
  await p.goto(base+"/alumnos/"+alumnoId); await p.getByRole("tab",{name:/^Ficha/}).click(); await foto(p,"ficha-contacto",[[p.locator("#contacto-nombre"),"Contacto de emergencia"]]);

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { altaSesionApi, altaEjercicioMensualApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi, parcheCeldaProfeApi, planModeloSchema, type PlanModelo, type OperacionModelo, type SesionEntrenamiento } from "@aktiv/contrato";
+import { actualizarRunning, guardarRunningApi, copiarSemanaRunningApi, altaSesionApi, altaEjercicioMensualApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi, parcheCeldaProfeApi, planModeloSchema, type PlanModelo, type OperacionModelo, type SesionEntrenamiento } from "@aktiv/contrato";
 import { ErrorApi, noEncontrado } from "../common/errores";
 import { validarOLanzar } from "../common/zod.pipe";
 
@@ -12,7 +12,17 @@ export function operarModelo(original: PlanModelo, op: OperacionModelo): PlanMod
   const m = structuredClone(original);
   const partes = op.ruta.split("/").filter(Boolean);
   const [recurso, id, accion, numero] = partes;
-  if (recurso === "planes-mensuales" && id === m.id && accion === "sesiones" && partes.length === 3 && op.metodo === "POST") {
+  if(recurso === "planes-mensuales" && id===m.id && accion==="running") {
+    if(partes.length===3 && op.metodo==="PATCH") {
+      const dto=validarOLanzar(guardarRunningApi,op.datos);
+      if(dto.semana>m.semanas)throw noEncontrado("La semana");
+      m.running=actualizarRunning(m.running ?? {},dto);
+    } else if(partes.length===4 && numero==="copiar" && op.metodo==="POST") {
+      const dto=validarOLanzar(copiarSemanaRunningApi,op.datos);
+      if(Math.max(dto.origen,dto.destino)>m.semanas)throw noEncontrado("La semana");
+      m.running={...m.running,[dto.destino]:structuredClone(m.running?.[dto.origen] ?? {})};
+    } else throw noEncontrado("La operación");
+  } else if (recurso === "planes-mensuales" && id === m.id && accion === "sesiones" && partes.length === 3 && op.metodo === "POST") {
     const dto = validarOLanzar(altaSesionApi, op.datos);
     if (!m.sesiones.some((s) => s.id === dto.id)) m.sesiones.push({ ...dto, orden: Math.max(-1, ...m.sesiones.map((s) => s.orden)) + 1, ejercicios: [] });
   } else if (recurso === "sesiones") {
@@ -42,6 +52,7 @@ export function operarModelo(original: PlanModelo, op: OperacionModelo): PlanMod
 }
 
 export function cambiarDuracion(modelo: PlanModelo, semanas: number) {
+  if(Object.entries(modelo.running ?? {}).some(([semana,datos])=>Number(semana)>semanas && Object.values(datos).some(v=>v?.trim())))throw new ErrorApi(422,"semanas_con_indicaciones","Las semanas de Running que querés quitar tienen contenido. Vacialas primero.");
   if (semanas < modelo.semanas && modelo.sesiones.some((s) => s.ejercicios.some((e) => e.semanas.some((c) => c.semana > semanas && c.prescripcion.trim())))) throw new ErrorApi(422, "semanas_con_indicaciones", "Las semanas que querés quitar tienen indicaciones. Vacialas primero para conservar tu trabajo.");
   return { ...modelo, semanas, sesiones: modelo.sesiones.map((s) => ({ ...s, ejercicios: s.ejercicios.map((e) => ({ ...e, semanas: Array.from({ length: semanas }, (_, i) => e.semanas.find((c) => c.semana === i + 1) ?? { semana: i + 1, prescripcion: "", peso: null, pesoFecha: null }) })) })) };
 }

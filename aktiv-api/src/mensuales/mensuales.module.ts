@@ -4,7 +4,7 @@ import {
   altaMensualApi, altaSesionApi, altaEjercicioMensualApi, parcheMensualApi,
   parcheSesionApi, parcheEjercicioMensualApi, parcheCeldaAlumnoApi, parcheCeldaProfeApi,
   planesMensualesRespuesta, uuidSchema, duplicarSesionApi, duplicarPlanApi,
-  MAX_SEMANAS_PLAN,
+  MAX_SEMANAS_PLAN, guardarRunningApi, copiarSemanaRunningApi,
   actividadesIniciales, diasInicialesSchema,
   guardarSeguimientoApi, seguimientoRespuesta,
 } from "@aktiv/contrato";
@@ -110,6 +110,12 @@ export class MensualesService {
     return { id: recursoId };
   }
 
+  async running(u:Usuario, planId:string, body:unknown, copiar=false) {
+    const dto=validarOLanzar(copiar ? copiarSemanaRunningApi : guardarRunningApi,body);
+    const r=await this.supa.delUsuario(u.token).rpc("guardar_running",{p_plan:planId,p_cambio:dto,p_copiar:copiar});
+    lanzarSiError(r.error); return {id:planId};
+  }
+
   async duplicarPlan(u: Usuario, origen: string, body: unknown) {
     const dto = validarOLanzar(duplicarPlanApi, body);
     const db = this.supa.delUsuario(u.token);
@@ -188,6 +194,10 @@ export class MensualesController {
   borrarPlan(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string) { return this.servicio.eliminar(u, "plan", recurso); }
   @Roles("coach") @Post("planes-mensuales/:id/sesiones")
   sesion(@UsuarioActual() u: Usuario, @Param("id", id()) padre: string, @Body() body: unknown) { return this.servicio.crear(u, "sesion", padre, body); }
+  @Roles("coach") @Patch("planes-mensuales/:id/running")
+  running(@UsuarioActual() u:Usuario,@Param("id",id()) plan:string,@Body() body:unknown){return this.servicio.running(u,plan,body);}
+  @Roles("coach") @Post("planes-mensuales/:id/running/copiar")
+  copiarRunning(@UsuarioActual() u:Usuario,@Param("id",id()) plan:string,@Body() body:unknown){return this.servicio.running(u,plan,body,true);}
   @Roles("coach") @Post("planes-mensuales/:id/duplicar")
   duplicarPlan(@UsuarioActual() u: Usuario, @Param("id", id()) origen: string, @Body() body: unknown) { return this.servicio.duplicarPlan(u, origen, body); }
   @Roles("coach") @Patch("sesiones/:id")

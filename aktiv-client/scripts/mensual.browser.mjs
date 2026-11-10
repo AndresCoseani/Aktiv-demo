@@ -68,7 +68,8 @@ async function pagina(rol, ancho) {
     else if (/^\/planes-modelo\/[^/]+$/.test(path) && req.method() === "GET") { lecturasModelos++; body = structuredClone(modelosCatalogo.find((p)=>path.endsWith(p.id))); }
     else if (/^\/planes-modelo\/[^/]+\/contenido$/.test(path)) {
       const p=modelosCatalogo.find((p)=>path.includes(p.id)),op=req.postDataJSON(),partes=op.ruta.split("/");
-      if(partes[1]==="planes-mensuales") p.sesiones.push({...op.datos,orden:p.sesiones.length,ejercicios:[]});
+      if(partes[1]==="planes-mensuales"&&partes[3]==="running"){p.running??={};if(partes[4]==="copiar")p.running[op.datos.destino]=structuredClone(p.running[op.datos.origen]??{});else p.running[op.datos.semana]={...p.running[op.datos.semana],[op.datos.campo]:op.datos.texto};}
+      else if(partes[1]==="planes-mensuales") p.sesiones.push({...op.datos,orden:p.sesiones.length,ejercicios:[]});
       else if(partes[1]==="sesiones") {
         const s=p.sesiones.find((s)=>s.id===partes[2]);
         if(op.metodo==="PATCH")Object.assign(s,op.datos);
@@ -120,6 +121,13 @@ async function pagina(rol, ancho) {
       if (demoraLectura) await new Promise((resolve) => setTimeout(resolve, demoraLectura));
       if (errorLectura) { status = 503; body = { codigo: "fallo_prueba", mensaje: "Fallo controlado de lectura" }; }
       else body = sinPlanes ? [] : structuredClone(planes.filter((p) => path.includes(p.alumnoId ?? alumnoId)));
+    }
+    else if(path.includes("/running") && req.method()!=="GET") {
+      if(demora)await new Promise(resolve=>setTimeout(resolve,demora));
+      if(fallar){fallar=false;status=503;body={mensaje:"Fallo controlado de Running",codigo:"fallo_prueba"};}
+      else{const p=planes.find(p=>path.includes(p.id)),dto=req.postDataJSON();p.running??={};
+        if(path.endsWith("/copiar"))p.running[dto.destino]=structuredClone(p.running[dto.origen]??{});
+        else p.running[dto.semana]={...p.running[dto.semana],[dto.campo]:dto.texto};body={id:p.id};}
     }
     else if (req.method() === "PATCH" && /^\/planes-mensuales\/[^/]+$/.test(path)) {
       if (fallar) { fallar = false; status = 503; body = { codigo: "fallo_prueba", mensaje: "Fallo controlado al guardar" }; }
@@ -210,6 +218,34 @@ async function pagina(rol, ancho) {
   return { page, ctx };
 }
 try {
+  if(process.argv.includes("--running")) {
+    const fuerzaAntes=structuredClone(planes[0].sesiones);
+    for(const ancho of [1440,390]){
+      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("tab",{name:"Plan",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();
+      await page.getByRole("textbox",{name:"Lunes, semana 1",exact:true}).fill("Rodaje de ejemplo");
+      const campo=page.getByRole("textbox",{name:"Martes, semana 1",exact:true});await campo.fill("10 min suaves + 4 × 200 m + afloje");
+      await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
+      if(ancho===1440){demora=900;const enCurso=page.waitForRequest(r=>r.method()==="PATCH"&&r.url().endsWith("/running"));await campo.fill("Borrador anterior");await enCurso;await campo.fill("Edición durante el guardado");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(planes[0].running[1].martes,"Edición durante el guardado");demora=0;}
+      fallar=true;await campo.fill("15 min suaves + 4 × 200 m + afloje");await page.getByRole("alert").filter({hasText:"Fallo controlado de Running"}).waitFor();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
+      await page.getByRole("button",{name:"Reintentar guardado",exact:true}).click();
+      await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…")&&!document.querySelector('[role="alert"]'));
+      assert.equal(planes[0].running[1].martes,"15 min suaves + 4 × 200 m + afloje");
+      await page.getByRole("button",{name:"Fuerza",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
+      await page.getByRole("textbox",{name:"Volumen semanal, semana 1",exact:true}).fill("25,5");await page.getByRole("textbox",{name:"Sugerencias, semana 1",exact:true}).fill("Ejemplo: regular el esfuerzo");
+      await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
+      if(ancho===1440){await page.getByLabel("Semana de Running",{exact:true}).selectOption("5");const ultima=page.getByRole("textbox",{name:"Martes, semana 5",exact:true});await ultima.fill("Descanso");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(planes[0].running[5].martes,"Descanso");assert.equal(planes[0].running[4],undefined);await page.getByLabel("Semana de Running",{exact:true}).selectOption("1");}
+      await page.getByRole("button",{name:"Copiar semana",exact:true}).click();await page.getByRole("dialog").getByRole("button",{name:"Cancelar",exact:true}).click();assert.equal(planes[0].running[2],undefined);
+      await page.getByRole("button",{name:"Copiar semana",exact:true}).click();await page.getByRole("button",{name:"Reemplazar semana de destino",exact:true}).click();await page.getByRole("dialog").waitFor({state:"hidden"});
+      assert.deepEqual(planes[0].running[2],planes[0].running[1]);
+      await page.getByRole("tab",{name:"Resumen",exact:true}).click();await page.getByRole("region",{name:"Resumen del alumno",exact:true}).getByText("Rodaje de ejemplo",{exact:true}).waitFor();
+      await page.reload();await page.getByRole("tab",{name:"Plan",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();await campo.waitFor();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(planes[0].sesiones,fuerzaAntes);await page.getByRole("tab",{name:"Resumen",exact:true}).click();await page.getByRole("region",{name:"Resumen del alumno",exact:true}).getByText("Rodaje de ejemplo",{exact:true}).waitFor();await ctx.close();
+      delete planes[0].running[2];
+    }
+    const alumno=await pagina("alumno",390);await alumno.page.goto(baseUrl+"/mi-plan");const grilla=alumno.page.getByRole("region",{name:"Planilla de Running",exact:true});await grilla.waitFor();await grilla.getByText("15 min suaves + 4 × 200 m + afloje",{exact:true}).waitFor();assert.equal(await grilla.getByRole("textbox").count(),0);await alumno.ctx.close();const m={id:crypto.randomUUID(),nombre:"Modelo Running de prueba",semanas:6,revision:0,running:{},sesiones:structuredClone(fuerzaAntes)};modelosCatalogo.push(m);
+    const biblioteca=await pagina("coach",390);await biblioteca.page.goto(baseUrl+"/planes?modelo="+m.id);await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();const campoModelo=biblioteca.page.getByRole("textbox",{name:"Martes, semana 1",exact:true});await campoModelo.fill("Texto del modelo Running");await biblioteca.page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(m.running[1].martes,"Texto del modelo Running");assert.equal(m.sesiones.length,fuerzaAntes.length);await biblioteca.page.getByRole("button",{name:"Fuerza",exact:true}).click();await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campoModelo.inputValue(),"Texto del modelo Running");await biblioteca.page.reload();await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campoModelo.inputValue(),"Texto del modelo Running");await biblioteca.ctx.close();
+    assert.deepEqual(errores,[]);console.log("OK: Running texto libre, guardado, error/reintento, volumen/sugerencias, copia/cancelación, recarga, alumno y Fuerza intacta.");
+  } else
   if (process.argv.includes("--simultaneos")) {
     const segundo = structuredClone(planes[0]); segundo.id=crypto.randomUUID();segundo.nombre="Running independiente";segundo.inicio="2026-10-26";
     segundo.sesiones=[{...structuredClone(segundo.sesiones[0]),id:crypto.randomUUID(),tipo:"Running",nombre:"Rodaje independiente",ejercicios:[]}];
@@ -254,9 +290,11 @@ try {
     let dialogo=page.getByRole("dialog");
     await dialogo.getByLabel("Nombre",{exact:true}).fill("Base principiantes");
     await dialogo.getByLabel("Días de fuerza",{exact:true}).first().fill("1");
+    await dialogo.getByRole("checkbox",{name:"Running",exact:true}).check();
+    await dialogo.getByLabel("Días de running",{exact:true}).fill("1");
     await dialogo.getByRole("button",{name:"Crear modelo",exact:true}).click();
     await page.getByRole("heading",{name:"Base principiantes",exact:true}).waitFor();
-    const modelo=modelosCatalogo[0];assert.equal(modelo.sesiones.length,1);
+    const modelo=modelosCatalogo[0];assert.equal(modelo.sesiones.length,2);
     assert.equal(await page.getByText(/Este plan .*terminó/).count(),0);
     await page.getByRole("button",{name:"Crear bloque",exact:true}).click();
     await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
@@ -268,8 +306,7 @@ try {
     assert.equal(modelo.sesiones[0].ejercicios[0].semanas[0].prescripcion,"4x8");
     assert.equal(await page.getByRole("region",{name:/Seguimiento de semana/}).count(),0);
     await page.getByRole("group",{name:"Tipo de entrenamiento",exact:true}).getByRole("button",{name:"Running",exact:true}).click();
-    await page.getByRole("button",{name:"Crear Día 1",exact:true}).click();
-    await page.getByText("Running · Día 1",{exact:true}).waitFor();
+    await page.getByRole("region",{name:"Planilla de Running",exact:true}).waitFor();
     assert.equal(modelo.sesiones.length,2);
     await page.getByRole("button",{name:"Asignar a alumno",exact:true}).click();dialogo=page.getByRole("dialog");
     await dialogo.getByRole("combobox",{name:"Alumno",exact:true}).fill("Alumno");
@@ -1011,6 +1048,7 @@ try {
   await page.getByRole("button", { name: "Crear Día 3", exact: true }).click();
   await page.getByRole("button", { name: "Día 2", exact: true }).waitFor();
   await page.getByRole("button", { name: "Running", exact: true }).click();
+  await page.getByRole("button", { name: "Ver sesiones anteriores de Running", exact: true }).click();
   await page.getByRole("button", { name: "Crear Día 2", exact: true }).click();
   await page.getByRole("button", { name: "Día 2", exact: true }).waitFor();
   await page.getByRole("button", { name: "Día 1", exact: true }).waitFor();

@@ -1,3 +1,4 @@
+import { runningSchema } from "./running";
 import { z } from "zod";
 import { fechaISO, pesoSchema, textoOpcional } from "./comunes";
 import { hoyISO, sumarDiasISO } from "./fechas";
@@ -41,6 +42,7 @@ export const planMensualSchema = z.object({
   id, nombre: textoOpcional(120), inicio, activo: z.boolean(), orden: z.number().int(),
   semanas: cantidadSemanasSchema.default(4),
   sesiones: z.array(sesionEntrenamientoSchema),
+  running: runningSchema.optional(),
 });
 export const planesMensualesRespuesta = z.array(planMensualSchema);
 const noVacio = <S extends z.ZodRawShape>(shape: S) => z.object(shape).partial().strict()
