@@ -6,6 +6,8 @@ import type { z } from "zod";
 import { catalogoCompleto, fichaVacia, semanaVacia } from "./dominio";
 import { hoyISO, nuevoId } from "./format";
 import * as remoto from "./remoto";
+import { api } from "./api";
+import { categoriaEjercicioSchema } from "@aktiv/contrato";
 import {
   actualizarAlumnoDto,
   actualizarEjercicioDto,
@@ -54,6 +56,8 @@ type State = {
   inscripciones: Inscripcion[];
   /** ejercicios que el profe creó al armar planes */
   ejerciciosCustom: EjercicioCustom[];
+  categoriasEjercicio: string[];
+  errorCarga: string | null;
   /** ya se resolvió la sesión y se cargaron los datos */
   listo: boolean;
 };
@@ -64,6 +68,8 @@ const SERVER_STATE: State = {
   carreras: [],
   inscripciones: [],
   ejerciciosCustom: [],
+  categoriasEjercicio: [],
+  errorCarga: null,
   listo: false,
 };
 
@@ -121,7 +127,7 @@ export function iniciarStore() {
 
   remoto.configurarSync({
     obtener: () =>
-      state.session
+      state.session && !state.errorCarga
         ? {
             datos: {
               alumnos: state.alumnos,
@@ -136,11 +142,6 @@ export function iniciarStore() {
   remoto.alCerrarSesion(() => {
     if (state.session) vaciar();
   });
-  // si el profe y el alumno editan a la vez, al volver a la pestaña se actualiza
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") void remoto.sincronizar();
-    else void recargarDatos(false);
-  });
 
   iniciando = (async () => {
     try {
@@ -149,30 +150,48 @@ export function iniciarStore() {
       else publicar({ ...state, listo: true });
     } catch (e) {
       console.error("No se pudo iniciar la sesión guardada", e);
-      publicar({ ...SERVER_STATE, listo: true });
+      publicar({ ...SERVER_STATE, listo: true, errorCarga: mensajeCarga(e) });
     }
   })();
   return iniciando;
 }
 
 async function aplicarSesion(session: Session) {
-  const datos = await remoto.cargarDatos();
-  remoto.fijarBase(datos);
-  publicar({
-    session: { ...session, alumnoId: datos.alumnoIdPropio },
-    alumnos: datos.alumnos,
-    carreras: datos.carreras,
-    inscripciones: datos.inscripciones,
-    ejerciciosCustom: datos.ejerciciosCustom,
-    listo: true,
-  });
-}
-
-async function recargarDatos(forzar: boolean) {
-  if (!state.session) return;
-  if (!forzar && remoto.hayCambiosPendientes()) return;
   try {
     const datos = await remoto.cargarDatos();
+    remoto.fijarBase(datos);
+    ultimaRecarga = Date.now();
+    publicar({
+      session: { ...session, alumnoId: datos.alumnoIdPropio },
+      alumnos: datos.alumnos,
+      carreras: datos.carreras,
+      inscripciones: datos.inscripciones,
+      ejerciciosCustom: datos.ejerciciosCustom,
+      categoriasEjercicio: datos.categoriasEjercicio ?? [],
+      errorCarga: null,
+      listo: true,
+    });
+  } catch (e) {
+    remoto.limpiarBase();
+    publicar({ ...SERVER_STATE, session, listo: true, errorCarga: mensajeCarga(e) });
+  }
+}
+
+function mensajeCarga(e: unknown) {
+  return e instanceof Error ? e.message : "No pudimos cargar tus datos. Reintentá en un momento.";
+}
+
+let recargando: Promise<void> | null = null;
+let ultimaRecarga = 0;
+function recargarDatos(forzar: boolean): Promise<void> {
+  if (recargando) return recargando;
+  if (!state.session || (!forzar && (state.errorCarga || remoto.hayCambiosPendientes() || Date.now() - ultimaRecarga < 30000))) return Promise.resolve();
+  const origen = state;
+  ultimaRecarga = Date.now();
+  recargando = (async () => { try {
+    const datos = await remoto.cargarDatos();
+    // Una respuesta vieja no debe pisar una edición ni una sesión nueva.
+    if (state !== origen) return;
     remoto.fijarBase(datos);
     publicar({
       ...state,
@@ -180,11 +199,26 @@ async function recargarDatos(forzar: boolean) {
       carreras: datos.carreras,
       inscripciones: datos.inscripciones,
       ejerciciosCustom: datos.ejerciciosCustom,
+      categoriasEjercicio: datos.categoriasEjercicio ?? [],
+      errorCarga: null,
     });
   } catch (e) {
-    console.error("No se pudo recargar", e);
-  }
+    if (state === origen && state.errorCarga) publicar({ ...state, errorCarga: mensajeCarga(e) });
+  } finally { recargando = null; } })();
+  return recargando;
 }
+
+/** La suscripción pertenece al Provider y se limpia en Strict Mode/Fast Refresh. */
+export function observarVisibilidadStore() {
+  const actualizar = () => {
+    if (document.visibilityState === "hidden") void remoto.sincronizar();
+    else void recargarDatos(false);
+  };
+  document.addEventListener("visibilitychange", actualizar);
+  return () => document.removeEventListener("visibilitychange", actualizar);
+}
+
+export const reintentarCarga = () => recargarDatos(true);
 
 function vaciar() {
   remoto.limpiarBase();
@@ -198,13 +232,7 @@ export type ResultadoLogin =
 export async function login(usuario: string, clave: string): Promise<ResultadoLogin> {
   const r = await remoto.iniciarSesion(usuario, clave);
   if ("error" in r) return { ok: false, error: r.error };
-  try {
-    await aplicarSesion(r.session);
-  } catch (e) {
-    console.error("No se pudieron cargar los datos", e);
-    await remoto.cerrarSesion();
-    return { ok: false, error: "No pudimos cargar tus datos. Probá de nuevo." };
-  }
+  await aplicarSesion(r.session);
   return { ok: true, session: state.session! };
 }
 
@@ -361,7 +389,18 @@ function editarAlumno(alumnoId: string, fn: (a: Alumno) => Partial<Alumno>) {
 
 /* ───────────── Catálogo ───────────── */
 
-/** Suma un ejercicio al catálogo y devuelve el nombre canónico (sin duplicar) */
+/** Crea una categoría durable incluso si todavía no tiene ejercicios. */
+export async function crearCategoriaEjercicio(nombre: string) {
+  const usuario = state.session?.userId;
+  const limpio = categoriaEjercicioSchema.parse(nombre);
+  const r = await api.post<{ nombre: string }>("/catalogo/categorias", { nombre: limpio });
+  if (!state.session || state.session.userId !== usuario) throw new Error("La sesión cambió. Volvé a cargar el catálogo.");
+  const canonico = categoriaEjercicioSchema.parse(r.nombre);
+  publicar({ ...state, categoriasEjercicio: [...new Set([...state.categoriasEjercicio, canonico])] });
+  return canonico;
+}
+
+/** Suma un ejercicio al catálogo y devuelve el nombre canónico (sin duplicar). */
 export function crearEjercicioPersonalizado(nombre: string, categoria: CategoriaEjercicio) {
   const s = getSnapshot();
   const dto = exigir(crearEjercicioCustomDto, { nombre: limpiarNombreEjercicio(nombre), categoria });
@@ -645,6 +684,7 @@ export function inscribirAlumno(
   carreraId: string,
   distanciaKm: number,
   objetivoSeg: number | null,
+  objetivo = "",
 ) {
   const s = getSnapshot();
   const carrera = s.carreras.find((c) => c.id === carreraId);
@@ -653,13 +693,14 @@ export function inscribirAlumno(
     throw new Error("El alumno ya está anotado en esa carrera");
   }
   // la distancia tiene que ser una de las que ofrece la carrera
-  const dto = exigir(inscribirAlumnoDto(carrera.distanciasKm), { distanciaKm, objetivoSeg });
+  const dto = exigir(inscribirAlumnoDto(carrera.distanciasKm), { distanciaKm, objetivoSeg, objetivo });
   const inscripcion: Inscripcion = {
     id: nuevoId(),
     alumnoId,
     carreraId,
     distanciaKm: dto.distanciaKm,
     objetivoSeg: dto.objetivoSeg,
+    objetivo: dto.objetivo,
     resultadoSeg: null,
   };
   set({ ...s, inscripciones: [...s.inscripciones, inscripcion] });

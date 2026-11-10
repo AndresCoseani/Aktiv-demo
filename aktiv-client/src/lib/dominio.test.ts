@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { claveEjercicio, limpiarNombreEjercicio } from "@aktiv/contrato";
-import { catalogoCompleto, categoriaDe } from "./dominio";
+import { catalogoCompleto, categoriaDe, categoriasDelCatalogo } from "./dominio";
 
 describe("identidad de nombres de ejercicios", () => {
+  it("combina categorías propias vacías y del catálogo sin duplicar equivalentes", () => {
+    const categorias = categoriasDelCatalogo([{ nombre: "Apoyo", categoria: "Equilibrio" }], ["Agilidad", "EQUILIBRIO", "agilidad"]);
+    expect(categorias.filter((c) => claveEjercicio(c) === "equilibrio")).toHaveLength(1);
+    expect(categorias.filter((c) => claveEjercicio(c) === "agilidad")).toHaveLength(1);
+    expect(categorias).toContain("Fuerza");
+  });
   it("no ofrece sugerencias fijas fuera del catálogo de la base", () => {
     expect(catalogoCompleto([])).toEqual([]);
     expect(categoriaDe("Sentadilla búlgara", [])).toBe("Personalizado");

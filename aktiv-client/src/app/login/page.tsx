@@ -14,7 +14,7 @@ import { login, useHydrated, useStore } from "@/lib/store";
 export default function LoginPage() {
   const router = useRouter();
   const hydrated = useHydrated();
-  const { session, listo } = useStore();
+  const { session, listo, errorCarga } = useStore();
   const [usuario, setUsuario] = useState("");
   const [clave, setClave] = useState("");
   const [error, setError] = useState("");
@@ -111,9 +111,10 @@ export default function LoginPage() {
           </div>
 
           <Link href="/recuperar-clave" className="block text-right text-sm text-primary underline-offset-4 hover:underline">¿Olvidaste tu contraseña?</Link>
-          {error && (
+          <Link href="/registro" className="block text-center text-sm text-primary underline-offset-4 hover:underline">¿Sos nuevo? Registrate en Aktiv</Link>
+          {(error || errorCarga) && (
             <p role="alert" className="text-sm text-destructive">
-              {error}
+              {error || errorCarga}
             </p>
           )}
 

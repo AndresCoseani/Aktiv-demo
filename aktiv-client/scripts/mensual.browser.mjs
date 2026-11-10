@@ -28,6 +28,11 @@ let demoraAlta = 0;
 let fallarAlta = false;
 let fallarCopia = false;
 let ejerciciosCatalogo = [];
+let categoriasCatalogo = [];
+let carrerasCatalogo = [], inscripcionesCatalogo = [];
+let modelosCatalogo = [], fallarAsignacionModelo = false, lecturasModelos = 0;
+let actividadesCatalogo = ["Fuerza", "Running"];
+let fallarCategoria = false;
 let lecturasPlanes = 0, parchesActivos = 0, maximoParalelo = 0;
 const seguimientos = new Map();
 let fallarSeguimiento = false;
@@ -43,10 +48,60 @@ async function pagina(rol, ancho) {
     const datos = { session, alumnos: [{ id: alumnoId, userId: usuario, coachId: usuario, nombre: "Alumno Apellido Compuesto", email: "alumno.apellido.compuesto@entrenamiento.test", telefono: "+54 11 5555-0040", objetivo: "10K", nivel: "Intermedio", activo: true, proximoPago: "2026-11-19", altaEn: "2026-10-01", planes: [], semana: Array.from({ length: 7 }, () => ({ correr: false, fuerza: false })), ficha: { fechaNacimiento: null, lugarNacimiento: "", enfermedades: "", lesiones: [], certificado: null, contacto: { nombre: "", parentesco: "", telefono: "" } }, marcas: [], notasProfe: "Cuidar la carga del gemelo", notasAlumno: "", acceso: { estado: "activo", expiraEn: null } }], carreras: [], inscripciones: [], ejerciciosCustom: [] };
     if (process.argv.includes("--carga")) datos.alumnos[0].semana = Array.from({ length: 7 }, () => ({ correr: true, fuerza: true }));
     datos.ejerciciosCustom = ejerciciosCatalogo;
+    datos.carreras = carrerasCatalogo; datos.inscripciones = inscripcionesCatalogo;
+    datos.categoriasEjercicio = categoriasCatalogo;
     if (process.argv.includes("--duplicar-plan")) datos.alumnos.push({ ...structuredClone(datos.alumnos[0]), id: otroAlumnoId, userId: null, nombre: "Otro alumno", email: "otro@entrenamiento.test" });
     let body; let status = 200;
     if (path === "/auth/me") body = { session };
     else if (path === "/datos") body = datos;
+    else if (path === "/actividades-plan") { if(req.method()==="GET") body=actividadesCatalogo; else { const nombre=req.postDataJSON().nombre;actividadesCatalogo=[...new Set([...actividadesCatalogo,nombre])];body={nombre}; } }
+    else if (path === "/planes-modelo" && req.method() === "GET") { lecturasModelos++; body = modelosCatalogo.map((p)=>({id:p.id,nombre:p.nombre,semanas:p.semanas,dias:p.sesiones.length,tipos:[...new Set(p.sesiones.map((s)=>s.tipo))]})); }
+    else if (/^\/planes-modelo\/desde-plan\/[^/]+$/.test(path)) {
+      const dto=req.postDataJSON(),p=planes.find((p)=>path.endsWith(p.id));
+      body={id:dto.id,nombre:dto.nombre,semanas:p.semanas,sesiones:structuredClone(p.sesiones),revision:0};modelosCatalogo.push(body);status=201;
+    }
+    else if (path === "/planes-modelo" && req.method() === "POST") {
+      const dto=req.postDataJSON(); const sesiones=[];
+      for(const [tipo,cantidad] of (Array.isArray(dto.diasIniciales)?dto.diasIniciales.map((a)=>[a.tipo,a.dias]):[["Fuerza",dto.diasIniciales.fuerza],["Running",dto.diasIniciales.running]])) for(let i=0;i<cantidad;i++) sesiones.push({id:crypto.randomUUID(),tipo,nombre:`${tipo} · Día ${i+1}`,dia:null,franja:"Sin definir",orden:sesiones.length,calentamiento:"",enfriamiento:"",bloques:[],activacion:[],ejercicios:[]});
+      body={id:dto.id,nombre:dto.nombre,semanas:dto.semanas,sesiones,revision:0};modelosCatalogo.push(body);status=201;
+    }
+    else if (/^\/planes-modelo\/[^/]+$/.test(path) && req.method() === "GET") { lecturasModelos++; body = structuredClone(modelosCatalogo.find((p)=>path.endsWith(p.id))); }
+    else if (/^\/planes-modelo\/[^/]+\/contenido$/.test(path)) {
+      const p=modelosCatalogo.find((p)=>path.includes(p.id)),op=req.postDataJSON(),partes=op.ruta.split("/");
+      if(partes[1]==="planes-mensuales") p.sesiones.push({...op.datos,orden:p.sesiones.length,ejercicios:[]});
+      else if(partes[1]==="sesiones") {
+        const s=p.sesiones.find((s)=>s.id===partes[2]);
+        if(op.metodo==="PATCH")Object.assign(s,op.datos);
+        else s.ejercicios.push({...op.datos,orden:s.ejercicios.length,semanas:Array.from({length:p.semanas},(_,i)=>({semana:i+1,prescripcion:"",peso:null,pesoFecha:null}))});
+      } else {
+        const e=p.sesiones.flatMap((s)=>s.ejercicios).find((e)=>e.id===partes[2]);
+        Object.assign(partes[3]==="semanas"?e.semanas.find((c)=>c.semana===Number(partes[4])):e,op.datos);
+      }
+      p.revision++;body={id:p.id};
+    }
+    else if (/^\/planes-modelo\/[^/]+\/asignar$/.test(path)) {
+      if(fallarAsignacionModelo){fallarAsignacionModelo=false;status=503;body={codigo:"fallo_prueba",mensaje:"Fallo controlado de asignación"};}
+      else { const p=modelosCatalogo.find((p)=>path.includes(p.id)),dto=req.postDataJSON();planes.push({...structuredClone(p),...dto,activo:false,orden:planes.length});body={id:dto.id};status=201; }
+    }
+    else if (/^\/planes-modelo\/[^/]+\/duplicar$/.test(path)) {
+      const p=modelosCatalogo.find((p)=>path.includes(p.id)),dto=req.postDataJSON();body={...structuredClone(p),...dto,revision:0};modelosCatalogo.push(body);status=201;
+    }
+    else if (/^\/planes-modelo\/[^/]+$/.test(path) && req.method() === "DELETE") {
+      modelosCatalogo=modelosCatalogo.filter((p)=>!path.endsWith(p.id));await route.fulfill({status:204});return;
+    }
+    else if (/^\/carreras\/[^/]+$/.test(path) && req.method() === "PATCH") {
+      const c = carrerasCatalogo.find((c) => path.endsWith(c.id)); Object.assign(c, req.postDataJSON()); body = { id: c.id };
+    }
+    else if (/^\/inscripciones\/[^/]+$/.test(path) && req.method() === "PATCH") {
+      const i = inscripcionesCatalogo.find((i) => path.endsWith(i.id)); Object.assign(i, req.postDataJSON()); body = { id: i.id };
+    }
+    else if (path === "/catalogo/categorias" && req.method() === "POST") {
+      if (fallarCategoria) { fallarCategoria = false; status = 503; body = { codigo: "fallo_prueba", mensaje: "Fallo controlado al crear categoría" }; }
+      else { const nombre = req.postDataJSON().nombre; categoriasCatalogo.push(nombre); body = { nombre }; }
+    }
+    else if (path === "/catalogo/ejercicios" && req.method() === "POST") {
+      const dto = req.postDataJSON(); ejerciciosCatalogo.push(dto); status = 201; body = { id: dto.id };
+    }
     else if (path === "/agenda") body = { horarios: [], clases: [] };
     else if (/^\/sesiones\/[^/]+\/seguimiento\/\d+$/.test(path)) {
       const semana = Number(path.split("/").at(-1));
@@ -124,7 +179,7 @@ async function pagina(rol, ancho) {
     } else if (req.method() === "POST" && path.endsWith("/planes-mensuales")) {
       const { diasIniciales, ...dto } = req.postDataJSON();
       const sesiones = [];
-      for (const [tipo, cantidad] of [["Fuerza", diasIniciales?.fuerza ?? 0], ["Running", diasIniciales?.running ?? 0]]) {
+      for (const [tipo, cantidad] of (Array.isArray(diasIniciales)?diasIniciales.map((a)=>[a.tipo,a.dias]):[["Fuerza", diasIniciales?.fuerza ?? 0], ["Running", diasIniciales?.running ?? 0]])) {
         for (let n = 1; n <= cantidad; n++) sesiones.push({ id: crypto.randomUUID(), tipo, nombre: `${tipo} · Día ${n}`, dia: null, orden: sesiones.length, calentamiento: "", enfriamiento: "", ejercicios: [] });
       }
       planes.push({ ...dto, orden: planes.length, sesiones }); status = 201; body = { id: dto.id };
@@ -155,6 +210,165 @@ async function pagina(rol, ancho) {
   return { page, ctx };
 }
 try {
+  if (process.argv.includes("--simultaneos")) {
+    const segundo = structuredClone(planes[0]); segundo.id=crypto.randomUUID();segundo.nombre="Running independiente";segundo.inicio="2026-10-26";
+    segundo.sesiones=[{...structuredClone(segundo.sesiones[0]),id:crypto.randomUUID(),tipo:"Running",nombre:"Rodaje independiente",ejercicios:[]}];
+    planes.push(segundo);
+    const futuro=structuredClone(segundo);futuro.id=crypto.randomUUID();futuro.nombre="Plan futuro";futuro.inicio="2026-12-01";futuro.sesiones[0].id=crypto.randomUUID();futuro.sesiones[0].nombre="No debe aparecer hoy";planes.push(futuro);
+    for(const ancho of [320,390,1440]) {
+      const {page,ctx}=await pagina("alumno",ancho);await page.goto(`${baseUrl}/mi-plan`);
+      await page.getByText("Fuerza A",{exact:true}).waitFor();await page.getByText("Rodaje independiente",{exact:true}).waitFor();
+      await page.getByText("Running independiente · Semana 2 de 6",{exact:true}).waitFor();
+      assert.equal(await page.getByText("No debe aparecer hoy",{exact:true}).count(),0);
+      demora=2000;
+      const guardandoPeso=page.waitForRequest((r)=>r.method()==="PATCH"&&r.url().includes("/semanas/1"));
+      await page.getByLabel("Peso de Zumo, semana 1",{exact:true}).fill(String(30+[320,390,1440].indexOf(ancho)));
+      await guardandoPeso;
+      await page.getByRole("button",{name:"Semana siguiente",exact:true}).click();
+      await page.getByText("Running independiente · Semana 2 de 6",{exact:true}).waitFor();
+      await page.getByText("Guardado",{exact:true}).waitFor();
+      demora=0;
+      await page.getByRole("group",{name:"Filtrar actividades",exact:true}).getByRole("button",{name:"Running",exact:true}).click();
+      assert.equal(await page.getByText("Fuerza A",{exact:true}).count(),0);
+      await page.getByRole("button",{name:"Semana siguiente",exact:true}).click();
+      await page.getByText("Running independiente · Semana 3 de 6",{exact:true}).waitFor();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      await page.screenshot({path:join(destino,`simultaneos-${ancho}.png`),fullPage:true});await ctx.close();
+    }
+    const {page,ctx}=await pagina("coach",390);await page.goto(`${baseUrl}/alumnos/${alumnoId}`);await page.getByRole("tab",{name:"Plan",exact:true}).click();
+    await page.getByRole("button",{name:"Desactivar plan",exact:true}).click();await page.getByRole("button",{name:"Activar plan",exact:true}).waitFor();
+    assert.equal(planes[0].activo,false);assert.equal(planes[1].activo,true);
+    await page.getByRole("button",{name:"Activar plan",exact:true}).click();await page.getByRole("button",{name:"Desactivar plan",exact:true}).waitFor();assert.equal(planes[1].activo,true);
+    await page.getByRole("button",{name:"Agregar actividad",exact:true}).click();await page.getByRole("textbox",{name:"Nombre de la actividad",exact:true}).fill("Movilidad");await page.getByRole("button",{name:"Crear actividad",exact:true}).click();
+    await page.getByRole("button",{name:"Crear Día 1",exact:true}).click();await page.getByText("Movilidad · Día 1",{exact:true}).waitFor();
+    assert.equal(planes[0].sesiones.at(-1).tipo,"Movilidad");await page.reload();await page.getByRole("tab",{name:"Plan",exact:true}).click();
+    await page.getByRole("group",{name:"Tipo de entrenamiento",exact:true}).getByRole("button",{name:"Movilidad",exact:true}).waitFor();await ctx.close();
+    assert.deepEqual(errores,[]);console.log("OK: varios activos, semanas independientes por fecha, futuro oculto, filtros, desactivar/reactivar sin afectar otros, actividad propia persistente y responsive.");
+  } else
+  if (process.argv.includes("--modelos")) {
+    ejerciciosCatalogo=[{id:crypto.randomUUID(),nombre:"Sentadilla",categoria:"Fuerza"}];
+    const {page,ctx}=await pagina("coach",390);
+    await page.goto(`${baseUrl}/planes`);
+    await page.getByText("Creá tu primer plan modelo",{exact:true}).waitFor();
+    await page.getByRole("button",{name:"Nuevo plan",exact:true}).click();
+    let dialogo=page.getByRole("dialog");
+    await dialogo.getByLabel("Nombre",{exact:true}).fill("Base principiantes");
+    await dialogo.getByLabel("Días de fuerza",{exact:true}).first().fill("1");
+    await dialogo.getByRole("button",{name:"Crear modelo",exact:true}).click();
+    await page.getByRole("heading",{name:"Base principiantes",exact:true}).waitFor();
+    const modelo=modelosCatalogo[0];assert.equal(modelo.sesiones.length,1);
+    assert.equal(await page.getByText(/Este plan .*terminó/).count(),0);
+    await page.getByRole("button",{name:"Crear bloque",exact:true}).click();
+    await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
+    await page.getByRole("button",{name:"Agregar ejercicio",exact:true}).click();
+    const combo=page.getByRole("combobox",{name:"Ejercicio",exact:true});await combo.fill("Sentadilla");
+    await page.getByRole("option",{name:/^Sentadilla/}).click();
+    await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).fill("4x8");
+    await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
+    assert.equal(modelo.sesiones[0].ejercicios[0].semanas[0].prescripcion,"4x8");
+    assert.equal(await page.getByRole("region",{name:/Seguimiento de semana/}).count(),0);
+    await page.getByRole("group",{name:"Tipo de entrenamiento",exact:true}).getByRole("button",{name:"Running",exact:true}).click();
+    await page.getByRole("button",{name:"Crear Día 1",exact:true}).click();
+    await page.getByText("Running · Día 1",{exact:true}).waitFor();
+    assert.equal(modelo.sesiones.length,2);
+    await page.getByRole("button",{name:"Asignar a alumno",exact:true}).click();dialogo=page.getByRole("dialog");
+    await dialogo.getByRole("combobox",{name:"Alumno",exact:true}).fill("Alumno");
+    await page.getByRole("option",{name:/Alumno Apellido/}).click();
+    fallarAsignacionModelo=true;
+    await dialogo.getByRole("button",{name:"Asignar como borrador",exact:true}).click();
+    await dialogo.getByRole("alert").filter({hasText:"Fallo controlado"}).waitFor();
+    assert.equal(await dialogo.getByLabel("Nombre",{exact:true}).inputValue(),"Base principiantes");
+    await dialogo.getByRole("button",{name:"Asignar como borrador",exact:true}).click();
+    await dialogo.waitFor({state:"hidden"});
+    const copia=planes.at(-1);assert.equal(copia.activo,false);assert.equal(planes[0].activo,true);
+    await page.getByRole("group",{name:"Tipo de entrenamiento",exact:true}).getByRole("button",{name:"Fuerza",exact:true}).click();
+    await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).fill("6x8");
+    await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
+    assert.equal(copia.sesiones[0].ejercicios[0].semanas[0].prescripcion,"4x8");
+    await page.reload();await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).waitFor();
+    assert.equal(await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).inputValue(),"6x8");
+    await page.waitForLoadState("networkidle");const lecturasAntes=lecturasModelos;
+    await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).fill("7x8");
+    await page.getByText("Guardado automáticamente",{exact:true}).waitFor();assert.equal(lecturasModelos,lecturasAntes);
+    await page.getByRole("button",{name:"Todos los modelos",exact:true}).click();
+    await page.getByRole("button",{name:"Mixto",exact:true}).click();
+    await page.getByRole("heading",{name:"Base principiantes",exact:true}).waitFor();
+    await page.getByRole("button",{name:"Duplicar Base principiantes",exact:true}).click();
+    await page.getByRole("dialog").getByRole("button",{name:"Duplicar modelo",exact:true}).click();
+    await page.getByRole("heading",{name:"Base principiantes (copia)",exact:true}).waitFor();
+    for(const width of [320,390,1024,1440]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);if([390,1440].includes(width))await page.screenshot({path:join(destino,`modelo-editor-${width}.png`),fullPage:true});}
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);await page.getByRole("tab",{name:"Plan",exact:true}).click();
+    await page.getByRole("button",{name:"Guardar como modelo",exact:true}).click();
+    dialogo=page.getByRole("dialog");await dialogo.getByLabel("Nombre",{exact:true}).fill("Modelo desde alumno");
+    await dialogo.getByRole("button",{name:"Guardar modelo",exact:true}).click();await dialogo.waitFor({state:"hidden"});
+    assert(modelosCatalogo.some((p)=>p.nombre==="Modelo desde alumno"));
+    await page.goto(`${baseUrl}/planes`);await page.getByRole("heading",{name:"Modelo desde alumno",exact:true}).waitFor();
+    for(const width of [320,1440]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:join(destino,`modelos-lista-${width}.png`),fullPage:true});}
+    await page.getByRole("button",{name:"Eliminar Modelo desde alumno",exact:true}).click();
+    await page.getByRole("dialog").getByRole("button",{name:"Eliminar modelo",exact:true}).click();await page.getByRole("dialog").waitFor({state:"hidden"});
+    assert.equal(copia.sesiones[0].ejercicios[0].semanas[0].prescripcion,"4x8");
+    await ctx.close();assert.deepEqual(errores,[]);
+    console.log("OK: biblioteca vacía, crear modelo, editor y autoguardado, agregar running, asignar/error/reintento sin cambiar activo, independencia, recarga, filtros, duplicado y responsive.");
+  } else
+  if (process.argv.includes("--carreras")) {
+    for (const ancho of [390, 1440]) {
+      const carrera = { id: crypto.randomUUID(), coachId: usuario, nombre: "Carrera Palmar", fecha: "2030-12-01", lugar: "Palmar", distanciasKm: [5, 10], notas: "" };
+      const inscripcion = { id: crypto.randomUUID(), alumnoId, carreraId: carrera.id, distanciaKm: 5, objetivoSeg: 1800, resultadoSeg: null };
+      carrerasCatalogo = [carrera]; inscripcionesCatalogo = [inscripcion];
+      const { page, ctx } = await pagina("coach", ancho);
+      await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
+      await page.getByRole("tab", { name: "Carreras", exact: true }).click();
+      await page.getByRole("button", { name: "Editar inscripción a Carrera Palmar", exact: true }).click();
+      let dialogo = page.getByRole("dialog");
+      assert.match(await dialogo.getByLabel("Objetivo", { exact: true }).inputValue(), /\d+:\d+/);
+      await dialogo.getByLabel("Objetivo", { exact: true }).fill("Terminar cómodo y bajar de 50 min en 10K");
+      await dialogo.getByRole("combobox", { name: "Distancia", exact: true }).click();
+      await page.getByRole("option", { name: "10K", exact: true }).click();
+      const guardado = page.waitForResponse((r) => r.url().endsWith(`/inscripciones/${inscripcion.id}`) && r.request().method() === "PATCH");
+      await dialogo.getByRole("button", { name: "Guardar", exact: true }).click(); await guardado;
+      await page.reload(); await page.getByRole("tab", { name: "Carreras", exact: true }).click();
+      await page.getByText("Objetivo Terminar cómodo y bajar de 50 min en 10K", { exact: true }).waitFor();
+      assert.equal(inscripcion.distanciaKm, 10); assert.equal(inscripcion.objetivoSeg, null);
+      await page.goto(`${baseUrl}/carreras`);
+      await page.getByRole("button", { name: "Editar Carrera Palmar", exact: true }).click();
+      dialogo = page.getByRole("dialog");
+      await dialogo.getByLabel("Otra distancia en kilómetros", { exact: true }).fill("7,5");
+      await dialogo.getByRole("button", { name: "Agregar", exact: true }).click();
+      const cambio = page.waitForResponse((r) => r.url().endsWith(`/carreras/${carrera.id}`) && r.request().method() === "PATCH");
+      await dialogo.getByRole("button", { name: "Guardar", exact: true }).click(); await cambio;
+      assert(carrera.distanciasKm.includes(7.5));
+      await page.getByRole("button", { name: "Editar Carrera Palmar", exact: true }).click();
+      await dialogo.getByRole("button", { name: "10K", exact: true }).click();
+      await dialogo.getByRole("button", { name: "Guardar", exact: true }).click();
+      await dialogo.getByRole("alert").filter({ hasText: "Cambiá su inscripción" }).waitFor();
+      assert(carrera.distanciasKm.includes(10));
+      await dialogo.getByRole("button", { name: "Cancelar", exact: true }).click();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await ctx.close();
+    }
+    assert.deepEqual(errores, []);
+    console.log("OK: objetivo libre conserva tiempos anteriores, texto mixto y cambio de distancia persistentes; edición de distancias de carrera y protección de inscriptos.");
+  } else
+  if (process.argv.includes("--movilidad")) {
+    const idMovilidad = crypto.randomUUID(), idActivacion = crypto.randomUUID();
+    planes[0].sesiones[0].activacion = [{ id: idMovilidad, nombre: "Movilidad de tobillo", indicacion: "10 rep", fase: "Movilidad" }, { id: idActivacion, nombre: "Puente", indicacion: "2x10", fase: "Activación" }, { id: crypto.randomUUID(), nombre: "Activación anterior", indicacion: "1 min" }];
+    const { page, ctx } = await pagina("coach", 390);
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`); await page.getByRole("tab", { name: "Plan", exact: true }).click();
+    const movilidad = page.getByRole("region", { name: "Movilidad", exact: true }), activacion = page.getByRole("region", { name: "Activación", exact: true });
+    const primero = await movilidad.boundingBox(), segundo = await activacion.boundingBox(); assert(primero.y < segundo.y);
+    await activacion.getByRole("button", { name: "Pasar a movilidad", exact: true }).first().click();
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    assert.equal(planes[0].sesiones[0].activacion.find((e) => e.id === idActivacion).fase, "Movilidad");
+    await page.reload(); await page.getByRole("tab", { name: "Plan", exact: true }).click();
+    assert.equal(await movilidad.getByRole("combobox", { name: "Ejercicio", exact: true }).count(), 2);
+    await ctx.close();
+    const alumno = await pagina("alumno", 390); await alumno.page.goto(`${baseUrl}/mi-plan`);
+    await alumno.page.getByText("1. Movilidad de tobillo", { exact: true }).waitFor();
+    const m = await alumno.page.getByRole("region", { name: "Movilidad", exact: true }).boundingBox();
+    const a = await alumno.page.getByRole("region", { name: "Activación", exact: true }).boundingBox(); assert(m.y < a.y);
+    await alumno.ctx.close(); assert.deepEqual(errores, []);
+    console.log("OK: movilidad antes de activación, traslado entre fases, autoguardado/recarga y lectura del alumno sin alterar ejercicios anteriores.");
+  } else
   if (process.argv.includes("--seguimiento")) {
     for (const ancho of [1440, 390]) {
       const { page, ctx } = await pagina("alumno", ancho);
@@ -334,11 +548,11 @@ try {
     const texto = entrada.getByRole("textbox", { name: "Entrada en calor", exact: true });
     assert.match(await texto.inputValue(), /Activación con rolo/);
     await texto.fill("Una sola serie por ejercicio");
-    await entrada.getByRole("button", { name: "Agregar ejercicio de entrada en calor", exact: true }).click();
+    await entrada.getByRole("button", { name: "Agregar ejercicio de activación", exact: true }).click();
     await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).fill("Rolo");
     await page.getByRole("option", { name: /^Rolo/ }).click();
     const posicionEjercicio = await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).boundingBox();
-    const posicionAgregar = await entrada.getByRole("button", { name: "Agregar ejercicio de entrada en calor", exact: true }).boundingBox();
+    const posicionAgregar = await entrada.getByRole("button", { name: "Agregar ejercicio de activación", exact: true }).boundingBox();
     const posicionTexto = await texto.boundingBox();
     assert(posicionEjercicio.y < posicionAgregar.y && posicionAgregar.y < posicionTexto.y, "Ejercicios y Agregar deben estar antes de las indicaciones generales");
     fallar = true;
@@ -347,9 +561,8 @@ try {
     assert.equal(await texto.inputValue(), "Una sola serie por ejercicio");
     await page.getByRole("button", { name: "Reintentar guardado", exact: true }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
-    await entrada.getByText("Filtro del catálogo", { exact: true }).click();
-    await entrada.getByRole("checkbox", { name: "Solo movilidad y activación", exact: true }).uncheck();
-    await entrada.getByRole("button", { name: "Agregar ejercicio de entrada en calor", exact: true }).click();
+    assert.equal(await entrada.getByRole("checkbox", { name: "Solo movilidad y activación", exact: true }).count(), 0);
+    await entrada.getByRole("button", { name: "Agregar ejercicio de activación", exact: true }).click();
     await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).nth(1).fill("Hip thrust");
     await page.getByRole("option", { name: /^Hip thrust/ }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
@@ -427,9 +640,46 @@ try {
     await page.getByRole("option", { name: /Hiptrust/ }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].ejercicios[0].nombre, "Hiptrust");
+    // Las categorías vacías también se conservan y aparecen en el plan.
+    await buscador.fill("Ejercicio de equilibrio");
+    await page.getByRole("button", { name: "Nueva categoría", exact: true }).click();
+    await page.getByRole("textbox", { name: "Nombre de categoría", exact: true }).fill("Equilibrio");
+    await page.getByRole("button", { name: "Crear categoría", exact: true }).click();
+    const catalogoGuardado = page.waitForResponse((r) => r.url().endsWith("/api/catalogo/ejercicios") && r.request().method() === "POST");
+    await page.getByRole("button", { name: "Crear ejercicio en Equilibrio", exact: true }).click();
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    assert.equal(planes[0].sesiones[0].ejercicios[0].nombre, "Ejercicio de equilibrio");
+    await catalogoGuardado;
+    assert.equal(ejerciciosCatalogo.at(-1).categoria, "Equilibrio");
+    await page.reload();
+    await page.getByRole("tab", { name: "Plan", exact: true }).click();
+    const entrada = page.getByRole("region", { name: "Entrada en calor", exact: true });
+    await entrada.getByRole("button", { name: "Agregar ejercicio de activación", exact: true }).click();
+    await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).fill("Ejercicio de equilibrio");
+    await page.getByRole("option", { name: /^Ejercicio de equilibrio/ }).click();
+    await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
+    assert.equal(planes[0].sesiones[0].activacion[0].nombre, "Ejercicio de equilibrio");
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    }
+    await page.setViewportSize({ width: 390, height: 1000 });
+    await page.goto(`${baseUrl}/ejercicios`);
+    await page.getByRole("button", { name: "Nueva categoría", exact: true }).click();
+    const dialogoCategoria = page.getByRole("dialog");
+    await dialogoCategoria.getByRole("textbox", { name: "Nombre", exact: true }).fill("Agilidad");
+    fallarCategoria = true;
+    await dialogoCategoria.getByRole("button", { name: "Crear categoría", exact: true }).click();
+    await dialogoCategoria.getByRole("alert").waitFor();
+    assert.equal(await dialogoCategoria.getByRole("textbox", { name: "Nombre", exact: true }).inputValue(), "Agilidad");
+    await dialogoCategoria.getByRole("button", { name: "Crear categoría", exact: true }).click();
+    await dialogoCategoria.waitFor({ state: "hidden" });
+    await page.reload();
+    await page.getByRole("button", { name: "Agilidad", exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.scrollBehavior), "smooth");
     assert.deepEqual(errores, []);
     await ctx.close();
-    console.log("OK: catálogo sin opciones equivalentes duplicadas, búsqueda con separadores y selección de nombre existente.");
+    console.log("OK: catálogo normalizado, categorías nuevas persistentes en entrenamiento y calentamiento, alta independiente, error/reintento y responsive.");
   } else if (process.argv.includes("--semanas")) {
     const { page, ctx } = await pagina("coach", 1440);
     for (const total of [5, 12]) {
@@ -585,7 +835,7 @@ try {
     assert.equal(await page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Vista del plan anterior", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Día de descanso", { exact: true }).count(), 0);
-    await page.getByText("Base 10K · Seis semanas · Asignación opcional al calendario", { exact: true }).waitFor();
+    await page.getByText("1 plan activo · Asignación opcional al calendario", { exact: true }).waitFor();
     errorLectura = true;
     await page.reload();
     await page.getByText("No pudimos consultar la semana de entrenamiento.", { exact: true }).waitFor();
@@ -593,13 +843,13 @@ try {
     assert.equal(await page.getByText("Vista del plan anterior", { exact: true }).count(), 0);
     errorLectura = false;
     await page.getByRole("button", { name: "Reintentar", exact: true }).click();
-    await page.getByText("Base 10K · Seis semanas · Asignación opcional al calendario", { exact: true }).waitFor();
+    await page.getByText("1 plan activo · Asignación opcional al calendario", { exact: true }).waitFor();
     await ctx.close();
     const estudiante = await pagina("alumno", 390);
     await estudiante.page.goto(`${baseUrl}/mi-plan`);
     await estudiante.page.getByText("Cargando planes…", { exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
-    await estudiante.page.getByRole("button", { name: "Semana 2", exact: true }).waitFor();
+    await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("Mi semana", { exact: true }).count(), 0);
     await estudiante.ctx.close();
     assert.deepEqual(errores, []);
@@ -718,15 +968,13 @@ try {
   await page.getByRole("button", { name: "Nuevo plan", exact: true }).click();
   await page.getByRole("dialog").getByLabel("Nombre del plan", { exact: true }).fill("Preparación de ocho semanas");
   await page.getByRole("dialog").getByLabel("Duración en semanas", { exact: true }).fill("8");
-  assert.equal(await page.getByRole("button", { name: "Crear plan", exact: true }).isDisabled(), true);
-  await page.getByRole("button", { name: "Seleccionar tipos de entrenamiento", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Fuerza", exact: true }).uncheck();
   await page.getByRole("checkbox", { name: "Running", exact: true }).check();
   await page.getByRole("checkbox", { name: "Fuerza", exact: true }).check();
   await page.getByRole("checkbox", { name: "Running", exact: true }).uncheck();
   assert.equal(await page.getByLabel("Días de running", { exact: true }).count(), 0);
   await page.getByRole("checkbox", { name: "Running", exact: true }).check();
   await page.screenshot({ path: join(destino, "tipos-checklist.png"), fullPage: true });
-  await page.getByRole("button", { name: "Seleccionar tipos de entrenamiento", exact: true }).click();
   await page.getByRole("dialog").getByLabel("Días de fuerza", { exact: true }).fill("2");
   await page.getByRole("dialog").getByLabel("Días de running", { exact: true }).fill("1");
   const fechaInicio = page.getByRole("dialog").getByLabel("Fecha de inicio", { exact: true });
@@ -766,10 +1014,9 @@ try {
     await page.getByRole("button", { name: "Nuevo plan", exact: true }).click();
     const modal = page.getByRole("dialog");
     await modal.getByLabel("Nombre del plan", { exact: true }).fill(`Solo ${tipo}`);
-    await page.getByRole("button", { name: "Seleccionar tipos de entrenamiento", exact: true }).click();
+      if (tipo === "Running") await page.getByRole("checkbox", { name: "Fuerza", exact: true }).uncheck();
     await page.getByRole("checkbox", { name: tipo, exact: true }).check();
-    await page.getByRole("button", { name: "Seleccionar tipos de entrenamiento", exact: true }).click();
-    const label = tipo === "Running" ? "Días de running" : "Días de fuerza";
+      const label = tipo === "Running" ? "Días de running" : "Días de fuerza";
     const otro = tipo === "Running" ? "Días de fuerza" : "Días de running";
     assert.equal(await modal.getByLabel(otro, { exact: true }).count(), 0);
     await modal.getByLabel(label, { exact: true }).fill("0");
@@ -786,9 +1033,9 @@ try {
   await ctx.close();
   const estudiante = await pagina("alumno", 390);
   await estudiante.page.goto(`${baseUrl}/mi-plan`);
-  await estudiante.page.getByRole("button", { name: "Semana 2", exact: true }).click();
+  for (let i=0;i<2;i++) await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).click();
   await estudiante.page.getByText("4×10", { exact: true }).waitFor();
-  await estudiante.page.getByRole("button", { name: "Semana 6", exact: true }).click();
+  for (let i=0;i<4;i++) await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).click();
   await estudiante.page.getByText("6×6", { exact: true }).waitFor();
   await estudiante.page.getByLabel("Peso de Zumo, semana 6", { exact: true }).fill("12,5");
   await estudiante.page.getByText("Guardado", { exact: true }).waitFor();

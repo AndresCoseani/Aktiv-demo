@@ -437,7 +437,7 @@ describe("API de Aktiv (contra Supabase local)", () => {
       expect((await A.post("/api/catalogo/ejercicios", { id, nombre: "Burpees", categoria: "Fuerza" })).status).toBe(201);
       expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "burpees", categoria: "Fuerza" })).status).toBe(409);
       expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "x".repeat(121), categoria: "Fuerza" })).status).toBe(400);
-      expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "Trote", categoria: "Inventada" })).status).toBe(400);
+      expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "Trote", categoria: " " })).status).toBe(400);
       expect((await A.post("/api/catalogo/ejercicios", { id: uuid(), nombre: "Trote" })).status).toBe(400); // la categoría es obligatoria
       // edición: renombrar, cambiar de categoría, duplicado, parche vacío, campos de más
       expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { nombre: "Burpees completos" })).status).toBe(200);
@@ -447,7 +447,7 @@ describe("API de Aktiv (contra Supabase local)", () => {
       expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { nombre: "remo" })).status).toBe(409);
       expect((await A.patch(`/api/catalogo/ejercicios/${id}`, {})).status).toBe(400);
       expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { coach_id: uuid() })).status).toBe(400);
-      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { categoria: "Inventada" })).status).toBe(400);
+      expect((await A.patch(`/api/catalogo/ejercicios/${id}`, { categoria: "" })).status).toBe(400);
       expect((await A.patch(`/api/catalogo/ejercicios/${uuid()}`, { nombre: "Nada" })).status).toBe(404);
       expect((await B.patch(`/api/catalogo/ejercicios/${id}`, { nombre: "Ajeno" })).status).toBe(404); // de otro profe
       expect((await A.delete(`/api/catalogo/ejercicios/${id}`)).status).toBe(204);

@@ -99,6 +99,8 @@ jobs:
           cache-dependency-path: aktiv-api/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - name: Verificar coordinación del arranque local
+        run: node --test ../scripts/dev.test.mjs
       - run: npm test
       - name: Build API y contrato (nest build)
         run: npm run build
@@ -174,7 +176,10 @@ jobs:
           test "$listo" = 1
           node scripts/lucas.browser.mjs
           node scripts/recuperacion.browser.mjs
-          for modo in '' --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --bloques-vacios --bloques --responsive; do
+          node scripts/carga-sesion.browser.mjs
+          node scripts/manual.browser.mjs
+          node scripts/registro.browser.mjs
+          for modo in '' --simultaneos --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --movilidad --carreras --modelos --bloques-vacios --bloques --responsive; do
             node scripts/mensual.browser.mjs $modo
           done
 

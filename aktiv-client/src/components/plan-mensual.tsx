@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { ZodError } from "zod";
 import {
   DIAS_PLAN, MAX_SEMANAS_PLAN, semanasDelPlan, prescripcionEfectiva, semanaDelPlan,
   altaMensualApi, altaSesionApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi,
@@ -12,27 +13,26 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FechaInput } from "@/components/fecha-input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { EditorEjerciciosPlan, primerBloqueLibre, bloquesDelPlan } from "@/components/editor-ejercicios-plan";
+import { EntradaEnCalorLectura } from "@/components/entrada-en-calor-lectura";
 import { EntradaEnCalorEditor } from "@/components/entrada-en-calor-editor";
 import { DuplicarPlanDialog } from "@/components/duplicar-plan-dialog";
 import { SeguimientoSesion } from "@/components/seguimiento-sesion";
 import { api } from "@/lib/api";
+import { usePlanEditor } from "@/components/plan-editor-context";
+import { ActividadesIniciales, NuevaActividad, useActividadesPlan } from "@/components/actividades-plan";
+import { GuardarModeloDialog } from "@/components/guardar-modelo-dialog";
 import { avisarCambioMensual, usePlanesMensuales, hayBorradoresMensuales, registrarBorradorMensual } from "@/lib/mensual";
 import { formatFecha, hoyISO, nuevoId } from "@/lib/format";
 
 const selector = "h-9 w-full min-w-0 rounded-lg border border-input bg-background px-2 text-sm";
-const TIPOS_INICIALES = [
-  { tipo: "Running", campo: "diasRunning", etiqueta: "Días de running" },
-  { tipo: "Fuerza", campo: "diasFuerza", etiqueta: "Días de fuerza" },
-] as const;
 function navegar(accion: () => void) {
   if (hayBorradoresMensuales()) toast.error("Esperá a que se guarden los cambios antes de cambiar de vista.");
   else accion();
 }
-function mensaje(e: unknown) { return e instanceof Error ? e.message : "No se pudo guardar. Probá de nuevo."; }
+function mensaje(e: unknown) { return e instanceof ZodError ? e.issues[0]?.message ?? "Revisá los datos del formulario." : e instanceof Error ? e.message : "No se pudo guardar. Probá de nuevo."; }
 function cambio<T extends object>(antes: T, despues: T) {
   return Object.fromEntries(Object.entries(despues).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(antes[k as keyof T])));
 }
@@ -41,10 +41,11 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
   const datos = usePlanesMensuales(alumnoId);
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [crear, setCrear] = useState(false);
-  const [tiposNuevos, setTiposNuevos] = useState<string[]>([]);
+
   const [ocupado, setOcupado] = useState(false);
   const [borrar, setBorrar] = useState(false);
   const [editando, setEditando] = useState<PlanMensual | null>(null);
+  const [guardandoModelo, setGuardandoModelo] = useState(false);
   const [duplicandoPlan, setDuplicandoPlan] = useState<PlanMensual | null>(null);
   const visibles = editable ? datos.planes : datos.planes.filter((p) => p.activo);
   const plan = visibles.find((p) => p.id === seleccion) ?? visibles.find((p) => p.activo) ?? visibles.at(-1);
@@ -54,25 +55,26 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
     const f = new FormData(e.currentTarget);
     setOcupado(true);
     try {
-      const dto = altaMensualApi.parse({ id: nuevoId(), nombre: String(f.get("nombre")).trim(), inicio: String(f.get("inicio")), semanas: Number(f.get("semanas")), activo: !datos.planes.some((p) => p.activo), diasIniciales: { fuerza: Number(f.get("diasFuerza") ?? 0), running: Number(f.get("diasRunning") ?? 0) } });
+      const dto = altaMensualApi.parse({ id: nuevoId(), nombre: String(f.get("nombre")).trim(), inicio: String(f.get("inicio")), semanas: Number(f.get("semanas")), activo: !datos.planes.some((p) => p.activo), diasIniciales: JSON.parse(String(f.get("actividadesIniciales"))) });
       await api.post(`/alumnos/${alumnoId}/planes-mensuales`, dto);
       avisarCambioMensual(); setSeleccion(dto.id); setCrear(false); toast.success("Plan creado");
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
   }
-  async function accion(tipo: "activar" | "borrar") {
+  async function accion(tipo: "activar" | "desactivar" | "borrar") {
     if (!plan) return;
     setOcupado(true);
     try {
-      if (tipo === "activar") await api.patch(`/planes-mensuales/${plan.id}`, { activo: true });
+      if (tipo !== "borrar") await api.patch(`/planes-mensuales/${plan.id}`, { activo: tipo === "activar" });
       else await api.delete(`/planes-mensuales/${plan.id}`);
-      avisarCambioMensual(); setBorrar(false); toast.success(tipo === "activar" ? "Plan activado" : "Plan eliminado");
+      if (tipo !== "borrar") setSeleccion(plan.id);
+      avisarCambioMensual(); setBorrar(false); toast.success(tipo === "activar" ? "Plan activado" : tipo === "desactivar" ? "Plan desactivado. Su contenido y registros se conservan." : "Plan eliminado");
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
   }
   return <div className="min-w-0 space-y-5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div className="min-w-0"><h2 className="flex items-center gap-2 text-lg font-semibold"><CalendarDays className="size-5 shrink-0 text-primary" />Plan de entrenamiento</h2>
         <p className="mt-1 text-sm text-muted-foreground">Sesiones por día y progresión por semanas.</p></div>
-      {editable && <Button variant="outline" size="sm" disabled={ocupado || datos.cargando || Boolean(datos.error)} onClick={() => navegar(() => { setTiposNuevos([]); setCrear(true); })}><Plus />Nuevo plan</Button>}
+      {editable && <Button variant="outline" size="sm" disabled={ocupado || datos.cargando || Boolean(datos.error)} onClick={() => navegar(() => { setCrear(true); })}><Plus />Nuevo plan</Button>}
     </div>
     {datos.cargando ? <p role="status" className="py-8 text-sm text-muted-foreground">Cargando planes…</p> : datos.error ?
       <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm"><p>{datos.error}</p><Button variant="outline" size="sm" className="mt-2" onClick={datos.reintentar}>Reintentar</Button></div> : <>
@@ -81,11 +83,13 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
           {p.activo && <Check className="size-3.5" />}{p.nombre || "Sin nombre"}
         </Button>)}
       </div>}
-      {plan ? <>
+      {!editable && visibles.length > 0 ? <CalendarioPlanes planes={visibles} /> : plan ? <>
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-5 pt-1">
           <div className="min-w-0 flex-1 basis-48"><p className="break-words font-medium">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
-          {editable && <div className="flex gap-2">
+          {editable && <div className="flex flex-wrap gap-2">
+            {plan.activo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => navegar(() => void accion("desactivar"))}>{ocupado ? "Guardando…" : "Desactivar plan"}</Button>}
             {!plan.activo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => navegar(() => void accion("activar"))}>Activar plan</Button>}
+            <Button variant="outline" size="sm" disabled={ocupado} onClick={() => navegar(() => setGuardandoModelo(true))}>Guardar como modelo</Button>
             <Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={() => navegar(() => setDuplicandoPlan(plan))}><Copy /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Editar plan de entrenamiento" title="Editar plan" disabled={ocupado} onClick={() => navegar(() => setEditando(plan))}><Pencil /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" disabled={ocupado} onClick={() => navegar(() => setBorrar(true))}><Trash2 className="text-destructive" /></Button>
@@ -95,6 +99,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
       </> : <p className="min-w-0 break-words rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{editable ? "Creá un plan, elegí su duración y agregá las sesiones." : "Tu profe todavía no activó un plan de entrenamiento."}</p>}
     </>}
     {children && <details className="rounded-xl border px-4 py-3"><summary className="cursor-pointer text-sm text-muted-foreground">Planes anteriores</summary><div className="mt-4">{children}</div></details>}
+    {guardandoModelo && plan && <GuardarModeloDialog plan={plan} onCerrar={() => setGuardandoModelo(false)} />}
     {editando && <EditarPlanDialog plan={editando} onCerrar={() => setEditando(null)} />}
     {duplicandoPlan && <DuplicarPlanDialog plan={duplicandoPlan} alumnoId={alumnoId} onCerrar={() => setDuplicandoPlan(null)} onDuplicado={(id, destino) => {
       if (destino === alumnoId) setSeleccion(id);
@@ -105,20 +110,10 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
         <fieldset disabled={ocupado} className="min-w-0 space-y-4">
         <label className="block space-y-1 text-sm">Nombre del plan<Input name="nombre" placeholder="Ej: Base para 10K" maxLength={120} required /></label>
         <label className="block space-y-1 text-sm">Duración en semanas<Input name="semanas" type="number" min={1} max={MAX_SEMANAS_PLAN} step={1} defaultValue={4} required /></label>
-        <div className="space-y-1 text-sm"><p>Tipos de entrenamiento</p>
-          <Popover><PopoverTrigger render={<Button type="button" variant="outline" className="w-full justify-between font-normal" aria-label="Seleccionar tipos de entrenamiento" disabled={ocupado} />}>
-            <span className="truncate">{TIPOS_INICIALES.filter((t) => tiposNuevos.includes(t.tipo)).map((t) => t.tipo).join(", ") || "Seleccioná uno o más tipos"}</span><ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-          </PopoverTrigger><PopoverContent align="start" className="w-[var(--anchor-width)]" aria-label="Tipos de entrenamiento">
-            {TIPOS_INICIALES.map(({ tipo }) => <label key={tipo} className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-2 hover:bg-accent"><input type="checkbox" className="size-4 accent-primary" checked={tiposNuevos.includes(tipo)} disabled={ocupado} onChange={(e) => setTiposNuevos((previos) => e.target.checked ? [...previos, tipo] : previos.filter((t) => t !== tipo))} />{tipo}</label>)}
-          </PopoverContent></Popover>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {TIPOS_INICIALES.filter((t) => tiposNuevos.includes(t.tipo)).map((t) => <label key={t.tipo} className="block space-y-1 text-sm">{t.etiqueta}<Input name={t.campo} type="number" min={1} max={7} step={1} defaultValue={3} required /></label>)}
-        </div>
-        <p className="text-xs text-muted-foreground">Cada tipo tendrá Día 1, Día 2, etc., sin asignar días de la semana.</p>
+        <ActividadesIniciales />
         <label className="block space-y-1 text-sm">Fecha de inicio<FechaInput name="inicio" defaultValue={hoyISO()} min="2000-01-01" max="2100-01-01" required /></label>
         </fieldset>
-        <DialogFooter><Button type="button" variant="ghost" disabled={ocupado} onClick={() => setCrear(false)}>Cancelar</Button><Button type="submit" disabled={ocupado || tiposNuevos.length === 0}>{ocupado ? "Creando…" : "Crear plan"}</Button></DialogFooter>
+        <DialogFooter><Button type="button" variant="ghost" disabled={ocupado} onClick={() => setCrear(false)}>Cancelar</Button><Button type="submit" disabled={ocupado}>{ocupado ? "Creando…" : "Crear plan"}</Button></DialogFooter>
       </form></DialogContent></Dialog>
     <Dialog open={borrar} onOpenChange={(v) => !ocupado && setBorrar(v)}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Eliminar este plan?</DialogTitle><DialogDescription>Se borran sus sesiones, ejercicios y registros de peso. No se puede deshacer.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={ocupado} onClick={() => setBorrar(false)}>Cancelar</Button><Button variant="destructive" disabled={ocupado} onClick={() => void accion("borrar")}>Eliminar plan</Button></DialogFooter></DialogContent></Dialog>
   </div>;
@@ -190,11 +185,15 @@ function SemanasPlan({ total, semana, actual, onSeleccionar }: { total: number; 
   </div>;
 }
 
-function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean }) {
-  const actual = semanaDelPlan(plan.inicio, hoyISO(), plan.semanas);
-  const [semana, setSemana] = useState(actual ?? (hoyISO() < plan.inicio ? 1 : plan.semanas));
+export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" | "semanas" | "sesiones"> & { inicio?: string }; editable: boolean }) {
+  const { api } = usePlanEditor();
+  const inicio = plan.inicio ?? hoyISO();
+  const actual = plan.inicio ? semanaDelPlan(inicio, hoyISO(), plan.semanas) : null;
+  const [semana, setSemana] = useState(actual ?? (!plan.inicio || hoyISO() < inicio ? 1 : plan.semanas));
   const semanasVisibles = semanasDelPlan(plan.semanas);
-  const [tipo, setTipo] = useState<"Fuerza" | "Running">(plan.sesiones[0]?.tipo ?? "Fuerza");
+  const { actividades, crear: crearActividad, error: errorActividad } = useActividadesPlan();
+  const tipos = [...new Set([...actividades, ...plan.sesiones.map((s) => s.tipo)])];
+  const [tipo, setTipo] = useState<string>(plan.sesiones[0]?.tipo ?? "Fuerza");
   const [seleccionSesion, setSeleccionSesion] = useState<string | null>(null);
   const [duplicando, setDuplicando] = useState<SesionEntrenamiento | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -206,7 +205,7 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
     if (ocupado) return;
     setOcupado(true);
     try {
-      const dto = altaSesionApi.parse({ id: nuevoId(), dia: null, tipo, nombre: `${tipo} · Día ${sesiones.length + 1}`, calentamiento: "", enfriamiento: "" });
+      const dto = altaSesionApi.parse({ id: nuevoId(), dia: null, tipo, nombre: `${tipo.slice(0, 48)} · Día ${sesiones.length + 1}`, calentamiento: "", enfriamiento: "" });
       await api.post(`/planes-mensuales/${plan.id}/sesiones`, dto);
       avisarCambioMensual(); setSeleccionSesion(dto.id); toast.success(`Día ${sesiones.length + 1} de ${tipo.toLowerCase()} creado`);
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
@@ -218,7 +217,7 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
     return <div className="space-y-6">
       <div className="space-y-2"><p className="text-center text-sm font-medium">Semana {semana} de {plan.semanas}</p><SemanasPlan total={plan.semanas} semana={semana} actual={actual} onSeleccionar={(s) => navegar(() => setSemana(s))} /></div>
       <div className="space-y-3"><h3 className="text-lg font-semibold">{diaAlumno === hoy ? actual ? "Hoy te toca" : "Consultar entrenamientos" : DIAS_PLAN[diaAlumno - 1]}</h3>
-        {!actual && <p className="text-sm text-muted-foreground">{hoyISO() < plan.inicio ? "El plan todavía no empezó." : "Este plan terminó."} Podés consultar sus entrenamientos.</p>}
+        {!actual && <p className="text-sm text-muted-foreground">{hoyISO() < inicio ? "El plan todavía no empezó." : "Este plan terminó."} Podés consultar sus entrenamientos.</p>}
           <div role="group" aria-label="Días de la semana" className="flex min-w-0 flex-wrap justify-center gap-2">
             {DIAS_PLAN.map((dia, i) => {
               const entrenamientos = plan.sesiones.filter((s) => s.dia === i + 1);
@@ -226,7 +225,7 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
               return <Button key={dia} size="sm" className={`h-auto min-h-20 min-w-0 basis-[calc((100%-1.5rem)/4)] flex-col justify-start gap-2 self-stretch whitespace-normal rounded-xl border px-1.5 py-2.5 text-center sm:basis-[calc((100%-3rem)/7)] ${seleccionado ? "border-primary bg-primary/10 ring-1 ring-primary text-foreground hover:bg-primary/15" : "border-transparent bg-muted/40 text-foreground hover:bg-muted"}`} variant="ghost" aria-label={dia} aria-pressed={seleccionado} onClick={() => navegar(() => setDiaAlumno(i + 1))}>
                 <span className={`text-xs font-semibold ${seleccionado ? "text-primary" : "text-muted-foreground"}`}>{dia.slice(0, 3)}</span>
                 <span className="flex w-full flex-col gap-2 text-xs leading-snug font-normal">
-                  {entrenamientos.length ? entrenamientos.map((s) => <span key={s.id} className="block"><span className="block text-[11px] text-muted-foreground">{s.tipo}</span><span className="block font-semibold">Día {plan.sesiones.filter((otra) => otra.tipo === s.tipo).findIndex((otra) => otra.id === s.id) + 1}</span></span>) : <span className="pt-1 text-[11px] text-muted-foreground">Descanso</span>}
+                  {entrenamientos.length ? entrenamientos.map((s) => <span key={s.id} className="block"><span className="block text-xs text-muted-foreground">{s.tipo}</span><span className="block font-semibold">Día {plan.sesiones.filter((otra) => otra.tipo === s.tipo).findIndex((otra) => otra.id === s.id) + 1}</span></span>) : <span className="pt-1 text-xs text-muted-foreground">Descanso</span>}
                 </span>
               </Button>;
             })}
@@ -237,8 +236,10 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
     </div>;
   }
   return <div className="space-y-4">
-    {!actual && <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{hoyISO() < plan.inicio ? "Este plan todavía no empezó." : `Este plan de ${plan.semanas} semanas terminó.`} Podés consultar sus semanas.</p>}
-    <div role="group" aria-label="Tipo de entrenamiento" className="flex justify-center gap-2">{(["Fuerza", "Running"] as const).map((t) => <Button key={t} disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}</div>
+    {plan.inicio && !actual && <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{hoyISO() < inicio ? "Este plan todavía no empezó." : `Este plan de ${plan.semanas} semanas terminó.`} Podés consultar sus semanas.</p>}
+    <div role="group" aria-label="Tipo de entrenamiento" className="flex flex-wrap justify-center gap-2">{tipos.map((t) => <Button key={t} className="max-w-full whitespace-normal break-words" disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}</div>
+    <div className="flex justify-center"><NuevaActividad crear={crearActividad} onCreada={(nueva) => navegar(() => { setTipo(nueva); setSeleccionSesion(null); })} /></div>
+    {errorActividad && <p role="alert" className="text-sm text-destructive">{errorActividad}</p>}
     {(sesiones.length > 0 || editable) && <div className="space-y-2">
       <h3 className="sr-only">Días de {tipo.toLowerCase()}</h3>
       <div role="group" aria-label="Días del entrenamiento" className="flex flex-wrap justify-center gap-2">
@@ -253,7 +254,7 @@ function ContenidoMes({ plan, editable }: { plan: PlanMensual; editable: boolean
     {sesion ? editable ? <EditorSesion key={sesion.id} sesion={sesion} numeroDia={numeroDia} semana={semana} semanasVisibles={semanasVisibles} totalSemanas={plan.semanas} onDuplicar={() => navegar(() => setDuplicando(sesion))} /> : <LecturaSesion key={sesion.id} sesion={sesion} semana={semana} /> :
       <div className="space-y-3 rounded-xl border border-dashed px-4 py-8 text-center text-sm">
         <p className="font-medium">Todavía no hay días de {tipo.toLowerCase()}</p>
-        <p className="mx-auto max-w-md text-muted-foreground">{editable ? `Empezá por el Día 1: cargá la entrada en calor, los ejercicios y sus indicaciones para las ${plan.semanas} semanas.` : "Tu profe todavía no cargó entrenamientos de este tipo."}</p>
+        <p className="mx-auto max-w-md text-muted-foreground">{editable ? `Podés agregar ${tipo.toLowerCase()} a este mismo plan. Creá el Día 1 y cargá los ejercicios para sus ${plan.semanas} semanas.` : "Tu profe todavía no cargó entrenamientos de este tipo."}</p>
       </div>}
     {duplicando && <DuplicarSesionDialog sesion={duplicando} onCerrar={() => setDuplicando(null)} onDuplicada={(id) => { setSeleccionSesion(id); avisarCambioMensual(); setDuplicando(null); }} />}
   </div>;
@@ -267,6 +268,7 @@ function EditorSesion(props: PropsEditorSesion) {
 }
 
 function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: SesionEntrenamiento; onCerrar: () => void; onDuplicada: (id: string) => void }) {
+  const { api } = usePlanEditor();
   const [id] = useState(nuevoId);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
@@ -300,6 +302,7 @@ function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: Sesio
 }
 
 function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEntrenamiento; onGuardar: (sesion: SesionEntrenamiento) => void; onCerrar: () => void }) {
+  const { api } = usePlanEditor();
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
   async function guardar(e: React.FormEvent<HTMLFormElement>) {
@@ -332,6 +335,7 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEnt
 }
 
 function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas, onDuplicar }: PropsEditorSesion) {
+  const { api, modelo } = usePlanEditor();
   const [borrador, setBorrador] = useState(sesion);
   const [guardado, setGuardado] = useState(sesion);
   const [altaPendiente, setAltaPendiente] = useState<EjercicioMensual | null>(null);
@@ -395,7 +399,7 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       continuarGuardado.current = true;
       setGuardado(borrador); avisarCambioMensual(borrador); return true;
     } catch (e) { setError(mensaje(e)); return false; } finally { guardando.current = false; setOcupado(false); }
-  }, [borrador, guardado, sesion.id, altaPendiente]);
+  }, [api, borrador, guardado, sesion.id, altaPendiente]);
   useEffect(() => {
     if (!sucio) { continuarGuardado.current = false; return; }
     if (ocupado || error) return;
@@ -441,15 +445,50 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       </fieldset>
       {error && <p role="alert" className="text-sm text-destructive">{error} Los cambios sin guardar siguen en el formulario.</p>}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><p role="status" className="text-xs text-muted-foreground">{ocupado ? "Guardando…" : error ? "No se pudieron guardar los cambios" : sucio ? "Cambios pendientes…" : "Guardado automáticamente"}</p>{error && <Button type="submit" disabled={ocupado}>Reintentar guardado</Button>}</div>
-    </form><div className="mt-6"><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} lectura /></div></CardContent>
+    </form>{!modelo && <div className="mt-6"><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} lectura /></div>}</CardContent>
     <Dialog open={confirmar || Boolean(quitar)} onOpenChange={(v) => { if (!v && !ocupado) { setConfirmar(false); setQuitar(null); } }}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Eliminar {quitar ? "este ejercicio" : "esta sesión"}?</DialogTitle><DialogDescription>También se borran sus registros de peso. No se puede deshacer.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={ocupado} onClick={() => { setConfirmar(false); setQuitar(null); }}>Cancelar</Button><Button variant="destructive" disabled={ocupado} onClick={() => void eliminar()}>Eliminar</Button></DialogFooter></DialogContent></Dialog>
   </Card>;
+}
+
+function desplazarDia(fecha: string, dias: number) {
+  const d = new Date(`${fecha}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + dias); return d.toISOString().slice(0, 10);
+}
+function lunesDe(fecha: string) { return desplazarDia(fecha, -((new Date(`${fecha}T12:00:00Z`).getUTCDay() + 6) % 7)); }
+
+function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
+  const [fecha, setFecha] = useState(hoyISO);
+  const [filtro, setFiltro] = useState<string | null>(null);
+  const lunes = lunesDe(fecha);
+  const dias = DIAS_PLAN.map((nombre, i) => ({ nombre, fecha: desplazarDia(lunes, i), numero: i + 1 }));
+  const tipos = [...new Set(planes.flatMap((p) => p.sesiones.map((s) => s.tipo)))];
+  const entradas = (dia: string, numero: number) => planes.flatMap((plan) => {
+    const semana = semanaDelPlan(plan.inicio, dia, plan.semanas);
+    return semana ? plan.sesiones.filter((s) => s.dia === numero && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
+  });
+  const numeroDia = (new Date(`${fecha}T12:00:00Z`).getUTCDay() + 6) % 7 + 1;
+  const seleccionadas = entradas(fecha, numeroDia);
+  const sinAsignar = planes.flatMap((plan) => {
+    const semana = semanaDelPlan(plan.inicio, fecha, plan.semanas);
+    return semana ? plan.sesiones.filter((s) => s.dia === null && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
+  });
+  return <div className="min-w-0 space-y-6">
+    <div className="flex flex-wrap items-center justify-center gap-2"><Button size="icon-sm" variant="outline" aria-label="Semana anterior" disabled={lunes <= "2000-01-08"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, -7)))}><ArrowLeft /></Button><p className="text-sm font-medium">{formatFecha(lunes)} al {formatFecha(desplazarDia(lunes, 6), { conAnio: true })}</p><Button size="icon-sm" variant="outline" aria-label="Semana siguiente" disabled={fecha >= "2100-12-20"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, 7)))}><ArrowRight /></Button><Button size="sm" variant="ghost" onClick={() => navegar(() => setFecha(hoyISO()))}>Hoy</Button></div>
+    <div role="group" aria-label="Filtrar actividades" className="flex flex-wrap justify-center gap-2">{[null, ...tipos].map((tipo) => <Button key={tipo === null ? "todos" : `actividad:${tipo}`} size="sm" variant={filtro === tipo ? "secondary" : "outline"} aria-pressed={filtro === tipo} className="max-w-full whitespace-normal break-words" onClick={() => navegar(() => setFiltro(tipo))}>{tipo ?? "Todos"}</Button>)}</div>
+    <div role="group" aria-label="Días de la semana" className="flex min-w-0 flex-wrap justify-center gap-2">{dias.map((dia) => {
+      const delDia = entradas(dia.fecha, dia.numero);
+      const seleccionada = fecha === dia.fecha;
+      return <Button key={dia.fecha} variant="ghost" aria-label={dia.nombre} aria-pressed={seleccionada} onClick={() => navegar(() => setFecha(dia.fecha))} className={`h-auto min-h-20 min-w-0 basis-[calc((100%-1.5rem)/4)] flex-col justify-start gap-2 self-stretch whitespace-normal rounded-xl border px-1.5 py-3 sm:basis-[calc((100%-3rem)/7)] ${seleccionada ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-transparent bg-muted/40"}`}><span className="text-sm font-semibold">{dia.nombre.slice(0, 3)} {Number(dia.fecha.slice(8))}</span><span className="flex w-full flex-col gap-2 text-xs text-muted-foreground">{delDia.length ? delDia.map(({plan, sesion}) => <span key={sesion.id} className="break-words">{sesion.tipo}<span className="block font-semibold text-foreground">Día {plan.sesiones.filter((s) => s.tipo === sesion.tipo).findIndex((s) => s.id === sesion.id) + 1}</span></span>) : "Descanso"}</span></Button>;
+    })}</div>
+    <section className="space-y-5"><h3 className="text-lg font-semibold">{fecha === hoyISO() ? "Hoy te toca" : formatFecha(fecha, { conAnio: true })}</h3>{seleccionadas.length ? seleccionadas.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p><LecturaSesion sesion={sesion} semana={semana} /></div>) : <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No hay entrenamientos asignados para este día{filtro === null ? "." : ` de ${filtro.toLowerCase()}.`}</p>}</section>
+    {sinAsignar.length > 0 && <section className="space-y-5"><h3 className="font-semibold">Entrenamientos sin día asignado</h3>{sinAsignar.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p><LecturaSesion sesion={sesion} semana={semana} /></div>)}</section>}
+    <section className="space-y-3 border-t pt-5"><h3 className="text-sm font-semibold">Tus planes activos</h3>{planes.map((p) => <div key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm"><p className="min-w-0 break-words font-medium">{p.nombre}</p><p className="text-muted-foreground">{formatFecha(p.inicio)} · {p.semanas} semanas · {semanaDelPlan(p.inicio, fecha, p.semanas) ? `Semana ${semanaDelPlan(p.inicio, fecha, p.semanas)}` : fecha < p.inicio ? "Todavía no empezó" : "Finalizado"}</p></div>)}</section>
+  </div>;
 }
 
 function LecturaSesion({ sesion, semana }: { sesion: SesionEntrenamiento; semana: number }) {
   const grupos = bloquesDelPlan(sesion.ejercicios, sesion.bloques).filter((grupo) => sesion.ejercicios.some((e) => e.grupo === grupo));
   return <Card className="gap-5"><CardHeader><CardTitle role="heading" aria-level={4}>{sesion.nombre || sesion.tipo}</CardTitle><CardDescription>{sesion.tipo} · Semana {semana}</CardDescription></CardHeader><CardContent className="space-y-6 sm:space-y-8">
-    {(sesion.calentamiento || sesion.activacion.length > 0) && <section className="space-y-3"><h3 className="text-sm font-semibold">Entrada en calor</h3>{sesion.activacion.length > 0 && <ol className="space-y-2 text-sm">{sesion.activacion.map((e, indice) => <li key={e.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span className="min-w-0 break-words font-medium">{indice + 1}. {e.nombre || "Ejercicio sin nombre"}</span>{e.indicacion && <span className="whitespace-pre-wrap break-words text-foreground">{e.indicacion}</span>}</li>)}</ol>}{sesion.calentamiento && <div className="space-y-1 border-t pt-3"><p className="text-xs text-muted-foreground">Indicaciones generales</p><p className="whitespace-pre-wrap break-words text-sm text-foreground">{sesion.calentamiento}</p></div>}</section>}
+    <EntradaEnCalorLectura texto={sesion.calentamiento} ejercicios={sesion.activacion} />
     {grupos.map((grupo) => <section key={grupo} aria-label={`Bloque ${grupos.indexOf(grupo) + 1}`} className="space-y-3">
       <h3 className="text-sm font-semibold">Bloque {grupos.indexOf(grupo) + 1}</h3>
       <ul className="divide-y divide-border/50 rounded-xl bg-muted/20 px-3 ring-1 ring-border/50 sm:px-4">{sesion.ejercicios.filter((e) => e.grupo === grupo).map((e) => <li key={e.id} className="flex flex-wrap items-center justify-between gap-x-5 gap-y-2 py-3">

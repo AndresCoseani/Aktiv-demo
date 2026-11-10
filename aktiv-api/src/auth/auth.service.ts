@@ -1,4 +1,5 @@
-import { HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { HttpStatus, Inject, Injectable, Optional } from "@nestjs/common";
+import { RegistroService } from "./registro.service";
 import { ENV, type Env } from "../config/env";
 import { ErrorApi, noAutenticado, sinPermiso } from "../common/errores";
 import type { Rol, Usuario } from "../common/tipos";
@@ -26,6 +27,7 @@ export class AuthService {
   constructor(
     private readonly supa: SupabaseService,
     @Inject(ENV) private readonly env: Env,
+    @Optional() private readonly registro?: RegistroService,
   ) {}
 
   /* ───────────── límite de intentos de login ───────────── */
@@ -222,7 +224,16 @@ export class AuthService {
       .eq("id", id)
       .maybeSingle();
     if (error) throw noAutenticado("token_invalido", "Tu sesión no es válida. Iniciá sesión de nuevo.");
-    if (!data) throw sinPermiso("Tu cuenta todavía no está habilitada. Hablá con tu profe.");
+    if (!data) {
+      if (this.registro?.habilitado) {
+        const u=await this.supa.anonimo().auth.getUser(token);
+        if(u.data.user?.user_metadata.origen==="registro_aktiv") {
+          await this.registro.completar(token);
+          throw new ErrorApi(403,"registro_pendiente","Tu email está confirmado. Lucas todavía tiene que aprobar tu alta. Tu solicitud no vence; volvé a ingresar cuando te avise.");
+        }
+      }
+      throw sinPermiso("Tu cuenta todavía no está habilitada. Hablá con tu profe.");
+    }
     return { id, email: data.email ?? email, rol: data.rol as Rol, nombre: data.nombre, token };
   }
 }

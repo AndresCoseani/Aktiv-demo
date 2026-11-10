@@ -6,7 +6,6 @@ import { prescripcionEfectiva, type EjercicioMensual, type SesionEntrenamiento }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EjercicioCombobox } from "@/components/ejercicio-combobox";
-import { CATEGORIAS_POR_TIPO } from "@/lib/dominio";
 import { cn } from "@/lib/utils";
 
 const TIPO_ARRASTRE = "application/x-aktiv-ejercicio";
@@ -18,7 +17,7 @@ export function primerBloqueLibre(ejercicios: EjercicioMensual[], bloques: numbe
   return Array.from({ length: 20 }, (_, i) => i + 1).find((g) => !existentes.includes(g));
 }
 
-export function EditorEjerciciosPlan({ ejercicios, bloques, tipo, semana, semanasVisibles: semanas, ocupado, altaPendiente, sucio, onCambiar, onCrearBloque, onQuitarBloque, onAgregar, onQuitar }: {
+export function EditorEjerciciosPlan({ ejercicios, bloques, semana, semanasVisibles: semanas, ocupado, altaPendiente, sucio, onCambiar, onCrearBloque, onQuitarBloque, onAgregar, onQuitar }: {
   ejercicios: EjercicioMensual[]; tipo: SesionEntrenamiento["tipo"]; semana: number; semanasVisibles: number[];
   bloques: number[];
   ocupado: boolean; altaPendiente: boolean; sucio: boolean;
@@ -59,7 +58,7 @@ export function EditorEjerciciosPlan({ ejercicios, bloques, tipo, semana, semana
         {tabla && delBloque.length > 0 && <div className="grid grid-cols-[var(--columnas-ejercicio)] gap-3 text-xs text-muted-foreground"><span>Ejercicio</span>{semanasVisibles.map((s) => <span key={s}>Semana {s}</span>)}<span>Descanso</span><span className="sr-only">Acciones</span></div>}
         {delBloque.map((ej) => <div key={ej.id} className={cn("grid min-w-0 gap-3 border-t pt-3", tabla && "grid-cols-[var(--columnas-ejercicio)]")}>
           <div className="min-w-0 space-y-2">
-            <div className="flex min-w-0 items-center gap-1"><button type="button" draggable aria-label={`Arrastrar ${ej.nombre || "ejercicio"} a otro bloque`} title="Arrastrar a otro bloque" onDragStart={(e) => { e.dataTransfer.setData(TIPO_ARRASTRE, ej.id); e.dataTransfer.effectAllowed = "move"; setArrastrando(ej.id); }} onDragEnd={() => setArrastrando(null)} className="cursor-grab rounded p-1 text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"><GripVertical className="size-4" /></button><div className="min-w-0 flex-1"><EjercicioCombobox value={ej.nombre} categorias={CATEGORIAS_POR_TIPO[tipo]} onChange={(nombre) => onCambiar(ej.id, { nombre })} /></div></div>
+            <div className="flex min-w-0 items-center gap-1"><button type="button" draggable aria-label={`Arrastrar ${ej.nombre || "ejercicio"} a otro bloque`} title="Arrastrar a otro bloque" onDragStart={(e) => { e.dataTransfer.setData(TIPO_ARRASTRE, ej.id); e.dataTransfer.effectAllowed = "move"; setArrastrando(ej.id); }} onDragEnd={() => setArrastrando(null)} className="cursor-grab rounded p-1 text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"><GripVertical className="size-4" /></button><div className="min-w-0 flex-1"><EjercicioCombobox value={ej.nombre}  onChange={(nombre) => onCambiar(ej.id, { nombre })} /></div></div>
             <details className="text-xs text-muted-foreground"><summary className="w-fit cursor-pointer rounded py-1 focus-visible:outline-2 focus-visible:outline-ring">Mover a otro bloque</summary><label className="mt-2 flex items-center gap-2">Mover a<select aria-label={`Mover ${ej.nombre || "ejercicio"} a bloque`} className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs" value={grupo} onChange={(e) => onCambiar(ej.id, { grupo: Number(e.target.value) })}>{grupos.map((g, i) => <option key={g} value={g}>Bloque {i + 1}</option>)}{libre && delBloque.length > 1 && <option value={libre}>Nuevo bloque individual</option>}</select></label></details>
           </div>
           {semanasVisibles.map((s) => {

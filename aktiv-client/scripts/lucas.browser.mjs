@@ -27,6 +27,7 @@ async function pagina(rol, ancho=390) {
     let body={}, status=200;
     const dto=()=>req.postDataJSON();
     if(path==="/auth/me") body={session};
+    else if(path==="/auth/solicitudes-alta") body=[];
     else if(path==="/datos") body={session,alumnos:rol==="coach"?alumnos:[alumno],carreras:[],inscripciones:[],ejerciciosCustom:[]};
     else if(path.endsWith("/planes-mensuales")) body=planes;
     else if (/\/seguimiento\/\d+$/.test(path)) body={ registro: { semana: Number(path.split('/').at(-1)), completado:false, sensacion:null, nota:'', fecha:null }, habilitado: rol==='alumno' };
@@ -128,13 +129,13 @@ try {
   const estudiante=await pagina("alumno");
   await estudiante.page.goto(`${base}/mi-plan`);
   await estudiante.page.getByRole("heading",{name:"Hoy te toca",exact:true}).waitFor();
-  const semanas=estudiante.page.getByRole("group",{name:"Semana del plan",exact:true});
+  const siguiente=estudiante.page.getByRole("button",{name:"Semana siguiente",exact:true});
   const diasSemana=estudiante.page.getByRole("group",{name:"Días de la semana",exact:true});
-  assert.ok((await semanas.boundingBox()).y < (await diasSemana.boundingBox()).y);
-  await semanas.getByRole("button",{name:"Semana 2",exact:true}).click();
-  assert.equal(await semanas.getByRole("button",{name:"Semana 2",exact:true}).getAttribute("aria-pressed"),"true");
-  assert.ok((await semanas.getByRole("button",{name:"Semana 2",exact:true}).getAttribute("class")).includes("bg-primary"));
-  assert.equal(await semanas.getByRole("button",{name:"Semana 2",exact:true}).locator("svg").count(),1);
+  assert.ok((await siguiente.boundingBox()).y < (await diasSemana.boundingBox()).y);
+  await siguiente.click();
+  await estudiante.page.getByText("Preparación 10K · Semana 2 de 6",{exact:true}).first().waitFor();
+  assert.equal(await diasSemana.getByRole("button",{name:"Martes",exact:true}).getAttribute("aria-pressed"),"true");
+  assert.ok((await diasSemana.getByRole("button",{name:"Martes",exact:true}).getAttribute("class")).includes("bg-primary"));
   assert.equal(await estudiante.page.getByRole("button",{name:"Guardar peso",exact:true}).count(),0);
   assert.equal(await estudiante.page.getByText("Ejercicios juntos",{exact:true}).count(),0);
   const peso=estudiante.page.getByLabel("Peso de Zumo, semana 2",{exact:true}).first();
@@ -148,7 +149,7 @@ try {
   assert.equal(planes[0].sesiones[0].ejercicios[0].semanas[1].peso,"55");
   assert.equal(planes[0].sesiones[0].ejercicios[0].semanas[0].peso,null);
   await estudiante.page.reload();
-  await estudiante.page.getByRole("group",{name:"Semana del plan",exact:true}).getByRole("button",{name:"Semana 2",exact:true}).click();
+  await estudiante.page.getByRole("button",{name:"Semana siguiente",exact:true}).click();
   assert.equal(await estudiante.page.getByLabel("Peso de Zumo, semana 2",{exact:true}).first().inputValue(),"55");
   for(let i=1;i<=3;i++)await estudiante.page.getByRole("heading",{name:`Entrenamiento ${i}`,exact:true}).waitFor();
   assert.equal(await estudiante.page.getByRole("region",{name:"Bloque 1",exact:true}).count(),3);

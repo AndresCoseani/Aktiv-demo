@@ -7,12 +7,8 @@ import {
   textoOpcional,
 } from "./comunes";
 
-export const categoriaEjercicioSchema = z.enum([
-  "Series y ritmo",
-  "Técnica de carrera",
-  "Fuerza",
-  "Movilidad",
-]);
+/** El catálogo es del profesor; no hay una lista cerrada de categorías. */
+export const categoriaEjercicioSchema = z.string().trim().min(1, "Escribí la categoría").max(80, "Máximo 80 caracteres").transform((s) => s.replace(/\s+/g, " "));
 
 /** Parte de la sesión a la que pertenece un ejercicio, en el orden en que se hacen */
 export const bloqueSchema = z.enum(["Calentamiento", "Entrenamiento", "Enfriamiento"]);

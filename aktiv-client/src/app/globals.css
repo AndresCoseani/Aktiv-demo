@@ -5,6 +5,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --text-xs: 0.875rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 1rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.55;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);

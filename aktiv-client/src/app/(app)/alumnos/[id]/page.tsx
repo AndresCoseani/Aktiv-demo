@@ -46,7 +46,8 @@ export default function AlumnoDetallePage() {
   const mensual = usePlanesMensuales(id);
   const { alumnos } = useStore();
   const alumno = alumnos.find((a) => a.id === id);
-  const mesActivo = mensual.planes.find((p) => p.activo);
+  const mesesActivos = mensual.planes.filter((p) => p.activo);
+  const mesActivo = mesesActivos[0];
 
   if (!session) return null;
 
@@ -212,11 +213,12 @@ export default function AlumnoDetallePage() {
       {mensual.cargando ? <div role="status" className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Cargando semana de entrenamiento…</div> : mensual.error ? <div role="alert" className="space-y-3 rounded-xl border bg-card p-5 text-sm"><p>No pudimos consultar la semana de entrenamiento.</p><Button variant="outline" size="sm" onClick={mensual.reintentar}>Reintentar</Button></div> : <SemanaCard
         titulo="Semana de entrenamiento"
         semana={mesActivo ? Array.from({ length: 7 }, (_, i) => ({
-          correr: mesActivo.sesiones.some((s) => s.dia === i + 1 && s.tipo === "Running"),
-          fuerza: mesActivo.sesiones.some((s) => s.dia === i + 1 && s.tipo === "Fuerza"),
+          correr: mesesActivos.some((p) => p.sesiones.some((s) => s.dia === i + 1 && s.tipo === "Running")),
+          fuerza: mesesActivos.some((p) => p.sesiones.some((s) => s.dia === i + 1 && s.tipo === "Fuerza")),
         })) : alumno.semana}
-        descripcion={mesActivo ? `${mesActivo.nombre} · Asignación opcional al calendario` : undefined}
-        sinDiasFijos={mesActivo?.sesiones.some((s) => s.dia === null)}
+        descripcion={mesActivo ? `${mesesActivos.length} ${mesesActivos.length === 1 ? "plan activo" : "planes activos"} · Asignación opcional al calendario` : undefined}
+        actividades={mesActivo ? Array.from({ length: 7 }, (_, i) => [...new Set(mesesActivos.flatMap((p) => p.sesiones.filter((s) => s.dia === i + 1).map((s) => s.tipo)))]) : undefined}
+        sinDiasFijos={mesesActivos.some((p) => p.sesiones.some((s) => s.dia === null))}
         onAlternar={mesActivo ? undefined : (dia, tipo) => alternarDia(alumno.id, dia, tipo)}
       />}
 

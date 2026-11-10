@@ -31,6 +31,7 @@ export function SemanaCard({
   className,
   titulo,
   sinDiasFijos = false,
+  actividades,
 }: {
   semana: DiaEntrenamiento[];
   /** si no se pasa, la semana es de solo lectura */
@@ -39,6 +40,7 @@ export function SemanaCard({
   className?: string;
   titulo?: string;
   sinDiasFijos?: boolean;
+  actividades?: string[][];
 }) {
   const hoy = diaDeHoy();
   const diasCorrer = semana.filter((d) => d.correr).length;
@@ -95,9 +97,8 @@ export function SemanaCard({
                   </div>
                 ) : (
                   <div className="flex min-h-[4.25rem] flex-col items-center justify-center gap-1">
-                    {d.correr && <Insignia tipo="correr" />}
-                    {d.fuerza && <Insignia tipo="fuerza" />}
-                    {!d.correr && !d.fuerza && (
+                    {actividades ? actividades[i]?.map((nombre) => <span key={nombre} className="max-w-full break-words text-center text-xs text-primary">{nombre}</span>) : <>{d.correr && <Insignia tipo="correr" />}{d.fuerza && <Insignia tipo="fuerza" />}</>}
+                    {!(actividades ? actividades[i]?.length : d.correr || d.fuerza) && (
                       <span className="text-[0.6rem] text-muted-foreground/70 sm:text-[0.65rem]">
                         {sinDiasFijos ? "Sin asignar" : "Descanso"}
                       </span>
@@ -110,7 +111,7 @@ export function SemanaCard({
         </ul>
 
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground">
-          <div className="flex items-center gap-4">
+          {!actividades && <div className="flex items-center gap-4">
             <span className="inline-flex items-center gap-1.5">
               <Footprints className="size-3.5 text-primary" />
               Correr
@@ -119,10 +120,10 @@ export function SemanaCard({
               <Dumbbell className="size-3.5 text-warning" />
               Fuerza
             </span>
-          </div>
+          </div>}
           {!onAlternar && (
             <p className="text-sm text-foreground">
-              {sinDiasFijos ? "El plan incluye días sin fecha asignada" : tocaHoy.length
+              {actividades ? (actividades[hoy]?.length ? `Hoy te toca: ${actividades[hoy].join(" + ")}` : "Hoy no hay actividades asignadas") : sinDiasFijos ? "El plan incluye días sin fecha asignada" : tocaHoy.length
                 ? `Hoy te toca: ${tocaHoy.join(" + ")}`
                 : "Hoy es día de descanso"}
             </p>

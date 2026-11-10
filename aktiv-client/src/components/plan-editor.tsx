@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BLOQUES, CATEGORIAS_POR_TIPO, TIPOS_PLAN, admitePeso } from "@/lib/dominio";
+import { BLOQUES, TIPOS_PLAN, admitePeso } from "@/lib/dominio";
 import { LIMITES, crearPlanDto, validar } from "@/lib/schemas";
 import { hoyISO } from "@/lib/format";
 import {
@@ -230,7 +230,6 @@ export function PlanEditor({ alumno }: { alumno: Alumno }) {
                                   onChange={(nombre) =>
                                     actualizarEjercicio(alumno.id, plan.id, ej.id, { nombre })
                                   }
-                                  categorias={CATEGORIAS_POR_TIPO[tipo]}
                                 />
                               </div>
                               <label className="space-y-1 md:space-y-0">

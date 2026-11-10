@@ -11,7 +11,9 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox";
-import { CATEGORIAS, catalogoCompleto, categoriaDe } from "@/lib/dominio";
+import { catalogoCompleto, categoriaDe } from "@/lib/dominio";
+import { CategoriaEjercicioSelector } from "./categoria-ejercicio-selector";
+import { Button } from "./ui/button";
 import { crearEjercicioPersonalizado, useStore } from "@/lib/store";
 import type { CategoriaEjercicio } from "@/lib/types";
 
@@ -19,15 +21,13 @@ export function EjercicioCombobox({
   value,
   onChange,
   id,
-  categorias,
 }: {
   value: string;
   onChange: (nombre: string) => void;
   id?: string;
-  /** si se indica, solo se ofrecen (y se pueden crear) ejercicios de estas categorías */
-  categorias?: CategoriaEjercicio[];
 }) {
   const { ejerciciosCustom } = useStore();
+  const [categoriaNueva, setCategoriaNueva] = useState("Fuerza");
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
@@ -37,11 +37,10 @@ export function EjercicioCombobox({
   );
   const nombres = useMemo(() => {
     const lista = catalogoCompleto(ejerciciosCustom)
-      .filter((e) => !categorias || categorias.includes(e.categoria))
       .map((e) => e.nombre);
     // lo que ya está elegido siempre se muestra, aunque sea de otra categoría
     return value && !lista.some((n) => claveEjercicio(n) === claveEjercicio(value)) ? [value, ...lista] : lista;
-  }, [ejerciciosCustom, categorias, value]);
+  }, [ejerciciosCustom, value]);
 
   const q = claveEjercicio(busqueda);
   const hayExacto = todos.some((n) => claveEjercicio(n) === q);
@@ -90,18 +89,8 @@ export function EjercicioCombobox({
                 Crear “<strong className="font-medium text-foreground">{busqueda.trim()}</strong>” en:
               </span>
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {(categorias ?? CATEGORIAS).map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => crear(c)}
-                  className="rounded-full border px-2.5 py-1 text-xs text-primary outline-none hover:bg-accent focus-visible:bg-accent"
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
+            <CategoriaEjercicioSelector value={categoriaNueva} onChange={setCategoriaNueva} />
+            <Button type="button" size="sm" onClick={() => crear(categoriaNueva)}>Crear ejercicio en {categoriaNueva}</Button>
           </div>
         )}
       </ComboboxContent>

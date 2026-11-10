@@ -197,6 +197,7 @@ export function desdeFilas(crudas: FilasCrudas, userId: string): Datos {
     carreraId: i.carrera_id,
     distanciaKm: i.distancia_km,
     objetivoSeg: i.objetivo_seg,
+    objetivo: i.objetivo,
     resultadoSeg: i.resultado_seg,
   }));
 
@@ -286,5 +287,6 @@ export const columnasInscripcion = (p: Record<string, unknown>) =>
   aColumnas(p, {
     distanciaKm: "distancia_km",
     objetivoSeg: "objetivo_seg",
+    objetivo: "objetivo",
     resultadoSeg: "resultado_seg",
   });

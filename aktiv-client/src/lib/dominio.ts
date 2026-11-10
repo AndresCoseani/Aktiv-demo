@@ -28,12 +28,6 @@ export const BLOQUES: { bloque: Bloque; pista: string }[] = [
 /** los dos tipos de plan: el alumno ve el plan ACTIVO de cada uno */
 export const TIPOS_PLAN: TipoPlan[] = ["Running", "Fuerza"];
 
-/** qué categorías de ejercicio tienen sentido en cada tipo de plan (Movilidad va en ambos) */
-export const CATEGORIAS_POR_TIPO: Record<TipoPlan, CategoriaEjercicio[]> = {
-  Running: ["Series y ritmo", "Técnica de carrera", "Movilidad"],
-  Fuerza: ["Fuerza", "Movilidad"],
-};
-
 /** orden en que se muestran las categorías */
 export const CATEGORIAS: CategoriaEjercicio[] = [
   "Series y ritmo",
@@ -43,6 +37,14 @@ export const CATEGORIAS: CategoriaEjercicio[] = [
 ];
 
 type EjercicioDelProfe = { nombre: string; categoria: CategoriaEjercicio };
+
+export function categoriasDelCatalogo(ejercicios: readonly EjercicioDelProfe[], propias: readonly string[] = []) {
+  const categorias = new Map<string, string>();
+  for (const nombre of [...CATEGORIAS, ...propias, ...ejercicios.map((e) => e.categoria)]) {
+    if (nombre.trim()) categorias.set(claveEjercicio(nombre), nombre);
+  }
+  return [...categorias.values()];
+}
 
 /** Catálogo del profesor, sin opciones equivalentes repetidas. */
 export function catalogoCompleto(custom: readonly EjercicioDelProfe[]) {
