@@ -5,6 +5,7 @@ import { lanzarSiError } from "../common/errores";
 import type { Usuario } from "../common/tipos";
 import { SupabaseService } from "../supabase/supabase.service";
 import { TABLAS_DATOS, desdeFilas, type FilasCrudas } from "./mapeo";
+import { cargarCategorias } from "./categorias";
 
 type FilaInvitacion = {
   alumno_id: string;
@@ -61,6 +62,7 @@ export class DatosService {
       crudas[TABLAS_DATOS[i]] = r.data ?? [];
     });
     const datos = desdeFilas(crudas, u.id);
+    const categoriasEjercicio = await cargarCategorias(db, datos.ejerciciosCustom);
     if (u.rol === "coach") datos.alumnos = await this.conAcceso(db, datos.alumnos);
     const respuesta = {
       session: {
@@ -74,6 +76,7 @@ export class DatosService {
       carreras: datos.carreras,
       inscripciones: datos.inscripciones,
       ejerciciosCustom: datos.ejerciciosCustom,
+      categoriasEjercicio,
     };
     // lo que sale de la API también cumple el contrato
     return datosApiSchema.parse(respuesta);

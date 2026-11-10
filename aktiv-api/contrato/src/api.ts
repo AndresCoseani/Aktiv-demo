@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { alumnoSchema, crearAlumnoDto, actualizarAlumnoDto } from "./alumno";
-import { carreraSchema, crearCarreraDto, inscripcionSchema } from "./carrera";
+import { carreraSchema, crearCarreraDto, inscripcionSchema, objetivoCarreraSchema } from "./carrera";
 import {
   distanciaKmSchema,
   fechaISO,
@@ -105,6 +105,7 @@ export const altaInscripcionApi = z
     carreraId: uuidSchema,
     distanciaKm: distanciaKmSchema,
     objetivoSeg: tiempoSegSchema.nullable(),
+    objetivo: objetivoCarreraSchema.optional(),
   })
   .strict();
 
@@ -114,6 +115,7 @@ export const parcheInscripcionProfeApi = z
     distanciaKm: distanciaKmSchema,
     objetivoSeg: tiempoSegSchema.nullable(),
     resultadoSeg: tiempoSegSchema.nullable(),
+    objetivo: objetivoCarreraSchema,
   })
   .partial()
   .strict();
@@ -199,6 +201,7 @@ export const datosApiSchema = z.object({
   carreras: z.array(carreraSchema),
   inscripciones: z.array(inscripcionSchema),
   ejerciciosCustom: z.array(ejercicioCustomSchema),
+  categoriasEjercicio: z.array(z.string().min(1).max(80)).default([]),
 });
 
 /** Cuerpo de los errores de la API */

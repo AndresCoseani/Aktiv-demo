@@ -101,6 +101,7 @@ export const filaInscripcionSchema = z.object({
   carrera_id: id,
   distancia_km: num,
   objetivo_seg: num.nullable(),
+  objetivo: z.string().default(""),
   resultado_seg: num.nullable(),
 });
 

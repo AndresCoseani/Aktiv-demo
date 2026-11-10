@@ -7,7 +7,9 @@ import { ErrorApi } from "../common/errores";
  * ÚNICO punto de la API que usa la clave service_role (la llave maestra de
  * Supabase: se salta RLS). Reglas para no abusar de ella:
  *
- *  - Solo la importan CuentasService e InvitacionesService. Ningún otro módulo.
+ *  - La importan CuentasService, InvitacionesService y RegistroService.
+ *  - RegistroService crea la cuenta sin verificar el correo y una solicitud pendiente,
+ *    para el único coach o el configurado en servidor. No crea perfiles ni aprueba alumnos con esta clave.
  *  - Quien la usa comprueba ANTES, con el cliente del usuario (RLS), que quien
  *    hace el pedido es el profe dueño de ese alumno.
  *  - Solo sirve para: crear/borrar/ponerle contraseña a la cuenta de un alumno y

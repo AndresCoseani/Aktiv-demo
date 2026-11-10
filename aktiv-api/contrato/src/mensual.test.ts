@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, duplicarSesionApi, duplicarPlanApi, type CeldaSemanal } from "./mensual";
+import { diasInicialesSchema, actividadesIniciales, prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, duplicarSesionApi, duplicarPlanApi, type CeldaSemanal } from "./mensual";
 const celdas = ["4×8", "", "5×8", ""].map((prescripcion, i): CeldaSemanal => ({ semana: i + 1, prescripcion, peso: String(i + 10), pesoFecha: null }));
 describe("plan mensual", () => {
   it("copia planes con destino y fecha válidos sin permitir activar ni sobrescribir contenido", () => {
@@ -22,6 +22,12 @@ describe("plan mensual", () => {
     expect(parcheSesionApi.parse({ nombre: "Día 1" })).toEqual({ nombre: "Día 1" });
     expect(parcheSesionApi.safeParse({ activacion: [...activacion, ...activacion] }).success).toBe(false);
     expect(parcheSesionApi.safeParse({ activacion: [{ ...activacion[0], indicacion: "x".repeat(301) }] }).success).toBe(false);
+  });
+  it("separa fases sin reclasificar ejercicios anteriores y rechaza fases desconocidas", () => {
+    const e = { id: "a0000000-0000-4000-8000-000000000001", nombre: "Tobillo", indicacion: "10 rep" };
+    expect(parcheSesionApi.parse({ activacion: [e] }).activacion![0].fase).toBeUndefined();
+    for (const fase of ["Movilidad", "Activación"]) expect(parcheSesionApi.safeParse({ activacion: [{ ...e, fase }] }).success).toBe(true);
+    expect(parcheSesionApi.safeParse({ activacion: [{ ...e, fase: "Otra" }] }).success).toBe(false);
   });
   it("guarda bloques vacíos en orden sin agregarlos a parches de otros campos", () => {
     expect(parcheSesionApi.parse({ bloques: [7, 1] })).toEqual({ bloques: [7, 1] });
@@ -74,6 +80,13 @@ describe("plan mensual", () => {
     expect(altaSesionApi.safeParse(base).success).toBe(true);
     expect(altaSesionApi.safeParse({ ...base, dia: null }).success).toBe(true);
     expect(altaSesionApi.safeParse({ ...base, dia: 0 }).success).toBe(false);
-    expect(altaSesionApi.safeParse({ ...base, tipo: "Otro" }).success).toBe(false);
+    expect(altaSesionApi.safeParse({ ...base, tipo: "Movilidad" }).success).toBe(true);
+    expect(altaSesionApi.safeParse({ ...base, tipo: " " }).success).toBe(false);
+    expect(altaSesionApi.safeParse({ ...base, tipo: "x".repeat(81) }).success).toBe(false);
+  });
+  it("admite actividades libres, conserva formato anterior y rechaza duplicados o exceso", () => {
+    expect(actividadesIniciales(diasInicialesSchema.parse({ fuerza: 1, running: 0 }))).toEqual([{ tipo: "Fuerza", dias: 1 }]);
+    expect(diasInicialesSchema.parse([{ tipo: " Movilidad   suave ", dias: 2 }])).toEqual([{ tipo: "Movilidad suave", dias: 2 }]);
+    for (const dato of [[], [{ tipo: "A", dias: 1 }, { tipo: "a", dias: 1 }], Array.from({ length: 5 }, (_, i) => ({ tipo: String(i), dias: 7 }))]) expect(diasInicialesSchema.safeParse(dato).success).toBe(false);
   });
 });

@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   diasHasta,
+  diaDeHoy,
   edadDesde,
   formatRitmo,
   formatTiempo,
+  formatFechaLarga,
   hoyISO,
   parseISO,
   parseTiempo,
@@ -39,6 +41,11 @@ describe("tiempos de carrera", () => {
 });
 
 describe("fechas", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-10T01:33:00Z")); // 9 de noviembre, 22:33 en Argentina
+  });
+  afterEach(() => vi.useRealTimers());
   it("parseISO usa hora local (no corre un día)", () => {
     const d = parseISO("2026-10-18");
     expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 9, 18]);
@@ -54,6 +61,24 @@ describe("fechas", () => {
     expect(diasHasta(sumarDias(-3))).toBe(-3);
   });
 
+  it("usa el día argentino para hoy, sumas, edad y encabezados aunque UTC ya sea mañana", () => {
+    expect(hoyISO()).toBe("2026-11-09");
+    expect(sumarDias(0)).toBe("2026-11-09");
+    expect(sumarDias(5)).toBe("2026-11-14");
+    expect(sumarMeses(1)).toBe("2026-12-09");
+    expect(diaDeHoy()).toBe(0);
+    expect(formatFechaLarga()).toBe("Lunes, 9 de noviembre");
+    expect(edadDesde("1996-11-09")).toBe(30);
+    expect(edadDesde("1996-11-10")).toBe(29);
+  });
+
+  it("cambia de día a medianoche argentina", () => {
+    vi.setSystemTime(new Date("2026-11-10T03:00:00Z"));
+    expect(hoyISO()).toBe("2026-11-10");
+    expect(sumarDias(0)).toBe("2026-11-10");
+    expect(diaDeHoy()).toBe(1);
+  });
+
   it("suma meses de calendario y no se pasa de fin de mes", () => {
     expect(sumarMeses(1, parseISO("2026-10-19"))).toBe("2026-11-19");
     expect(sumarMeses(1, parseISO("2026-12-31"))).toBe("2027-01-31");
@@ -63,7 +88,7 @@ describe("fechas", () => {
   });
 
   it("calcula la edad cumplida", () => {
-    const hoy = new Date();
+    const hoy = parseISO(hoyISO());
     const cumpleHaceTreinta = `${hoy.getFullYear() - 30}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
     expect(edadDesde(cumpleHaceTreinta)).toBe(30);
     expect(edadDesde(sumarDias(-1, parseISO(cumpleHaceTreinta)))).toBe(30);

@@ -288,18 +288,18 @@ function InscriptosLista({ carrera }: { carrera: Carrera }) {
       {filas.length ? (
         <ul className="max-h-72 divide-y overflow-y-auto rounded-lg border">
           {filas.map(({ i, alumno }) => (
-            <li key={i.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm">
+            <li key={i.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-sm">
               <Link href={`/alumnos/${alumno.id}`} className="min-w-0 truncate font-medium hover:underline">
                 {alumno.nombre}
               </Link>
-              <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+              <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2 break-words text-xs text-muted-foreground">
                 <Badge variant="outline" className="h-5 px-1.5">
                   {distanciaLabel(i.distanciaKm)}
                 </Badge>
                 {i.resultadoSeg
                   ? formatTiempo(i.resultadoSeg)
-                  : i.objetivoSeg
-                    ? `Obj. ${formatTiempo(i.objetivoSeg)}`
+                  : (i.objetivo || i.objetivoSeg)
+                    ? <span className="min-w-0 break-words">Obj. {i.objetivo || formatTiempo(i.objetivoSeg!)}</span>
                     : "—"}
               </span>
             </li>
@@ -397,7 +397,7 @@ function CarreraForm({ editando, onClose }: { editando: Carrera | null; onClose:
         .filter((km) => !kms.some((k) => Math.abs(k - km) < 0.001));
       if (enUso.length) {
         setError(
-          `Hay alumnos anotados en ${[...new Set(enUso)].map(distanciaLabel).join(", ")}. Sacalos de esa distancia primero.`,
+          `Hay alumnos anotados en ${[...new Set(enUso)].map(distanciaLabel).join(", ")}. Cambiá su inscripción a otra distancia disponible antes de quitarla.`,
         );
         return;
       }
@@ -468,6 +468,7 @@ function CarreraForm({ editando, onClose }: { editando: Carrera | null; onClose:
             setError("");
           }}
         />
+        <p className="text-xs text-muted-foreground">Podés agregar distancias o quitar las que no tengan alumnos inscriptos.</p>
       </div>
 
       <div className="space-y-2">
@@ -641,10 +642,10 @@ function InscripcionItem({
               {c.lugar}
             </span>
           )}
-          {i.objetivoSeg && (
-            <span className="inline-flex items-center gap-1 tabular-nums">
+          {(i.objetivo || i.objetivoSeg) && (
+            <span className="inline-flex min-w-0 max-w-full items-start gap-1">
               <Timer className="size-3" />
-              Objetivo {formatTiempo(i.objetivoSeg)}
+              <span className="min-w-0 break-words">Objetivo {i.objetivo || formatTiempo(i.objetivoSeg!)}</span>
             </span>
           )}
         </p>
@@ -767,20 +768,16 @@ function AsignarForm({ alumno, propia, onClose }: { alumno: Alumno; propia: bool
   function enviar(e: React.FormEvent) {
     e.preventDefault();
     if (!carrera || kmElegido === null) return;
-    const objetivoSeg = objetivo.trim() ? parseTiempo(objetivo) : null;
-    if (objetivo.trim() && !objetivoSeg) {
-      setError("El tiempo objetivo va como mm:ss o h:mm:ss.");
-      return;
-    }
+    const objetivoSeg = null;
     const v = validar(inscribirAlumnoDto(carrera.distanciasKm), {
       distanciaKm: kmElegido,
-      objetivoSeg,
+      objetivoSeg, objetivo,
     });
     if (!v.ok) {
       setError(v.error);
       return;
     }
-    inscribirAlumno(alumno.id, carrera.id, v.datos.distanciaKm, v.datos.objetivoSeg);
+    inscribirAlumno(alumno.id, carrera.id, v.datos.distanciaKm, v.datos.objetivoSeg, v.datos.objetivo);
     onClose();
   }
 
@@ -879,7 +876,7 @@ function AsignarForm({ alumno, propia, onClose }: { alumno: Alumno; propia: bool
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="a-objetivo">Tiempo objetivo</Label>
+          <Label htmlFor="a-objetivo">Objetivo</Label>
           <Input
             id="a-objetivo"
             value={objetivo}
@@ -887,8 +884,7 @@ function AsignarForm({ alumno, propia, onClose }: { alumno: Alumno; propia: bool
               setObjetivo(e.target.value);
               setError("");
             }}
-            placeholder="Opcional · h:mm:ss"
-            inputMode="numeric"
+            placeholder="Opcional · Ej: terminar cómodo, bajar de 50 min" maxLength={500}
             autoComplete="off"
             className="tabular-nums"
           />
@@ -924,7 +920,7 @@ function EditarInscripcionForm({
   const carrera = carreras.find((c) => c.id === inscripcion.carreraId);
   const [km, setKm] = useState(inscripcion.distanciaKm);
   const [objetivo, setObjetivo] = useState(
-    inscripcion.objetivoSeg ? formatTiempo(inscripcion.objetivoSeg) : "",
+    inscripcion.objetivo || (inscripcion.objetivoSeg ? formatTiempo(inscripcion.objetivoSeg) : ""),
   );
   const [error, setError] = useState("");
 
@@ -936,21 +932,17 @@ function EditarInscripcionForm({
 
   function enviar(e: React.FormEvent) {
     e.preventDefault();
-    const objetivoSeg = objetivo.trim() ? parseTiempo(objetivo) : null;
-    if (objetivo.trim() && !objetivoSeg) {
-      setError("El tiempo objetivo va como mm:ss o h:mm:ss.");
-      return;
-    }
+    const objetivoSeg = null;
     const v = validar(
       inscribirAlumnoDto(carrera?.distanciasKm ?? [inscripcion.distanciaKm]),
-      { distanciaKm: puedeCambiarDistancia ? km : inscripcion.distanciaKm, objetivoSeg },
+      { distanciaKm: puedeCambiarDistancia ? km : inscripcion.distanciaKm, objetivoSeg, objetivo },
     );
     if (!v.ok) {
       setError(v.error);
       return;
     }
     actualizarInscripcion(inscripcion.id, {
-      objetivoSeg: v.datos.objetivoSeg,
+      objetivoSeg: v.datos.objetivoSeg, objetivo: v.datos.objetivo,
       ...(puedeCambiarDistancia ? { distanciaKm: v.datos.distanciaKm } : {}),
     });
     onClose();
@@ -960,7 +952,7 @@ function EditarInscripcionForm({
     <form onSubmit={enviar} className="space-y-4">
       <DialogHeader>
         <DialogTitle>{carrera?.nombre ?? "Carrera"}</DialogTitle>
-        <DialogDescription>Distancia y tiempo objetivo.</DialogDescription>
+        <DialogDescription>Distancia y objetivo de la carrera.</DialogDescription>
       </DialogHeader>
       {puedeCambiarDistancia && (
         <div className="space-y-2">
@@ -980,7 +972,7 @@ function EditarInscripcionForm({
         </div>
       )}
       <div className="space-y-2">
-        <Label htmlFor="e-objetivo">Tiempo objetivo</Label>
+        <Label htmlFor="e-objetivo">Objetivo</Label>
         <Input
           id="e-objetivo"
           value={objetivo}
@@ -988,7 +980,7 @@ function EditarInscripcionForm({
             setObjetivo(e.target.value);
             setError("");
           }}
-          placeholder="Opcional · h:mm:ss"
+          placeholder="Opcional · Ej: terminar cómodo, bajar de 50 min" maxLength={500}
           inputMode="numeric"
           autoComplete="off"
           className="tabular-nums"

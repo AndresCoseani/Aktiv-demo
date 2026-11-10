@@ -85,7 +85,7 @@ describe("Planes mensuales (Supabase local)", () => {
   });
   it("duplica un día completo en seis semanas con IDs nuevos, sin pesos y sin modificar el original", async () => {
     const activacionId = uuid();
-    expect((await A.patch(`/api/sesiones/${sesion}`, { bloques: [2, 1, 3], activacion: [{ id: activacionId, nombre: "Movilidad", indicacion: "Opcional" }] })).status).toBe(200);
+    expect((await A.patch(`/api/sesiones/${sesion}`, { bloques: [2, 1, 3], activacion: [{ id: activacionId, nombre: "Movilidad", indicacion: "Opcional", fase: "Movilidad" }] })).status).toBe(200);
     const antes = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body[0];
     const original = antes.sesiones.find((s: { id: string }) => s.id === sesion);
     const copiaId = uuid();
@@ -188,11 +188,11 @@ describe("Planes mensuales (Supabase local)", () => {
     expect((await A.post(`/api/planes-mensuales/${plan}/duplicar`, { ...dto, id: rechazada, alumnoId: destino })).status).toBe(422);
     expect((await env.admin.from("planes_mensuales").select("id").eq("id", rechazada)).data).toEqual([]);
   });
-  it("activar otro mes desactiva el anterior; borrar sesión borra sus ejercicios y pesos", async () => {
+  it("activar otro mes conserva el anterior; borrar sesión borra sus ejercicios y pesos", async () => {
     const siguiente = uuid();
     expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: siguiente, nombre: "Diciembre", inicio: "2026-12-01", activo: true })).status).toBe(201);
     const r = await A.get(`/api/alumnos/${alumno}/planes-mensuales`);
-    expect(r.body.filter((p: { activo: boolean }) => p.activo)).toHaveLength(1);
+    expect(r.body.filter((p: { activo: boolean }) => p.activo)).toHaveLength(2);
     expect(r.body.find((p: { id: string }) => p.id === siguiente).activo).toBe(true);
     expect((await A.delete(`/api/sesiones/${sesion}`)).status).toBe(204);
     const c = await env.admin.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejercicio);

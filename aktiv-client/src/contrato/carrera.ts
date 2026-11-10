@@ -10,6 +10,7 @@ import {
 } from "./comunes";
 
 const mismaDistancia = (a: number, b: number) => Math.abs(a - b) < 0.001;
+export const objetivoCarreraSchema = textoOpcional(500, "El objetivo");
 
 /** Carrera del calendario del profe: se carga una vez y después se asignan alumnos */
 export const carreraSchema = z.object({
@@ -39,6 +40,7 @@ export const inscripcionSchema = z.object({
   distanciaKm: distanciaKmSchema,
   /** tiempo que quiere hacer */
   objetivoSeg: tiempoSegSchema.nullable(),
+  objetivo: objetivoCarreraSchema.default(""),
   /** tiempo real, una vez corrida */
   resultadoSeg: tiempoSegSchema.nullable(),
 });
@@ -59,6 +61,7 @@ export const inscribirAlumnoDto = (distanciasDisponibles: number[]) =>
       "Esa distancia no está disponible en la carrera",
     ),
     objetivoSeg: tiempoSegSchema.nullable(),
+    objetivo: objetivoCarreraSchema.default(""),
   });
 
 /** Tiempo oficial de una carrera ya corrida */

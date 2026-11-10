@@ -32,6 +32,7 @@ export type Datos = {
   carreras: Carrera[];
   inscripciones: Inscripcion[];
   ejerciciosCustom: EjercicioCustom[];
+  categoriasEjercicio?: string[];
   /** alumno vinculado a la cuenta, si el usuario es alumno */
   alumnoIdPropio?: string;
 };
@@ -80,6 +81,7 @@ export async function cargarDatos(): Promise<Datos> {
     carreras: d.carreras,
     inscripciones: d.inscripciones,
     ejerciciosCustom: d.ejerciciosCustom,
+    categoriasEjercicio: d.categoriasEjercicio,
     alumnoIdPropio: d.session.alumnoId,
   };
 }
@@ -218,6 +220,7 @@ function aEntidades(d: Omit<Datos, "alumnoIdPropio">): Entidades {
       carreraId: i.carreraId,
       distanciaKm: i.distanciaKm,
       objetivoSeg: i.objetivoSeg,
+      objetivo: i.objetivo,
       resultadoSeg: i.resultadoSeg,
     });
   }
@@ -334,6 +337,7 @@ async function enviar(prev: Entidades, act: Entidades) {
         carreraId: i.carreraId,
         distanciaKm: i.distanciaKm,
         objetivoSeg: i.objetivoSeg,
+        objetivo: i.objetivo,
       }),
     (id, i) => prev.inscripciones.set(id, { ...i, resultadoSeg: null }),
   );
@@ -386,7 +390,7 @@ async function enviar(prev: Entidades, act: Entidades) {
   );
   parchar(prev.custom, act.custom, ["nombre", "categoria"], (id) => `/catalogo/ejercicios/${id}`);
   parchar(prev.carreras, act.carreras, ["nombre", "fecha", "lugar", "distanciasKm", "notas"], (id) => `/carreras/${id}`);
-  parchar(prev.inscripciones, act.inscripciones, ["distanciaKm", "objetivoSeg", "resultadoSeg"], (id) => `/inscripciones/${id}`);
+  parchar(prev.inscripciones, act.inscripciones, ["distanciaKm", "objetivoSeg", "objetivo", "resultadoSeg"], (id) => `/inscripciones/${id}`);
   await Promise.all(parches);
 
   // ---- bajas (hijos antes que padres)

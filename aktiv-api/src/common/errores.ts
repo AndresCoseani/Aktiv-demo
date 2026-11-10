@@ -45,6 +45,12 @@ export function errorDeDb(e: ErrorDb): HttpException {
 }
 
 function traducirErrorDeDb(e: ErrorDb): HttpException {
+  if (["PGRST202","PGRST205","42P01","42883"].includes(e.code??"") && /\b(solicitudes_alta|completar_registro_alumno|aprobar_registro_alumno)\b/.test(e.message)) return new ErrorApi(503,"registro_esquema_desactualizado","Falta aplicar la migración 49 para habilitar las solicitudes de alta.");
+  if (["PGRST202", "PGRST205", "42P01", "42883"].includes(e.code ?? "") && /\b(actividades_plan|crear_plan_con_actividades)\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "actividades_esquema_desactualizado", "Falta aplicar la migración 48 para habilitar actividades libres y planes simultáneos.");
+  if (["PGRST202", "PGRST205", "42P01", "42883"].includes(e.code ?? "") && /\b(planes_modelo|asignar_plan_modelo)\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "modelos_esquema_desactualizado", "Para habilitar la biblioteca de planes falta aplicar la migración 47. Los planes de los alumnos siguen disponibles.");
+  if (["PGRST204", "42703"].includes(e.code ?? "") && /\bobjetivo\b/.test(e.message) && /\binscripciones\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "objetivo_esquema_desactualizado", "Para guardar objetivos de texto falta aplicar la migración 46.");
+  if (e.code === "23514" && /\bsesiones_activacion_valida\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "fases_esquema_desactualizado", "Revisá la migración 45 para guardar movilidad y activación por separado.");
+  if (/\b(crear_categoria_ejercicio|categorias_ejercicio)\b/.test(e.message) && ["PGRST202", "PGRST205", "42P01", "42883"].includes(e.code ?? "")) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "categorias_esquema_desactualizado", "Para crear categorías nuevas falta aplicar la migración 44. Tus ejercicios y planes actuales siguen disponibles.");
   if (/\bseguimientos_sesion\b/.test(e.message) && ["PGRST205", "42P01"].includes(e.code ?? "")) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "seguimiento_esquema_desactualizado", "Falta habilitar el seguimiento. Aplicá la migración 43 y reintentá.");
   switch (e.code) {
     case "PGRST202":

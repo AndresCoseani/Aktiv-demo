@@ -99,6 +99,8 @@ jobs:
           cache-dependency-path: aktiv-api/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - name: Verificar coordinación del arranque local
+        run: node --test ../scripts/dev.test.mjs
       - run: npm test
       - name: Build API y contrato (nest build)
         run: npm run build
@@ -124,6 +126,10 @@ jobs:
       - run: npm run contrato:check
       - run: npm run lint
       - run: npm test
+      - name: Verificar fechas también con zona argentina
+        env:
+          TZ: America/Argentina/Buenos_Aires
+        run: npx vitest run src/lib/format.test.ts
       - name: Build frontend de producción (next build)
         run: npm run build
       - run: npm run typecheck
@@ -174,7 +180,10 @@ jobs:
           test "$listo" = 1
           node scripts/lucas.browser.mjs
           node scripts/recuperacion.browser.mjs
-          for modo in '' --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --bloques-vacios --bloques --responsive; do
+          node scripts/carga-sesion.browser.mjs
+          node scripts/manual.browser.mjs
+          node scripts/registro.browser.mjs
+          for modo in '' --simultaneos --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --catalogo --calentamiento --movilidad --carreras --modelos --bloques-vacios --bloques --responsive; do
             node scripts/mensual.browser.mjs $modo
           done
 
@@ -204,6 +213,9 @@ jobs:
           node -e 'const fs=require("fs"); const s=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/supabase-local.json")); fs.writeFileSync("test/.env.test",`SUPABASE_URL=${s.API_URL}\nSUPABASE_ANON_KEY=${s.ANON_KEY}\nSUPABASE_SERVICE_ROLE_KEY=${s.SERVICE_ROLE_KEY}\n`);'
       - run: npm run test:e2e
       - run: npm run test:db
+      - name: Verificar fecha argentina y reparación de altas (con rollback)
+        run: |
+          node -e 'const fs=require("fs"); const m=fs.readFileSync("supabase/migrations/20261119000000_fecha_alta_argentina.sql","utf8").replace(/^begin;\r?$/m,"").replace(/^commit;\r?$/m,""); process.stdout.write(fs.readFileSync("test/fecha-alta.sql","utf8").replace("-- MIGRACION_50",m));' | docker exec -i supabase_db_aktiv_prototipe psql -U postgres -d postgres -v ON_ERROR_STOP=1
       - name: Apagar entorno local
         if: always()
         run: if command -v supabase >/dev/null; then supabase stop --no-backup; fi

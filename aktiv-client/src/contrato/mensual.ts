@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { fechaISO, pesoSchema, textoOpcional } from "./comunes";
-import { tipoPlanSchema } from "./plan";
 import { hoyISO, sumarDiasISO } from "./fechas";
 
 /** Tope técnico de tamaño, no una duración de entrenamiento recomendada. */
@@ -11,11 +10,12 @@ export function semanasDelPlan(cantidad: number) {
 }
 export const DIAS_PLAN = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const;
 const id = z.uuid("Identificador inválido");
+export const actividadPlanSchema = z.string().trim().min(1, "Escribí la actividad").max(80).transform((s) => s.replace(/\s+/g, " "));
 const inicio = fechaISO.refine((f) => f >= "2000-01-01" && f <= "2100-01-01", "Fecha fuera de rango");
 export const numeroSemanaSchema = cantidadSemanasSchema;
 export const bloquesSesionSchema = z.array(z.number().int().min(1).max(20)).max(20)
   .refine((bloques) => new Set(bloques).size === bloques.length, "Bloque repetido");
-export const ejercicioActivacionSchema = z.object({ id, nombre: textoOpcional(120), indicacion: textoOpcional(300) }).strict();
+export const ejercicioActivacionSchema = z.object({ id, nombre: textoOpcional(120), indicacion: textoOpcional(300), fase: z.enum(["Movilidad", "Activación"]).optional() }).strict();
 export const activacionSesionSchema = z.array(ejercicioActivacionSchema).max(20)
   .refine((ejercicios) => new Set(ejercicios.map((e) => e.id)).size === ejercicios.length, "Ejercicio de activación repetido");
 export const celdaSemanalSchema = z.object({
@@ -31,7 +31,7 @@ export const ejercicioMensualSchema = z.object({
 });
 export const sesionEntrenamientoSchema = z.object({
   franja: z.enum(["Mañana", "Tarde", "Noche", "Sin definir"]).default("Sin definir"),
-  id, dia: z.number().int().min(1).max(7).nullable(), tipo: tipoPlanSchema,
+  id, dia: z.number().int().min(1).max(7).nullable(), tipo: actividadPlanSchema,
   nombre: textoOpcional(60), calentamiento: textoOpcional(4000), enfriamiento: textoOpcional(4000),
   orden: z.number().int(), ejercicios: z.array(ejercicioMensualSchema),
   bloques: bloquesSesionSchema.default([]),
@@ -45,10 +45,16 @@ export const planMensualSchema = z.object({
 export const planesMensualesRespuesta = z.array(planMensualSchema);
 const noVacio = <S extends z.ZodRawShape>(shape: S) => z.object(shape).partial().strict()
   .refine((v) => Object.keys(v).length > 0, "No hay cambios para guardar");
-export const diasInicialesSchema = z.object({
+const diasClasicosSchema = z.object({
   fuerza: z.number().int().min(0).max(7),
   running: z.number().int().min(0).max(7),
 }).strict().refine((d) => d.fuerza + d.running > 0, "Elegí al menos un día de entrenamiento");
+export const diasInicialesSchema = z.union([diasClasicosSchema, z.array(z.object({ tipo: actividadPlanSchema, dias: z.number().int().min(1).max(7) }).strict()).min(1, "Elegí al menos una actividad").max(28)
+  .refine((a) => a.reduce((n, v) => n + v.dias, 0) <= 28, "Máximo 28 entrenamientos por plan")
+  .refine((a) => new Set(a.map((v) => v.tipo.toLocaleLowerCase("es"))).size === a.length, "Actividad repetida")], { error: "Revisá las actividades y la cantidad de días" });
+export function actividadesIniciales(dias: z.infer<typeof diasInicialesSchema>) {
+  return Array.isArray(dias) ? dias : [{ tipo: "Fuerza", dias: dias.fuerza }, { tipo: "Running", dias: dias.running }].filter((v) => v.dias > 0);
+}
 export const altaMensualApi = planMensualSchema.pick({ id: true, nombre: true, inicio: true, activo: true, semanas: true })
   .extend({ diasIniciales: diasInicialesSchema.optional() }).strict();
 // No heredar el default en un PATCH: no mandar duración nunca debe cambiarla.

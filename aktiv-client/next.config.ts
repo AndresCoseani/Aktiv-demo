@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
  * NestJS. Así las cookies de sesión son del mismo sitio (httpOnly,
  * SameSite=Lax) y no hace falta CORS ni exponer la URL de la API.
  */
-const API_URL = (process.env.API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const API_URL = (process.env.API_URL ?? "http://127.0.0.1:4000").replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
   // Verificación en paralelo sin compartir los artefactos del servidor de Andrés.

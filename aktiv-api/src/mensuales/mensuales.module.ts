@@ -5,6 +5,7 @@ import {
   parcheSesionApi, parcheEjercicioMensualApi, parcheCeldaAlumnoApi, parcheCeldaProfeApi,
   planesMensualesRespuesta, uuidSchema, duplicarSesionApi, duplicarPlanApi,
   MAX_SEMANAS_PLAN,
+  actividadesIniciales, diasInicialesSchema,
   guardarSeguimientoApi, seguimientoRespuesta,
 } from "@aktiv/contrato";
 import { Roles } from "../auth/guards";
@@ -23,6 +24,12 @@ type Recurso = keyof typeof TABLAS;
 @Injectable()
 export class MensualesService {
   constructor(private readonly supa: SupabaseService) {}
+
+  private async verificarActivacion(db: Db) {
+    // No permitir que una base anterior a 48 desactive otros planes silenciosamente.
+    const r = await db.from("actividades_plan").select("nombre").limit(0);
+    lanzarSiError(r.error);
+  }
 
   private async existe(db: Db, tabla: string, recursoId: string) {
     const r = await db.from(tabla).select("*").eq("id", recursoId).maybeSingle();
@@ -78,6 +85,7 @@ export class MensualesService {
     );
     if (recurso === "plan") await asegurarAlumno(db, padreId);
     else await this.existe(db, recurso === "sesion" ? TABLAS.plan : TABLAS.sesion, padreId);
+    if (recurso === "plan" && (dto as { activo?: boolean }).activo) await this.verificarActivacion(db);
     const conteo = await db.from(tabla).select("id", { count: "exact", head: true }).eq(columna, padreId);
     lanzarSiError(conteo.error);
     const max = recurso === "plan" ? 50 : recurso === "sesion" ? 28 : 100;
@@ -85,9 +93,11 @@ export class MensualesService {
     const ultimo = await db.from(tabla).select("orden").eq(columna, padreId).order("orden", { ascending: false }).limit(1);
     lanzarSiError(ultimo.error);
     const orden = (ultimo.data?.[0]?.orden ?? -1) + 1;
-    const { diasIniciales, ...campos } = dto as typeof dto & { diasIniciales?: { fuerza: number; running: number } };
+    const { diasIniciales, ...campos } = dto as typeof dto & { diasIniciales?: z.infer<typeof diasInicialesSchema> };
     const r = recurso === "plan" && diasIniciales
-      ? await db.rpc("crear_plan_con_dias", { p_plan: { ...campos, alumno_id: padreId, orden }, p_fuerza: diasIniciales.fuerza, p_running: diasIniciales.running })
+      ? Array.isArray(diasIniciales)
+        ? await db.rpc("crear_plan_con_actividades", { p_plan: { ...campos, alumno_id: padreId, orden }, p_actividades: actividadesIniciales(diasIniciales) })
+        : await db.rpc("crear_plan_con_dias", { p_plan: { ...campos, alumno_id: padreId, orden }, p_fuerza: diasIniciales.fuerza, p_running: diasIniciales.running })
       : await db.from(tabla).insert({ ...campos, [columna]: padreId, orden });
     lanzarSiError(r.error);
     return { id: dto.id };
@@ -95,6 +105,7 @@ export class MensualesService {
 
   async parchear(u: Usuario, recurso: Recurso, recursoId: string, body: unknown) {
     const dto = validarOLanzar(recurso === "plan" ? parcheMensualApi : recurso === "sesion" ? parcheSesionApi : parcheEjercicioMensualApi, body);
+    if (recurso === "plan" && (dto as { activo?: boolean }).activo) await this.verificarActivacion(this.supa.delUsuario(u.token));
     await actualizarUno(this.supa.delUsuario(u.token), TABLAS[recurso], "id", recursoId, dto, "El recurso");
     return { id: recursoId };
   }
@@ -199,5 +210,5 @@ export class MensualesController {
   celda(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string, @Param("semana", numeroSemana()) semana: number, @Body() body: unknown) { return this.servicio.celda(u, recurso, semana, body); }
 }
 
-@Module({ controllers: [MensualesController], providers: [MensualesService] })
+@Module({ controllers: [MensualesController], providers: [MensualesService], exports: [MensualesService] })
 export class MensualesModule {}

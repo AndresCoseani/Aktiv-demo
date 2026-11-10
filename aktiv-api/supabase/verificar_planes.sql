@@ -192,6 +192,50 @@ with comprobaciones(migracion, descripcion, pieza, ok) as (values
     and coalesce(has_table_privilege('authenticated',to_regclass('public.seguimientos_sesion'),'UPDATE'),false)
     and not coalesce(has_table_privilege('authenticated',to_regclass('public.seguimientos_sesion'),'DELETE'),true)
     and not coalesce(has_table_privilege('anon',to_regclass('public.seguimientos_sesion'),'SELECT,INSERT,UPDATE,DELETE'),true))
+  ,(44, 'Categorías de ejercicios', 'tabla y RLS',
+    exists(select 1 from pg_class where oid=to_regclass('public.categorias_ejercicio') and relrowsecurity))
+  ,(44, 'Categorías de ejercicios', 'políticas de lectura y creación',
+    (select count(*)=2 from pg_policies where schemaname='public' and tablename='categorias_ejercicio' and policyname in ('categorias_leer','categorias_crear')))
+  ,(44, 'Categorías de ejercicios', 'función de alta y permisos',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.crear_categoria_ejercicio(text)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.crear_categoria_ejercicio(text)'),'EXECUTE'),true))
+  ,(44, 'Categorías de ejercicios', 'categorías abiertas en el catálogo',
+    exists(select 1 from pg_constraint where conrelid=to_regclass('public.ejercicios_custom') and conname='ejercicios_custom_categoria_valida' and pg_get_constraintdef(oid) like '%char_length%'))
+  ,(45, 'Movilidad y activación', 'validador de fases',
+    exists(select 1 from pg_proc where oid=to_regprocedure('public.activacion_sesion_valida(jsonb)') and prosrc like '%fase%'))
+  ,(46, 'Objetivo libre de carrera', 'columna de texto y límite',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='inscripciones' and column_name='objetivo' and data_type='text' and is_nullable='NO'))
+  ,(46, 'Objetivo libre de carrera', 'edición propia del alumno',
+    exists(select 1 from pg_proc where oid=to_regprocedure('public.inscripciones_limitar_alumno()') and prosrc like '%''objetivo''%'))
+  ,(47, 'Biblioteca de planes', 'tabla privada con RLS',
+    exists(select 1 from pg_class where oid=to_regclass('public.planes_modelo') and relrowsecurity))
+  ,(47, 'Biblioteca de planes', 'política de modelos propios',
+    exists(select 1 from pg_policies where schemaname='public' and tablename='planes_modelo' and policyname='modelos_propios'))
+  ,(47, 'Biblioteca de planes', 'asignación y permisos',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.asignar_plan_modelo(uuid,uuid,uuid,text,date)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.asignar_plan_modelo(uuid,uuid,uuid,text,date)'),'EXECUTE'),true))
+  ,(48, 'Actividades y planes simultáneos', 'catálogo privado y RLS',
+    exists(select 1 from pg_class where oid=to_regclass('public.actividades_plan') and relrowsecurity)
+    and exists(select 1 from pg_policies where schemaname='public' and tablename='actividades_plan' and policyname='actividades_propias'))
+  ,(48, 'Actividades y planes simultáneos', 'sin reemplazo automático ni índice exclusivo',
+    to_regclass('public.planes_mensuales_un_activo') is null
+    and not exists(select 1 from pg_trigger where tgrelid=to_regclass('public.planes_mensuales') and tgname='planes_mensuales_un_activo_trg' and not tgisinternal))
+  ,(48, 'Actividades y planes simultáneos', 'creación atómica y actividades libres',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.crear_plan_con_actividades(jsonb,jsonb)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.crear_plan_con_actividades(jsonb,jsonb)'),'EXECUTE'),true)
+    and exists(select 1 from pg_constraint where conrelid=to_regclass('public.sesiones') and conname='sesiones_tipo_check' and pg_get_constraintdef(oid) like '%char_length%'))
+  ,(49, 'Registro con aprobación', 'solicitudes privadas con RLS y sin vencimiento',
+    exists(select 1 from pg_class where oid=to_regclass('public.solicitudes_alta') and relrowsecurity)
+    and exists(select 1 from pg_policies where schemaname='public' and tablename='solicitudes_alta' and policyname='solicitudes_del_profesor'))
+  ,(49, 'Registro con aprobación', 'alta verificada solo desde servidor y aprobación autenticada',
+    coalesce(has_function_privilege('service_role',to_regprocedure('public.completar_registro_alumno(uuid,uuid)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('authenticated',to_regprocedure('public.completar_registro_alumno(uuid,uuid)'),'EXECUTE'),true)
+    and coalesce(has_function_privilege('authenticated',to_regprocedure('public.aprobar_registro_alumno(uuid)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.aprobar_registro_alumno(uuid)'),'EXECUTE'),true))
+  ,(50, 'Fecha de alta en Argentina', 'valor por defecto con zona horaria explícita',
+    exists(select 1 from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+      where d.adrelid=to_regclass('public.alumnos') and a.attname='alta_en'
+        and pg_get_expr(d.adbin,d.adrelid) like '%America/Argentina/Buenos_Aires%'))
 )
 select migracion, descripcion,
   case when bool_and(ok) then 'OK' when bool_or(ok=false) then 'REVISAR' else 'MANUAL' end as estado,

@@ -19,6 +19,8 @@ import { DatosModule } from "./datos/datos.service";
 import { HealthModule } from "./health/health.module";
 import { PlanesModule } from "./planes/planes.module";
 import { MensualesModule } from "./mensuales/mensuales.module";
+import { ModelosModule } from "./modelos/modelos.module";
+import { ActividadesModule } from "./actividades/actividades.module";
 import { SupabaseModule } from "./supabase/supabase.service";
 import { AgendaModule } from "./agenda/agenda.module";
 import { RegistroCierre } from "./common/observabilidad";
@@ -45,6 +47,8 @@ export function crearAppModule(env: Env, opciones: { mail?: Mail } = {}) {
       AgendaModule,
       PlanesModule,
       MensualesModule,
+      ModelosModule,
+      ActividadesModule,
       CarrerasModule,
       CertificadosModule,
       InvitacionesModule,

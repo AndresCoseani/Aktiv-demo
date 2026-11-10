@@ -1,6 +1,13 @@
 import { ErrorApi, errorDeDb } from "./errores";
 
 describe("diagnóstico seguro de errores de base", () => {
+  it("identifica las migraciones de fases y objetivo de texto sin filtrar filas", () => {
+    expect(errorDeDb({ code: "PGRST204", message: "Could not find the 'objetivo' column of 'inscripciones'" }).message).toContain("46");
+    expect(errorDeDb({ code: "23514", message: 'violates check constraint "sesiones_activacion_valida"', details: "fila privada" }).message).toContain("45");
+  });
+  it("limita la migración 44 al alta de categorías sin bloquear el resto de la app", () => {
+    expect(errorDeDb({ code: "PGRST202", message: "Could not find public.crear_categoria_ejercicio in the schema cache" }).getResponse()).toMatchObject({ codigo: "categorias_esquema_desactualizado", mensaje: expect.stringContaining("migración 44") });
+  });
   it("orienta al diagnóstico de Lucas sin confundir caché con migración faltante", () => {
     const r = errorDeDb({ code: "PGRST204", message: "Could not find the 'dni' column of 'alumnos' in the schema cache" });
     expect(r.getStatus()).toBe(503);

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardList,
+  BookOpen,
   CalendarDays,
   Dumbbell,
   FileCheck2,
@@ -38,6 +39,7 @@ const NAV_PROFE = [
   { href: "/dashboard", label: "Dashboard", icon: House },
   { href: "/agenda", label: "Clases", icon: CalendarDays },
   { href: "/alumnos", label: "Alumnos", icon: Users },
+  { href: "/planes", label: "Planes", icon: ClipboardList },
   { href: "/ejercicios", label: "Ejercicios", icon: Dumbbell },
   { href: "/carreras", label: "Carreras", icon: Flag },
   { href: "/certificados", label: "Certificados", icon: FileCheck2 },
@@ -98,7 +100,7 @@ export function Navbar({ session }: { session: Session }) {
                 )}
               >
                 <Icon className="size-[1.15rem] shrink-0" />
-                <span className="hidden lg:inline">{label}</span>
+                <span className="hidden xl:inline">{label}</span>
               </Link>
             );
           })}
@@ -123,6 +125,7 @@ export function Navbar({ session }: { session: Session }) {
                 <DropdownMenuLabel>{nombreCompleto}</DropdownMenuLabel>
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
+              {session.role === "coach" && <DropdownMenuItem onClick={() => router.push("/manual")}><BookOpen />Manual de uso</DropdownMenuItem>}
               <DropdownMenuItem onClick={() => setCambiandoClave(true)}>
                 <KeyRound />
                 Cambiar contraseña

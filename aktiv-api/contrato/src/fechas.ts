@@ -6,14 +6,16 @@ export function toISO(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-export function hoyISO() {
-  return toISO(new Date());
+/** Fecha de negocio de Aktiv, independiente de la zona del servidor/dispositivo. */
+export function hoyISO(ahora = new Date()) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(ahora);
 }
 
-/** yyyy-mm-dd de hoy más (o menos) n días, en hora local */
+/** yyyy-mm-dd de hoy en Argentina más (o menos) n días de calendario. */
 export function sumarDiasISO(n: number) {
-  const d = new Date();
-  d.setHours(12, 0, 0, 0); // evita saltos por cambios de horario
-  d.setDate(d.getDate() + n);
-  return toISO(d);
+  const d = new Date(`${hoyISO()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }

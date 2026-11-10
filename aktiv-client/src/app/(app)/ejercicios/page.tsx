@@ -16,19 +16,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CATEGORIAS } from "@/lib/dominio";
+import { CategoriaEjercicioSelector } from "@/components/categoria-ejercicio-selector";
+import { categoriasDelCatalogo } from "@/lib/dominio";
 import { claveEjercicio } from "@aktiv/contrato";
 import { useRol } from "@/lib/guards";
 import { LIMITES, crearEjercicioCustomDto, validar } from "@/lib/schemas";
 import {
   crearEjercicioPersonalizado,
+  crearCategoriaEjercicio,
   editarEjercicioPersonalizado,
   eliminarEjercicioPersonalizado,
   useStore,
@@ -41,7 +36,8 @@ type Fila = { nombre: string; categoria: CategoriaEjercicio; propio?: EjercicioC
 
 export default function EjerciciosPage() {
   const session = useRol("coach");
-  const { ejerciciosCustom, alumnos } = useStore();
+  const { ejerciciosCustom, categoriasEjercicio, alumnos } = useStore();
+  const categorias = categoriasDelCatalogo(ejerciciosCustom, categoriasEjercicio);
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState<CategoriaEjercicio | "todas">("todas");
   /** "nuevo", un ejercicio propio que se edita, o cerrado */
@@ -49,6 +45,10 @@ export default function EjerciciosPage() {
   const [aBorrar, setABorrar] = useState<EjercicioCustom | null>(null);
   const [error, setError] = useState("");
   const [categoriaNueva, setCategoriaNueva] = useState<CategoriaEjercicio>("Fuerza");
+  const [nuevaCategoria, setNuevaCategoria] = useState(false);
+  const [nombreCategoria, setNombreCategoria] = useState("");
+  const [guardandoCategoria, setGuardandoCategoria] = useState(false);
+  const [errorCategoria, setErrorCategoria] = useState("");
 
   const filas: Fila[] = useMemo(
     () => [
@@ -122,6 +122,8 @@ export default function EjerciciosPage() {
             Tu lista de ejercicios. Los elegís al armar el plan de cada alumno.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => { setNombreCategoria(""); setErrorCategoria(""); setNuevaCategoria(true); }}><Plus />Nueva categoría</Button>
         <Button
           onClick={() => {
             setError("");
@@ -133,6 +135,7 @@ export default function EjerciciosPage() {
           <span className="hidden sm:inline">Nuevo ejercicio</span>
           <span className="sm:hidden">Nuevo</span>
         </Button>
+        </div>
       </header>
 
       <div className="space-y-3">
@@ -147,7 +150,7 @@ export default function EjerciciosPage() {
           />
         </div>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por categoría">
-          {(["todas", ...CATEGORIAS] as const).map((c) => (
+          {["todas", ...categorias].map((c) => (
             <button
               key={c}
               type="button"
@@ -174,7 +177,7 @@ export default function EjerciciosPage() {
         </p>
       ) : (
         <div className="space-y-6">
-          {CATEGORIAS.filter((c) => visibles.some((f) => f.categoria === c)).map((c) => {
+          {categorias.filter((c) => visibles.some((f) => f.categoria === c)).map((c) => {
             const delGrupo = visibles.filter((f) => f.categoria === c);
             return (
               <section key={c} aria-label={c} className="space-y-2">
@@ -231,6 +234,26 @@ export default function EjerciciosPage() {
         </div>
       )}
 
+      <Dialog open={nuevaCategoria} onOpenChange={(o) => { if (!guardandoCategoria) setNuevaCategoria(o); }}>
+        <DialogContent className="sm:max-w-md">
+          <form className="space-y-4" onSubmit={async (evento) => {
+            evento.preventDefault();
+            if (guardandoCategoria) return;
+            setGuardandoCategoria(true); setErrorCategoria("");
+            try {
+              setCategoria(await crearCategoriaEjercicio(nombreCategoria)); setNuevaCategoria(false);
+              toast.success("Categoría guardada");
+            } catch (e) { setErrorCategoria(e instanceof Error ? e.message : "No pudimos guardar la categoría."); }
+            finally { setGuardandoCategoria(false); }
+          }}>
+            <DialogHeader><DialogTitle>Nueva categoría</DialogTitle><DialogDescription>La podés usar en cualquier ejercicio y plan.</DialogDescription></DialogHeader>
+            <div className="space-y-2"><Label htmlFor="categoria-nombre">Nombre</Label><Input id="categoria-nombre" autoFocus required maxLength={80} value={nombreCategoria} disabled={guardandoCategoria} onChange={(e) => setNombreCategoria(e.target.value)} placeholder="Ej: Equilibrio" /></div>
+            {errorCategoria && <p role="alert" className="text-sm text-destructive">{errorCategoria}</p>}
+            <DialogFooter><Button type="button" variant="outline" disabled={guardandoCategoria} onClick={() => setNuevaCategoria(false)}>Cancelar</Button><Button type="submit" disabled={guardandoCategoria || !nombreCategoria.trim()}>{guardandoCategoria ? "Guardando…" : "Crear categoría"}</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogo !== null} onOpenChange={(o) => !o && setDialogo(null)}>
         <DialogContent className="sm:max-w-md">
           <form
@@ -262,21 +285,7 @@ export default function EjerciciosPage() {
             </div>
             <div className="space-y-2">
               <Label>Categoría</Label>
-              <Select
-                value={categoriaNueva}
-                onValueChange={(v) => v && setCategoriaNueva(v as CategoriaEjercicio)}
-              >
-                <SelectTrigger className="w-full" aria-label="Categoría">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  {CATEGORIAS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CategoriaEjercicioSelector value={categoriaNueva} onChange={setCategoriaNueva} />
             </div>
             {error && (
               <p role="alert" className="text-sm text-destructive">

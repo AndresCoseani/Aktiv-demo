@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post, Req, Res, Param } from "@nestjs/common";
 import type { Response } from "express";
 import { cambiarClaveApi, recuperarClaveApi, restablecerClaveApi, loginDto, type Session } from "@aktiv/contrato";
 import { Inject } from "@nestjs/common";
@@ -13,7 +13,10 @@ import {
 import { validarOLanzar } from "../common/zod.pipe";
 import { AuthService, type Tokens } from "./auth.service";
 import { borrarCookies, ponerCookies } from "./cookies";
-import { Publico } from "./guards";
+import { Publico, Roles } from "./guards";
+import { RegistroService } from "./registro.service";
+import { registroAlumnoApi, confirmarRegistroApi, uuidSchema } from "@aktiv/contrato";
+import { Throttle } from "@nestjs/throttler";
 
 export function sesionDe(u: Usuario, alumnoId?: string): Session {
   return {
@@ -30,6 +33,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     @Inject(ENV) private readonly env: Env,
+    private readonly registro: RegistroService,
   ) {}
 
   private ponerCookies(res: Response, t: Tokens) {
@@ -39,6 +43,22 @@ export class AuthController {
   private borrarCookies(res: Response) {
     borrarCookies(res, this.env);
   }
+  @Publico() @Get("registro")
+  async estadoRegistro() { return { habilitado: Boolean(await this.registro.profesor()) }; }
+
+  @Publico() @Post("registro") @HttpCode(204)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  async registrar(@Body() body: unknown) { await this.registro.registrar(validarOLanzar(registroAlumnoApi, body)); }
+
+  @Publico() @Post("confirmar-registro") @HttpCode(204)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async confirmarRegistro(@Body() body: unknown) { await this.registro.completar(validarOLanzar(confirmarRegistroApi, body).token); }
+
+  @Roles("coach") @Get("solicitudes-alta")
+  pendientes(@Req() req: RequestConUsuario) { return this.registro.pendientes(req.usuario.token); }
+
+  @Roles("coach") @Post("solicitudes-alta/:id/aprobar")
+  aprobar(@Req() req: RequestConUsuario,@Param("id") id: string) { return this.registro.aprobar(req.usuario.token,validarOLanzar(uuidSchema,id)); }
 
   @Publico()
   @Post("login")

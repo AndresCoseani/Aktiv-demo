@@ -122,6 +122,14 @@ async function main() {
   const cS1 = await sesion(uA1);
   const cS2 = await sesion(uA2);
 
+  titulo("Actividades privadas del profesor");
+  chequear("el profesor crea su actividad", !(await cA.from("actividades_plan").insert({ coach_id: profeA.id, nombre: "Movilidad propia" })).error);
+  chequear("otro profesor no lee la actividad", (await cB.from("actividades_plan").select("nombre").eq("coach_id", profeA.id)).data?.length === 0);
+  chequear("no crea actividades a nombre de otro profesor", Boolean((await cA.from("actividades_plan").insert({ coach_id: profeB.id, nombre: "Ajena" })).error));
+  chequear("el alumno no crea actividades", Boolean((await cS1.from("actividades_plan").insert({ coach_id: uA1.id, nombre: "No" })).error));
+  chequear("el alumno no lee el catálogo del profesor", (await cS1.from("actividades_plan").select("nombre").eq("coach_id", profeA.id)).data?.length === 0);
+  chequear("anon no lee actividades", Boolean((await anon.from("actividades_plan").select("nombre")).error));
+
   // ---------- sin sesión
   titulo("Sin sesión (anon)");
   for (const tabla of ["profiles", "alumnos", "planes", "plan_ejercicios", "fichas_medicas",
@@ -256,8 +264,8 @@ async function main() {
     ((await (await sesion(uB1)).from("ejercicios_custom").select("id")).data ?? []).length === 0);
   chequear("el alumno no puede borrar los ejercicios de su profe",
     (await cS1.from("ejercicios_custom").delete().eq("coach_id", profeA.id).select("id")).data?.length !== 1);
-  chequear("la categoría tiene que ser una de las permitidas",
-    Boolean((await cA.from("ejercicios_custom").insert({ coach_id: profeA.id, nombre: "Rara", categoria: "Inventada" })).error));
+  chequear("la categoría no puede estar vacía",
+    Boolean((await cA.from("ejercicios_custom").insert({ coach_id: profeA.id, nombre: "Rara", categoria: "" })).error));
 
   // ---------- carreras e inscripciones
   titulo("Carreras e inscripciones");
@@ -513,7 +521,7 @@ async function main() {
   const otroMes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Siguiente", inicio: "2026-12-01", activo: true }).select().single();
   if (otroMes.error) throw otroMes.error;
   const activosMes = await cA.from("planes_mensuales").select("id").eq("alumno_id", A1.id).eq("activo", true);
-  chequear("un solo mes activo por alumno", activosMes.data?.length === 1 && activosMes.data[0].id === otroMes.data.id);
+  chequear("varios planes activos conservan ambos y su propietario", activosMes.data?.length === 2 && activosMes.data.some((p) => p.id === mes.data.id) && activosMes.data.some((p) => p.id === otroMes.data.id));
   await cA.from("planes_mensuales").delete().eq("id", mes.data.id);
   chequear("borrar el mes borra sus celdas semanales", vacio(await admin.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejMes.data.id)));
 

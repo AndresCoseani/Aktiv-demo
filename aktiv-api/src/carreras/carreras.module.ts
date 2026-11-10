@@ -20,6 +20,7 @@ import {
   uuidSchema,
   claveEjercicio,
   limpiarNombreEjercicio,
+  categoriaEjercicioSchema,
 } from "@aktiv/contrato";
 import { Roles } from "../auth/guards";
 import {
@@ -41,6 +42,12 @@ const mismaDistancia = (a: number, b: number) => Math.abs(a - b) < 0.001;
 @Injectable()
 export class CarrerasService {
   constructor(private readonly supa: SupabaseService) {}
+
+  async crearCategoria(u: Usuario, nombre: string) {
+    const { data, error } = await this.supa.delUsuario(u.token).rpc("crear_categoria_ejercicio", { nombre_nuevo: nombre });
+    lanzarSiError(error);
+    return { nombre: categoriaEjercicioSchema.parse(data) };
+  }
 
   /* ───────────── calendario del profe ───────────── */
 
@@ -98,6 +105,7 @@ export class CarrerasService {
       carrera_id: dto.carreraId,
       distancia_km: dto.distanciaKm,
       objetivo_seg: dto.objetivoSeg,
+      ...(dto.objetivo !== undefined ? { objetivo: dto.objetivo } : {}),
     });
     lanzarSiError(error);
     return RESPUESTA_ID(dto.id);
@@ -166,6 +174,12 @@ const idParam = () => new ZodPipe(uuidSchema);
 @Controller()
 export class CarrerasController {
   constructor(private readonly carreras: CarrerasService) {}
+
+  @Roles("coach")
+  @Post("catalogo/categorias")
+  crearCategoria(@UsuarioActual() u: Usuario, @Body(new ZodPipe(z.object({ nombre: categoriaEjercicioSchema }).strict())) dto: { nombre: string }) {
+    return this.carreras.crearCategoria(u, dto.nombre);
+  }
 
   @Roles("coach")
   @Post("carreras")
