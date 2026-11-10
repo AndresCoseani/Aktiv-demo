@@ -33,8 +33,9 @@ try {
     const modal = page.getByRole("dialog");
     await modal.getByRole("combobox", { name: "Categoría", exact: true }).click();
     await page.getByRole("option", { name: "Fuerza", exact: true }).click();
+    const guardado = page.waitForResponse(r => r.request().method() === "PATCH" && r.url().includes("/catalogo/ejercicios/"));
     await modal.getByRole("button", { name: "Guardar", exact: true }).click();
-    await page.waitForResponse(r => r.request().method() === "PATCH" && r.url().includes("/catalogo/ejercicios/"));
+    await guardado;
     assert.equal(cambios, 1);
     await page.reload();
     await page.getByRole("region", { name: "Fuerza", exact: true }).getByText("Tobillo", { exact: true }).waitFor();
