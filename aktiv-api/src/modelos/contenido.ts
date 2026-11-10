@@ -27,11 +27,16 @@ export function operarModelo(original: PlanModelo, op: OperacionModelo): PlanMod
     if (!m.sesiones.some((s) => s.id === dto.id)) m.sesiones.push({ ...dto, orden: Math.max(-1, ...m.sesiones.map((s) => s.orden)) + 1, ejercicios: [] });
   } else if (recurso === "sesiones") {
     const s = m.sesiones.find((s) => s.id === id); if (!s) throw noEncontrado("El entrenamiento");
-    if (partes.length === 2 && op.metodo === "PATCH") Object.assign(s, validarOLanzar(parcheSesionApi, op.datos));
+    if (partes.length === 2 && op.metodo === "PATCH") {
+      const dto=validarOLanzar(parcheSesionApi,op.datos);
+      const dias=dto.dias ?? (Object.hasOwn(dto,"dia") ? (dto.dia == null ? [] : [dto.dia]) : undefined);
+      Object.assign(s,dto);
+      if(dias) {s.dias=[...dias].sort((a,b)=>a-b);s.dia=s.dias[0]??null;}
+    }
     else if (partes.length === 2 && op.metodo === "DELETE") m.sesiones = m.sesiones.filter((s) => s.id !== id);
     else if (partes.length === 3 && accion === "duplicar" && op.metodo === "POST") {
       const dto = validarOLanzar(duplicarSesionApi, op.datos);
-      if (!m.sesiones.some((s) => s.id === dto.id)) m.sesiones.push({ ...copiarSesiones([s])[0], id: dto.id, nombre: dto.nombre, dia: dto.dia, orden: Math.max(-1, ...m.sesiones.map((s) => s.orden)) + 1 });
+      if (!m.sesiones.some((s) => s.id === dto.id)) m.sesiones.push({ ...copiarSesiones([s])[0], id: dto.id, nombre: dto.nombre, dia: dto.dias ? (dto.dias[0] ?? null) : dto.dia, dias: dto.dias ?? (dto.dia === null ? [] : [dto.dia]), orden: Math.max(-1, ...m.sesiones.map((s) => s.orden)) + 1 });
     } else if (partes.length === 3 && accion === "ejercicios" && op.metodo === "POST") {
       const dto = validarOLanzar(altaEjercicioMensualApi, op.datos);
       if (!s.ejercicios.some((e) => e.id === dto.id)) s.ejercicios.push({ ...dto, orden: Math.max(-1, ...s.ejercicios.map((e) => e.orden)) + 1, semanas: Array.from({ length: m.semanas }, (_, i) => ({ semana: i + 1, prescripcion: "", peso: null, pesoFecha: null })) });

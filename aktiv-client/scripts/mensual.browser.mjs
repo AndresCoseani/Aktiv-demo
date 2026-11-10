@@ -218,6 +218,22 @@ async function pagina(rol, ancho) {
   return { page, ctx };
 }
 try {
+  if(process.argv.includes("--dias")) {
+    for(const ancho of [1440,390]) {
+      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("tab",{name:"Plan",exact:true}).click();
+      const selector=page.getByRole("button",{name:"Asignar días de la semana",exact:true});await selector.click();
+      await page.getByRole("checkbox",{name:"Lunes",exact:true}).check();await page.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await page.getByRole("checkbox",{name:"Viernes",exact:true}).check();
+      await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
+      assert.deepEqual(planes[0].sesiones[0].dias,[1,3,5]);assert.equal(planes[0].sesiones.length,1);
+      await page.reload();await page.getByRole("tab",{name:"Plan",exact:true}).click();await selector.click();for(const dia of ["Lunes","Miércoles","Viernes"])assert.equal(await page.getByRole("checkbox",{name:dia,exact:true}).isChecked(),true);
+      await page.getByRole("button",{name:"Sin asignar",exact:true}).click();await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();assert.deepEqual(planes[0].sesiones[0].dias,[]);
+      await selector.click();await page.getByRole("checkbox",{name:"Lunes",exact:true}).check();await page.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await ctx.close();
+    }
+    const {page,ctx}=await pagina("alumno",390);await page.goto(baseUrl+"/mi-plan");
+    for(const dia of ["Lunes","Miércoles"]) {await page.getByRole("button",{name:dia,exact:true}).click();await page.getByText("Zumo",{exact:true}).waitFor();}
+    await ctx.close();assert.deepEqual(errores,[]);console.log("OK: checklist multiselección, limpiar, recarga y misma sesión en varios días del alumno, móvil/escritorio.");
+  } else
   if(process.argv.includes("--running")) {
     const fuerzaAntes=structuredClone(planes[0].sesiones);
     for(const ancho of [1440,390]){
@@ -529,7 +545,7 @@ try {
       const modal = page.getByRole("dialog");
       const nombre = `Copia ${ancho}`;
       await modal.getByLabel("Nombre del día", { exact: true }).fill(nombre);
-      await modal.getByLabel("Día de la semana", { exact: true }).selectOption("3");
+      await modal.getByRole("button",{name:"Asignar días de la semana",exact:true}).click();await page.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await page.getByRole("button",{name:"Listo",exact:true}).click();
       fallarCopia = true;
       await modal.getByRole("button", { name: "Duplicar día", exact: true }).click();
       await modal.getByRole("alert").waitFor();
@@ -570,7 +586,7 @@ try {
     assert.equal(lecturasPlanes, lecturasAntes, "Guardar una sesión no debe descargar todos los planes");
     assert.deepEqual(planes[0].sesiones[0].ejercicios[0].semanas.map((s) => s.prescripcion), ["4x10", "5x10", "6x10", "7x10", "8x10", "9x10"]);
     await page.getByRole("button", { name: "Editar entrenamiento", exact: true }).click();
-    await page.getByRole("dialog").getByLabel("Día de la semana", { exact: true }).selectOption("2");
+    await page.getByRole("dialog").getByRole("button",{name:"Asignar días de la semana",exact:true}).click();await page.getByRole("checkbox",{name:"Lunes",exact:true}).uncheck();await page.getByRole("checkbox",{name:"Martes",exact:true}).check();await page.getByRole("button",{name:"Listo",exact:true}).click();
     await page.getByRole("dialog").getByRole("button", { name: "Guardar cambios", exact: true }).click();
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     assert.equal(lecturasPlanes, lecturasAntes);
@@ -579,7 +595,7 @@ try {
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     assert.equal(await page.getByLabel("Zumo, semana 6", { exact: true }).inputValue(), "9x10");
     await page.getByRole("button", { name: "Editar entrenamiento", exact: true }).click();
-    assert.equal(await page.getByRole("dialog").getByLabel("Día de la semana", { exact: true }).inputValue(), "2");
+    await page.getByRole("dialog").getByRole("button",{name:"Asignar días de la semana",exact:true}).click();assert.equal(await page.getByRole("checkbox",{name:"Martes",exact:true}).isChecked(),true);await page.getByRole("button",{name:"Listo",exact:true}).click();
     await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
     assert.deepEqual(errores, []);
     await ctx.close();

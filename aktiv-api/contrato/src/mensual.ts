@@ -10,6 +10,7 @@ export function semanasDelPlan(cantidad: number) {
   return Array.from({ length: cantidad }, (_, i) => i + 1);
 }
 export const DIAS_PLAN = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const;
+export const diasSesionSchema = z.array(z.number().int().min(1).max(7)).max(7).refine(d => new Set(d).size === d.length, "Día repetido");
 const id = z.uuid("Identificador inválido");
 export const actividadPlanSchema = z.string().trim().min(1, "Escribí la actividad").max(80).transform((s) => s.replace(/\s+/g, " "));
 const inicio = fechaISO.refine((f) => f >= "2000-01-01" && f <= "2100-01-01", "Fecha fuera de rango");
@@ -32,7 +33,7 @@ export const ejercicioMensualSchema = z.object({
 });
 export const sesionEntrenamientoSchema = z.object({
   franja: z.enum(["Mañana", "Tarde", "Noche", "Sin definir"]).default("Sin definir"),
-  id, dia: z.number().int().min(1).max(7).nullable(), tipo: actividadPlanSchema,
+  id, dias: diasSesionSchema.optional(), dia: z.number().int().min(1).max(7).nullable(), tipo: actividadPlanSchema,
   nombre: textoOpcional(60), calentamiento: textoOpcional(4000), enfriamiento: textoOpcional(4000),
   orden: z.number().int(), ejercicios: z.array(ejercicioMensualSchema),
   bloques: bloquesSesionSchema.default([]),
@@ -64,7 +65,7 @@ export const parcheMensualApi = noVacio({ nombre: textoOpcional(120), inicio, ac
 export const altaSesionApi = sesionEntrenamientoSchema.omit({ ejercicios: true, orden: true }).strict();
 export const duplicarSesionApi = z.object({
   id, nombre: z.string().trim().min(1, "Escribí un nombre para la copia").max(60),
-  dia: z.number().int().min(1).max(7).nullable(),
+  dia: z.number().int().min(1).max(7).nullable(), dias: diasSesionSchema.optional(),
 }).strict();
 export const duplicarPlanApi = z.object({
   id, alumnoId: id, inicio,
@@ -92,3 +93,6 @@ export function semanaDelPlan(inicioPlan: string, fecha = hoyISO(), cantidadSema
   const dias = Math.round((Date.parse(`${fecha}T12:00:00Z`) - Date.parse(`${inicioPlan}T12:00:00Z`)) / 86400000);
   return dias >= 0 && dias < cantidadSemanas * 7 ? Math.floor(dias / 7) + 1 : null;
 }
+
+/** Compatibilidad con sesiones anteriores a la asignación múltiple. */
+export function diasDeSesion(s: { dia: number | null; dias?: number[] }): number[] { return s.dias ?? (s.dia === null ? [] : [s.dia]); }

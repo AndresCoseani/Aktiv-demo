@@ -158,7 +158,7 @@ export class MensualesService {
     const dto = validarOLanzar(duplicarSesionApi, body);
     const db = this.supa.delUsuario(u.token);
     await this.existe(db, TABLAS.sesion, origen);
-    const r = await db.rpc("duplicar_sesion", { p_origen: origen, p_id: dto.id, p_nombre: dto.nombre, p_dia: dto.dia });
+    const r = await db.rpc(dto.dias ? "duplicar_sesion_dias" : "duplicar_sesion", { p_origen: origen, p_id: dto.id, p_nombre: dto.nombre, p_dia: dto.dia, ...(dto.dias ? { p_dias: dto.dias } : {}) });
     lanzarSiError(r.error);
     return { id: dto.id };
   }

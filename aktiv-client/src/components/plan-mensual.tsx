@@ -1,11 +1,12 @@
 "use client";
+import { DiasSesion } from "@/components/dias-sesion";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 import {
-  DIAS_PLAN, MAX_SEMANAS_PLAN, semanasDelPlan, prescripcionEfectiva, semanaDelPlan,
+  diasDeSesion, DIAS_PLAN, MAX_SEMANAS_PLAN, semanasDelPlan, prescripcionEfectiva, semanaDelPlan,
   altaMensualApi, altaSesionApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi,
   parcheCeldaAlumnoApi, parcheCeldaProfeApi, parcheMensualApi, type PlanMensual, type SesionEntrenamiento, type EjercicioMensual,
 } from "@aktiv/contrato";
@@ -28,7 +29,6 @@ import { GuardarModeloDialog } from "@/components/guardar-modelo-dialog";
 import { avisarCambioMensual, usePlanesMensuales, hayBorradoresMensuales, registrarBorradorMensual } from "@/lib/mensual";
 import { formatFecha, hoyISO, nuevoId } from "@/lib/format";
 
-const selector = "h-9 w-full min-w-0 rounded-lg border border-input bg-background px-2 text-sm";
 function navegar(accion: () => void) {
   if (hayBorradoresMensuales()) toast.error("Esperá a que se guarden los cambios antes de cambiar de vista.");
   else accion();
@@ -214,8 +214,8 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
   }
   if (!editable) {
-    const delDia = plan.sesiones.filter((s) => s.dia === diaAlumno).sort((a, b) => a.orden - b.orden);
-    const sinAsignar = plan.sesiones.filter((s) => s.dia === null);
+    const delDia = plan.sesiones.filter((s) => diasDeSesion(s).includes(diaAlumno)).sort((a, b) => a.orden - b.orden);
+    const sinAsignar = plan.sesiones.filter((s) => !diasDeSesion(s).length);
     const hoy = (new Date().getDay() + 6) % 7 + 1;
     return <div className="space-y-6">
       <div className="space-y-2"><p className="text-center text-sm font-medium">Semana {semana} de {plan.semanas}</p><SemanasPlan total={plan.semanas} semana={semana} actual={actual} onSeleccionar={(s) => navegar(() => setSemana(s))} /></div>
@@ -223,7 +223,7 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
         {!actual && <p className="text-sm text-muted-foreground">{hoyISO() < inicio ? "El plan todavía no empezó." : "Este plan terminó."} Podés consultar sus entrenamientos.</p>}
           <div role="group" aria-label="Días de la semana" className="flex min-w-0 flex-wrap justify-center gap-2">
             {DIAS_PLAN.map((dia, i) => {
-              const entrenamientos = plan.sesiones.filter((s) => s.dia === i + 1);
+              const entrenamientos = plan.sesiones.filter((s) => diasDeSesion(s).includes(i + 1));
               const seleccionado = diaAlumno === i + 1;
               return <Button key={dia} size="sm" className={`h-auto min-h-20 min-w-0 basis-[calc((100%-1.5rem)/4)] flex-col justify-start gap-2 self-stretch whitespace-normal rounded-xl border px-1.5 py-2.5 text-center sm:basis-[calc((100%-3rem)/7)] ${seleccionado ? "border-primary bg-primary/10 ring-1 ring-primary text-foreground hover:bg-primary/15" : "border-transparent bg-muted/40 text-foreground hover:bg-muted"}`} variant="ghost" aria-label={dia} aria-pressed={seleccionado} onClick={() => navegar(() => setDiaAlumno(i + 1))}>
                 <span className={`text-xs font-semibold ${seleccionado ? "text-primary" : "text-muted-foreground"}`}>{dia.slice(0, 3)}</span>
@@ -252,7 +252,7 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
     {(sesiones.length > 0 || editable) && <div className="space-y-2">
       <h3 className="sr-only">Días de {tipo.toLowerCase()}</h3>
       <div role="group" aria-label="Días del entrenamiento" className="flex flex-wrap justify-center gap-2">
-        {sesiones.map((s, i) => <Button key={s.id} size="sm" variant={sesion?.id === s.id ? "secondary" : "outline"} aria-label={`Día ${i + 1}`} aria-pressed={sesion?.id === s.id} disabled={ocupado} onClick={() => navegar(() => setSeleccionSesion(s.id))}>Día {i + 1}{s.dia && <span className="text-muted-foreground"> · {DIAS_PLAN[s.dia - 1].slice(0, 3)}</span>}</Button>)}
+        {sesiones.map((s, i) => <Button key={s.id} size="sm" variant={sesion?.id === s.id ? "secondary" : "outline"} aria-label={`Día ${i + 1}`} aria-pressed={sesion?.id === s.id} disabled={ocupado} onClick={() => navegar(() => setSeleccionSesion(s.id))}>Día {i + 1}{diasDeSesion(s).length>0 && <span className="text-muted-foreground"> · {diasDeSesion(s).map(d=>DIAS_PLAN[d-1].slice(0,3)).join(" / ")}</span>}</Button>)}
         {editable && <Button variant="outline" size="sm" disabled={ocupado} onClick={() => navegar(() => void nuevaSesion())}><Plus />{ocupado ? "Creando día…" : `Crear Día ${sesiones.length + 1}`}</Button>}
       </div>
     </div>}
@@ -279,6 +279,7 @@ function EditorSesion(props: PropsEditorSesion) {
 function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: SesionEntrenamiento; onCerrar: () => void; onDuplicada: (id: string) => void }) {
   const { api } = usePlanEditor();
   const [id] = useState(nuevoId);
+  const [dias, setDias] = useState<number[]>([]);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
   async function duplicar(e: React.FormEvent<HTMLFormElement>) {
@@ -286,7 +287,7 @@ function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: Sesio
     if (ocupado) return;
     if (hayBorradoresMensuales()) { setError("Esperá a que se guarden los cambios antes de duplicar."); return; }
     const f = new FormData(e.currentTarget);
-    const resultado = duplicarSesionApi.safeParse({ id, nombre: String(f.get("nombre")).trim(), dia: f.get("dia") ? Number(f.get("dia")) : null });
+    const resultado = duplicarSesionApi.safeParse({ id, nombre: String(f.get("nombre")).trim(), dia: dias[0] ?? null, dias });
     if (!resultado.success) { setError(resultado.error.issues[0]?.message ?? "Revisá los datos de la copia."); return; }
     setOcupado(true); setError("");
     try {
@@ -300,7 +301,7 @@ function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: Sesio
         <DialogHeader><DialogTitle>Duplicar día</DialogTitle><DialogDescription>Copiá la rutina y las indicaciones de todas sus semanas dentro de este plan. Los pesos del alumno no se copian.</DialogDescription></DialogHeader>
         <fieldset disabled={ocupado} className="min-w-0 space-y-4">
           <label className="block space-y-1 text-sm">Nombre del día<Input name="nombre" defaultValue={`${(sesion.nombre || sesion.tipo).slice(0, 52)} (copia)`} maxLength={60} required autoFocus /></label>
-          <label className="block space-y-1 text-sm">Día de la semana<select name="dia" aria-label="Día de la semana" className={selector} defaultValue=""><option value="">Sin asignar</option>{DIAS_PLAN.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}</select></label>
+          <div className="space-y-2"><p className="text-sm">Días de la semana</p><DiasSesion value={dias} onChange={setDias} disabled={ocupado} /></div>
           <p className="text-xs text-muted-foreground">La copia se agrega al final de los días de {sesion.tipo.toLowerCase()}. Después podés editarla de forma independiente.</p>
         </fieldset>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -312,6 +313,7 @@ function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: Sesio
 
 function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEntrenamiento; onGuardar: (sesion: SesionEntrenamiento) => void; onCerrar: () => void }) {
   const { api } = usePlanEditor();
+  const [dias, setDias] = useState(()=>diasDeSesion(sesion));
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
   async function guardar(e: React.FormEvent<HTMLFormElement>) {
@@ -319,7 +321,7 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEnt
     const f = new FormData(e.currentTarget);
     setOcupado(true); setError("");
     try {
-      const resultado = parcheSesionApi.safeParse({ nombre: String(f.get("nombre")).trim(), dia: f.get("dia") ? Number(f.get("dia")) : null });
+      const resultado = parcheSesionApi.safeParse({ nombre: String(f.get("nombre")).trim(), dia: dias[0] ?? null, dias });
       if (!resultado.success) { setError(resultado.error.issues[0]?.message ?? "Revisá los datos del entrenamiento."); return; }
       await api.patch(`/sesiones/${sesion.id}`, resultado.data);
       const actualizada = { ...sesion, ...resultado.data };
@@ -333,7 +335,7 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEnt
         <DialogHeader><DialogTitle>Editar entrenamiento</DialogTitle><DialogDescription>Cambiá el nombre y el día en que le toca al alumno.</DialogDescription></DialogHeader>
         <fieldset disabled={ocupado} className="min-w-0 space-y-4">
           <label className="block space-y-1 text-sm">Nombre del día<Input name="nombre" defaultValue={sesion.nombre} maxLength={60} autoFocus /></label>
-          <label className="block space-y-1 text-sm">Día de la semana<select name="dia" aria-label="Día de la semana" className={selector} defaultValue={sesion.dia ?? ""}><option value="">Sin asignar</option>{DIAS_PLAN.map((d, i) => <option key={d} value={i + 1}>{d}</option>)}</select></label>
+          <div className="space-y-2"><p className="text-sm">Días de la semana</p><DiasSesion value={dias} onChange={setDias} disabled={ocupado} /></div>
           <p className="text-xs text-muted-foreground">Podés asignar varios entrenamientos al mismo día. Aparecen en «Hoy te toca».</p>
         </fieldset>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -376,7 +378,7 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
     guardando.current = true;
     setOcupado(true); setError("");
     try {
-      const cabecera = (s: SesionEntrenamiento) => ({ nombre: s.nombre, tipo: s.tipo, dia: s.dia, calentamiento: s.calentamiento, activacion: s.activacion, enfriamiento: s.enfriamiento, orden: s.orden, bloques: s.bloques });
+      const cabecera = (s: SesionEntrenamiento) => ({ nombre: s.nombre, tipo: s.tipo, dia: s.dia, ...(s.dias ? {dias:s.dias} : {}), calentamiento: s.calentamiento, activacion: s.activacion, enfriamiento: s.enfriamiento, orden: s.orden, bloques: s.bloques });
       const c = cambio(cabecera(guardado), cabecera(borrador));
       // Validar el borrador entero antes de empezar a escribir.
       const operaciones: { ruta: string; datos: object }[] = [];
@@ -441,7 +443,7 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       avisarCambioMensual(); setConfirmar(false); setQuitar(null);
     } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
   }
-  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle><CardDescription>{borrador.dia ? DIAS_PLAN[borrador.dia - 1] : "Sin día asignado"}</CardDescription></div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>
+  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle><div className="mt-2"><DiasSesion value={diasDeSesion(borrador)} onChange={(dias)=>setBorrador(b=>({...b,dias,dia:dias[0]??null}))} /></div></div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>
     {editando && <EditarSesionDialog sesion={borrador} onCerrar={() => setEditando(false)} onGuardar={(actualizada) => { setBorrador(actualizada); setGuardado(actualizada); }} />}
     <CardContent><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50">
       <fieldset className="min-w-0 space-y-8">
@@ -477,7 +479,7 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
   const entradas = (dia: string, numero: number) => planes.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, dia, plan.semanas);
     if(!semana)return [];
-    const anteriores=plan.sesiones.filter(s=>s.dia===numero&&mostrarAnterior(plan,s)&&(filtro===null||s.tipo===filtro)).map(sesion=>({plan,sesion,semana}));
+    const anteriores=plan.sesiones.filter(s=>diasDeSesion(s).includes(numero)&&mostrarAnterior(plan,s)&&(filtro===null||s.tipo===filtro)).map(sesion=>({plan,sesion,semana}));
     const texto=plan.running?.[semana]?.[(["lunes","martes","miercoles","jueves","viernes","sabado","domingo"] as const)[numero-1]];
     if(texto?.trim()&&(filtro===null||filtro==="Running"))anteriores.push({plan,semana,sesion:{id:"running:"+plan.id+":"+numero,nombre:texto,tipo:"Running",dia:numero,orden:0,franja:"Sin definir",calentamiento:"",enfriamiento:"",activacion:[],bloques:[],ejercicios:[]}});
     return anteriores;
@@ -486,7 +488,7 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
   const seleccionadas = entradas(fecha, numeroDia);
   const sinAsignar = planes.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, fecha, plan.semanas);
-    return semana ? plan.sesiones.filter((s) => s.dia === null && mostrarAnterior(plan,s) && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
+    return semana ? plan.sesiones.filter((s) => !diasDeSesion(s).length && mostrarAnterior(plan,s) && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
   });
   return <div className="min-w-0 space-y-6">
     <div className="flex flex-wrap items-center justify-center gap-2"><Button size="icon-sm" variant="outline" aria-label="Semana anterior" disabled={lunes <= "2000-01-08"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, -7)))}><ArrowLeft /></Button><p className="text-sm font-medium">{formatFecha(lunes)} al {formatFecha(desplazarDia(lunes, 6), { conAnio: true })}</p><Button size="icon-sm" variant="outline" aria-label="Semana siguiente" disabled={fecha >= "2100-12-20"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, 7)))}><ArrowRight /></Button><Button size="sm" variant="ghost" onClick={() => navegar(() => setFecha(hoyISO()))}>Hoy</Button></div>

@@ -142,6 +142,10 @@ try {
     await p.getByRole("menuitem", { name: "Cambiar contraseña", exact: true }).click(); await foto(p, "clave-cambiar", [], true); await cerrar(p);
     await p.goto(`${base}/certificados`); await foto(p, "certificados-lista");
   });
+  await grupo("dias", async p=>{
+    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("tab",{name:"Plan",exact:true}).click();await boton(p,"Asignar días de la semana").click();await p.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await foto(p,"dias-asignar",[[p.getByRole("checkbox",{name:"Lunes",exact:true}),"Marcá todos los días de esta rutina"]]);
+    await boton(p,"Listo").click();await boton(p,"Editar entrenamiento").click();await foto(p,"dia-editar",[],true);await cerrar(p);await boton(p,"Duplicar día de entrenamiento").click();await foto(p,"dia-duplicar",[],true);
+  });
   await grupo("solicitudes", async p => {
     await p.goto(base+"/dashboard");await boton(p,"Aprobar todos").waitFor();await foto(p,"dashboard");await foto(p,"dashboard-solicitudes",[[boton(p,"Copiar enlace de registro"),"Compartí el registro"],[boton(p,"Aprobar todos"),"Aprobá las solicitudes"]]);
     await p.goto(base+"/alumnos");await boton(p,"Nuevo alumno").waitFor();await foto(p,"alumnos-lista",[[boton(p,"Nuevo alumno"),"1 · Alta manual"]]);

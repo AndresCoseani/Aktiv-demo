@@ -1,4 +1,5 @@
 "use client";
+import { diasDeSesion } from "@aktiv/contrato";
 
 import { ArrowUpRight, CalendarDays, ClipboardList, Medal, StickyNote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +23,7 @@ export function AlumnoResumen({ alumno, mensual, onAbrir }: {
   const mes = meses[0];
   const sesionesHoy = meses.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, hoyISO(), plan.semanas);
-    return semana ? plan.sesiones.filter((s) => s.dia === diaDeHoy() + 1).map((sesion) => ({ sesion, plan, semana })) : [];
+    return semana ? plan.sesiones.filter((s) => diasDeSesion(s).includes(diaDeHoy() + 1)).map((sesion) => ({ sesion, plan, semana })) : [];
   });
   const runningHoy=meses.flatMap(plan=>{const semana=semanaDelPlan(plan.inicio,hoyISO(),plan.semanas);const texto=semana?plan.running?.[semana]?.[CAMPOS_RUNNING[diaDeHoy()]]:null;return texto?.trim()?[{plan,semana,texto}]:[];});
   const hoy = alumno.semana[diaDeHoy()];

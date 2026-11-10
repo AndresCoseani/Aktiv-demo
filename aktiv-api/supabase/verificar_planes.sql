@@ -244,6 +244,12 @@ with comprobaciones(migracion, descripcion, pieza, ok) as (values
     and not coalesce(has_function_privilege('anon',to_regprocedure('public.guardar_running(uuid,jsonb,boolean)'),'EXECUTE'),true))
   ,(51, 'Grilla semanal de Running', 'validadores de planes y modelos',
     (select count(*)=2 from pg_trigger where tgname in ('validar_running_plan','validar_running_modelo') and tgenabled in ('O','A') and not tgisinternal))
+  ,(52, 'Sesiones en varios días', 'columna y sincronización',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='sesiones' and column_name='dias')
+    and exists(select 1 from pg_trigger where tgrelid=to_regclass('public.sesiones') and tgname='sincronizar_dias_sesion' and tgenabled in ('O','A') and not tgisinternal))
+  ,(52, 'Sesiones en varios días', 'duplicación atómica privada',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.duplicar_sesion_dias(uuid,uuid,text,smallint,smallint[])'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.duplicar_sesion_dias(uuid,uuid,text,smallint,smallint[])'),'EXECUTE'),true))
 )
 select migracion, descripcion,
   case when bool_and(ok) then 'OK' when bool_or(ok=false) then 'REVISAR' else 'MANUAL' end as estado,
