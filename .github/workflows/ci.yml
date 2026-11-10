@@ -126,6 +126,10 @@ jobs:
       - run: npm run contrato:check
       - run: npm run lint
       - run: npm test
+      - name: Verificar fechas también con zona argentina
+        env:
+          TZ: America/Argentina/Buenos_Aires
+        run: npx vitest run src/lib/format.test.ts
       - name: Build frontend de producción (next build)
         run: npm run build
       - run: npm run typecheck

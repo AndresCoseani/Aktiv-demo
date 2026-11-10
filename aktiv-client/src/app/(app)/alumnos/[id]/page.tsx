@@ -81,7 +81,7 @@ export default function AlumnoDetallePage() {
     const base =
       alumno.proximoPago && diasHasta(alumno.proximoPago) >= 0
         ? parseISO(alumno.proximoPago)
-        : new Date();
+        : parseISO(hoyISO());
     const siguiente = sumarMeses(1, base);
     actualizarAlumno(alumno.id, { proximoPago: siguiente });
     toast.success(`Pago registrado. Próximo: ${formatFecha(siguiente)}`);

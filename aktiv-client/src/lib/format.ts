@@ -10,7 +10,7 @@ export function parseISO(iso: string) {
   return new Date(y, m - 1, d);
 }
 
-export function sumarDias(dias: number, base = new Date()) {
+export function sumarDias(dias: number, base = parseISO(hoyISO())) {
   const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
   d.setDate(d.getDate() + dias);
   return toISO(d);
@@ -20,7 +20,7 @@ export function sumarDias(dias: number, base = new Date()) {
  * Suma meses de calendario a una fecha (yyyy-mm-dd): del 19 de octubre al 19 de
  * noviembre. Si el mes siguiente no tiene ese día, queda el último (31 de enero → 28 de febrero).
  */
-export function sumarMeses(meses: number, base = new Date()) {
+export function sumarMeses(meses: number, base = parseISO(hoyISO())) {
   const dia = base.getDate();
   const d = new Date(base.getFullYear(), base.getMonth() + meses, 1);
   const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
@@ -45,7 +45,7 @@ export function formatFecha(iso: string, opts?: { conAnio?: boolean }) {
 /** edad en años cumplidos a hoy */
 export function edadDesde(iso: string) {
   const nac = parseISO(iso);
-  const hoy = new Date();
+  const hoy = parseISO(hoyISO());
   let edad = hoy.getFullYear() - nac.getFullYear();
   const aunNoCumplio =
     hoy.getMonth() < nac.getMonth() ||
@@ -54,7 +54,7 @@ export function edadDesde(iso: string) {
   return edad;
 }
 
-export function formatFechaLarga(date = new Date()) {
+export function formatFechaLarga(date = parseISO(hoyISO())) {
   const s = date.toLocaleDateString("es-AR", {
     weekday: "long",
     day: "numeric",
@@ -94,7 +94,7 @@ export function iniciales(nombre: string) {
 
 /** índice del día de hoy con lunes = 0 */
 export function diaDeHoy() {
-  return (new Date().getDay() + 6) % 7;
+  return (parseISO(hoyISO()).getDay() + 6) % 7;
 }
 
 /** UUID generado en el cliente: sirve igual en la demo y como clave en Supabase */
