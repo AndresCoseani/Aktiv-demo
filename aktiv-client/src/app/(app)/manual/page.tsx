@@ -1,40 +1,33 @@
 "use client";
-
 import Link from "next/link";
+import Image from "next/image";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, Search } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BookOpen, ChevronRight, Search, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useRol } from "@/lib/guards";
-import { guias, normalizarBusqueda } from "@/lib/manual";
-
-export default function ManualPage() {
-  return <Suspense fallback={<p role="status">Cargando manual…</p>}><Manual /></Suspense>;
-}
-
+import { guias, normalizarBusqueda, textoGuia, temasManual } from "@/lib/manual";
+import archivos from "@/lib/manual-capturas.json";
+const capturas: Record<string, {src:string; ancho:number; alto:number}> = archivos;
+export default function ManualPage() { return <Suspense fallback={<p role="status">Cargando manual…</p>}><Manual /></Suspense>; }
 function Manual() {
-  const session = useRol("coach");
-  const parametros = useSearchParams();
-  const [busqueda, setBusqueda] = useState("");
-  const [categoria, setCategoria] = useState("Todas");
-  const guia = guias.find((item) => item.id === parametros.get("guia"));
-  const palabras = normalizarBusqueda(busqueda).split(/\s+/).filter(Boolean);
-  const resultados = guias.filter((item) => (categoria === "Todas" || item.categoria === categoria) && palabras.every((palabra) => normalizarBusqueda(`${item.titulo} ${item.descripcion} ${item.categoria} ${item.pasos.join(" ")}`).includes(palabra)));
-  if (!session) return null;
-
-  if (guia) return <div className="mx-auto max-w-3xl space-y-7">
-    <Button variant="ghost" size="sm" render={<Link href="/manual" />}><ArrowLeft />Todas las guías</Button>
-    <header className="space-y-3"><p className="text-sm font-medium text-primary">{guia.categoria}</p><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{guia.titulo}</h1><p className="text-muted-foreground">{guia.descripcion}</p></header>
-    <ol className="divide-y rounded-2xl border bg-card px-5 sm:px-7">{guia.pasos.map((paso, indice) => <li key={paso} className="flex gap-4 py-5 sm:py-6"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary" aria-hidden="true">{indice + 1}</span><p className="min-w-0 pt-0.5 leading-relaxed">{paso}</p></li>)}</ol>
-    <aside className="border-l-2 border-primary/50 pl-4 text-sm leading-relaxed text-muted-foreground">{guia.nota}</aside>
-    <Button render={<Link href={guia.destino} />}>Ir a {guia.categoria}<ArrowUpRight /></Button>
-  </div>;
-
-  return <div className="mx-auto max-w-4xl space-y-7">
-    <header className="max-w-2xl space-y-3"><BookOpen className="size-6 text-primary" /><h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Manual de uso</h1><p className="text-muted-foreground">¿Qué necesitás hacer, Lucas? Buscá una tarea y seguí los pasos.</p></header>
-    <div className="space-y-4"><div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Buscar en el manual" placeholder="Por ejemplo: crear alumno" value={busqueda} onChange={(event) => setBusqueda(event.target.value)} className="h-12 pl-12 text-base" /></div><div className="flex flex-wrap gap-2" role="group" aria-label="Temas del manual">{["Todas", "Alumnos", "Planes", "Clases", "Ejercicios", "Carreras"].map((tema) => <Button key={tema} variant={categoria === tema ? "secondary" : "ghost"} size="sm" aria-pressed={categoria === tema} onClick={() => setCategoria(tema)}>{tema}</Button>)}</div></div>
-    <p role="status" className="text-sm text-muted-foreground">{resultados.length} {resultados.length === 1 ? "guía disponible" : "guías disponibles"}</p>
-    {resultados.length ? <div className="divide-y rounded-2xl border bg-card">{resultados.map((item) => <Link key={item.id} href={`/manual?guia=${item.id}`} className="group flex min-w-0 items-center justify-between gap-4 px-5 py-5 outline-none transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring sm:px-6"><div className="min-w-0 space-y-1"><p className="text-xs font-medium text-primary">{item.categoria}</p><h2 className="font-semibold">{item.titulo}</h2><p className="text-sm text-muted-foreground">{item.descripcion}</p></div><ChevronRight className="size-5 shrink-0 text-muted-foreground group-hover:text-primary" /></Link>)}</div> : <div className="space-y-3 rounded-2xl border border-dashed p-8 text-center"><p>No encontramos esa tarea.</p><p className="text-sm text-muted-foreground">Probá con «alumno», «horario» o «plan».</p><Button variant="outline" onClick={() => { setBusqueda(""); setCategoria("Todas"); }}>Ver todas las guías</Button></div>}
-  </div>;
+ const session=useRol("coach"); const parametros=useSearchParams();
+ const [busqueda,setBusqueda]=useState(""); const [categoria,setCategoria]=useState("Todas");
+ const [ampliada,setAmpliada]=useState<{imagen:string; titulo:string}|null>(null);
+ const guia=guias.find(item=>item.id===parametros.get("guia"));
+ const palabras=normalizarBusqueda(busqueda).split(/\s+/).filter(Boolean);
+ const resultados=guias.filter(item=>(categoria==="Todas"||item.categoria===categoria)&&palabras.every(palabra=>normalizarBusqueda(textoGuia(item)).includes(palabra)));
+ if(!session) return null;
+ if(guia) return <div className="mx-auto max-w-6xl space-y-8">
+  <Button variant="ghost" size="sm" render={<Link href="/manual" />}><ArrowLeft />Todas las guías</Button>
+  <header className="max-w-3xl space-y-3"><p className="text-sm font-medium text-primary">{guia.categoria} · {guia.pasos.length} pasos</p><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{guia.titulo}</h1><p className="text-lg leading-relaxed text-muted-foreground">{guia.descripcion}</p><p className="text-sm text-muted-foreground">Las imágenes muestran la app con datos ficticios. Las marcas celestes indican dónde hacer clic. Podés ampliarlas.</p></header>
+  <div className="grid items-start gap-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-12">
+   <nav aria-label="Pasos de esta guía" className="rounded-xl border p-4 lg:sticky lg:top-24"><p className="mb-3 text-sm font-semibold">En esta guía</p><ol className="space-y-2">{guia.pasos.map((paso,i)=><li key={i}><a href={"#paso-"+(i+1)} className="flex gap-2 rounded px-1 py-1 text-sm leading-relaxed text-muted-foreground hover:text-primary"><span className="text-primary">{i+1}.</span>{paso.titulo}</a></li>)}</ol></nav>
+   <article className="min-w-0"><ol className="space-y-12" aria-label="Instrucciones detalladas">{guia.pasos.map((paso,i)=>{const imagen=paso.imagen?capturas[paso.imagen]:null; return <li id={"paso-"+(i+1)} key={i} className="scroll-mt-24 space-y-5 border-b pb-10 last:border-0"><div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/15 font-semibold text-primary">{i+1}</span><h2 className="pt-1 text-xl font-semibold sm:text-2xl">{paso.titulo}</h2></div><p className="text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">{paso.texto}</p>{paso.campos&&<dl className="divide-y rounded-xl border bg-card px-4 sm:px-5">{paso.campos.map(campo=><div key={campo.nombre} className="py-4"><dt className="font-semibold">{campo.nombre}</dt><dd className="mt-1 leading-relaxed text-muted-foreground">{campo.detalle}</dd></div>)}</dl>}{imagen&&<figure className="overflow-hidden rounded-xl border bg-card"><button type="button" onClick={()=>setAmpliada({imagen:paso.imagen!,titulo:paso.titulo})} aria-label={"Ampliar imagen: "+paso.titulo} className="block w-full cursor-zoom-in text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"><Image src={imagen.src} width={imagen.ancho} height={imagen.alto} alt={paso.titulo+" — pantalla de ejemplo de Aktiv"} className="h-auto w-full" sizes="(min-width: 1024px) 800px, 100vw" unoptimized /><span className="flex items-center justify-end gap-2 border-t px-4 py-3 text-sm text-primary"><ZoomIn className="size-4" />Ampliar imagen</span></button></figure>}</li>})}</ol><aside className="mt-6 rounded-xl border-l-4 border-primary bg-card p-5 leading-relaxed text-muted-foreground">{guia.nota}</aside><div className="mt-6 flex flex-wrap gap-3"><Button render={<Link href={guia.destino} />}>Abrir pantalla<ArrowUpRight /></Button><Button variant="outline" render={<Link href="/manual" />}>Volver al manual</Button></div><div className="mt-10 space-y-3"><h2 className="text-lg font-semibold">Otras tareas de {guia.categoria}</h2>{guias.filter(item=>item.categoria===guia.categoria&&item.id!==guia.id).map(item=><Link className="flex items-center justify-between gap-3 rounded-lg border px-4 py-3 hover:bg-muted" key={item.id} href={"/manual?guia="+item.id}>{item.titulo}<ChevronRight className="size-4 shrink-0" /></Link>)}</div></article>
+  </div>
+  <Dialog open={!!ampliada} onOpenChange={open=>{if(!open)setAmpliada(null);}}><DialogContent className="max-h-[95dvh] overflow-auto sm:max-w-[min(1400px,95vw)]"><DialogTitle className="pr-8">{ampliada?.titulo}</DialogTitle><p className="text-sm text-muted-foreground">En el celular, deslizá la imagen hacia los costados para ver los controles con más detalle.</p>{ampliada&&capturas[ampliada.imagen]&&<Image src={capturas[ampliada.imagen].src} width={capturas[ampliada.imagen].ancho} height={capturas[ampliada.imagen].alto} alt={ampliada.titulo} unoptimized className="h-auto w-full min-w-[900px] sm:min-w-0" />}</DialogContent></Dialog>
+ </div>;
+ return <div className="mx-auto max-w-5xl space-y-7"><header className="max-w-3xl space-y-3"><BookOpen className="size-6 text-primary" /><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Manual de uso</h1><p className="text-lg leading-relaxed text-muted-foreground">¿Qué necesitás hacer, Lucas? Buscá una tarea para ver los botones, los datos que tenés que cargar y cada paso con imágenes.</p></header><div className="space-y-4"><div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Buscar en el manual" placeholder="Por ejemplo: duplicar plan o aprobar alumno" value={busqueda} onChange={e=>setBusqueda(e.target.value)} className="h-12 pl-12 text-base" /></div><div role="group" aria-label="Temas del manual" className="flex flex-wrap gap-2">{["Todas",...temasManual].map(tema=><Button key={tema} size="sm" variant={categoria===tema?"secondary":"ghost"} aria-pressed={categoria===tema} onClick={()=>setCategoria(tema)}>{tema}</Button>)}</div></div><p role="status" className="text-sm text-muted-foreground">{resultados.length} guías disponibles · acceso exclusivo del profesor</p>{resultados.length?<div className="divide-y rounded-2xl border bg-card">{resultados.map(item=><Link href={"/manual?guia="+item.id} key={item.id} className="flex min-w-0 items-center justify-between gap-4 px-5 py-6 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"><div className="min-w-0 space-y-2"><p className="text-sm font-medium text-primary">{item.categoria} · {item.pasos.length} pasos</p><h2 className="text-lg font-semibold">{item.titulo}</h2><p className="leading-relaxed text-muted-foreground">{item.descripcion}</p></div><ChevronRight className="size-5 shrink-0 text-muted-foreground" /></Link>)}</div>:<div className="space-y-3 rounded-xl border border-dashed p-8 text-center"><p>No encontramos esa tarea.</p><p className="text-muted-foreground">Probá con alumno, horario o plan.</p><Button variant="outline" onClick={()=>{setBusqueda("");setCategoria("Todas");}}>Ver todas las guías</Button></div>}</div>;
 }

@@ -355,12 +355,15 @@ try {
     const { page, ctx } = await pagina("coach", 390);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`); await page.getByRole("tab", { name: "Plan", exact: true }).click();
     const movilidad = page.getByRole("region", { name: "Movilidad", exact: true }), activacion = page.getByRole("region", { name: "Activación", exact: true });
+    await movilidad.waitFor(); await activacion.waitFor();
     const primero = await movilidad.boundingBox(), segundo = await activacion.boundingBox(); assert(primero.y < segundo.y);
     await activacion.getByRole("button", { name: "Pasar a movilidad", exact: true }).first().click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].activacion.find((e) => e.id === idActivacion).fase, "Movilidad");
     await page.reload(); await page.getByRole("tab", { name: "Plan", exact: true }).click();
-    assert.equal(await movilidad.getByRole("combobox", { name: "Ejercicio", exact: true }).count(), 2);
+    const ejerciciosMovilidad = movilidad.getByRole("combobox", { name: "Ejercicio", exact: true });
+    await ejerciciosMovilidad.nth(1).waitFor();
+    assert.equal(await ejerciciosMovilidad.count(), 2);
     await ctx.close();
     const alumno = await pagina("alumno", 390); await alumno.page.goto(`${baseUrl}/mi-plan`);
     await alumno.page.getByText("1. Movilidad de tobillo", { exact: true }).waitFor();
@@ -675,7 +678,11 @@ try {
     await dialogoCategoria.getByRole("button", { name: "Crear categoría", exact: true }).click();
     await dialogoCategoria.waitFor({ state: "hidden" });
     await page.reload();
-    await page.getByRole("button", { name: "Agilidad", exact: true }).waitFor();
+    const filtroAgilidad = page.getByRole("group", { name: "Filtrar por categoría", exact: true }).getByRole("button", { name: /^Agilidad(?:\s|\d|$)/ });
+    await filtroAgilidad.waitFor();
+    await filtroAgilidad.click();
+    assert.equal(await filtroAgilidad.getAttribute("aria-pressed"), "true");
+    await page.getByText("Todavía no hay ejercicios en esta categoría.", { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.scrollBehavior), "smooth");
     assert.deepEqual(errores, []);
     await ctx.close();
@@ -1049,4 +1056,15 @@ try {
   await estudiante.ctx.close();
   console.log(`OK: autoguardado, error/reintento, edición durante pedidos lentos sin perder foco, días numerados independientes por tipo, modal de edición, planes de 6 y 8 semanas, escritorio, celular, altas, protección del borrador, herencia, recarga y peso semanal. Capturas: ${destino}`);
   }
+} catch (error) {
+  const modo = process.argv.find(arg => arg.startsWith("--"))?.slice(2) ?? "principal";
+  let numero = 0;
+  for (const contexto of browser.contexts()) for (const page of contexto.pages()) {
+    const prefijo = join(destino, "fallo-" + modo + "-" + (++numero));
+    try {
+      await page.screenshot({path: prefijo + ".png", fullPage: true, timeout: 5000});
+      await import("node:fs/promises").then(fs => fs.writeFile(prefijo + ".txt", page.url() + "\n" + (error.stack ?? String(error))));
+    } catch (diagnostico) { console.error("No se pudo capturar el diagnóstico:", diagnostico.message); }
+  }
+  throw error;
 } finally { await browser.close(); }
