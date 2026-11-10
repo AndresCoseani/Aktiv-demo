@@ -446,3 +446,5 @@ Correcci?n posterior de Andr?s: CI para cualquier PR, incluidas ramas destino co
 - Validado con typecheck, ESLint, build de Next y navegador móvil/escritorio, incluyendo fallo parcial y reintento.
 
 Validación del registro simplificado: 63 unitarios API + 41 contrato, typecheck API/cliente y ambos builds aprobados. Tres e2e reales con Supabase aislado: alta sin correo, pendiente bloqueado, aprobación/login DNI, repetición sin cambio de contraseña, aislamiento entre profesores y rollback de conflictos. Navegador 320/1440 aprobado, incluidos Aprobar todos/fallo parcial/reintento. ESLint de componentes modificados sin errores.
+
+Manual de registro actualizado: acceso desde enlace compartido o Registrate debajo de Entrar; tres datos, revisión de email/DNI, sin confirmación de correo ni ficha inicial; aprobación individual/conjunta y aviso al alumno. Distingue correo de recuperación de contraseña y alta sin correo. Sin identificador del profesor en el flujo del alumno.
