@@ -222,6 +222,11 @@ try {
     const fuerzaAntes=structuredClone(planes[0].sesiones);
     for(const ancho of [1440,390]){
       const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("tab",{name:"Plan",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();
+      const actividades=page.getByRole("group",{name:"Tipo de entrenamiento",exact:true});
+      await actividades.getByRole("button",{name:"Agregar actividad",exact:true}).waitFor();
+      if(ancho===1440){const running=await actividades.getByRole("button",{name:"Running",exact:true}).boundingBox();const agregar=await actividades.getByRole("button",{name:"Agregar actividad",exact:true}).boundingBox();assert.ok(agregar.x>=running.x+running.width&&Math.abs(agregar.y-running.y)<5);}
+      const etiqueta=page.getByRole("region",{name:"Planilla de Running",exact:true}).getByText("Sugerencias",{exact:true});
+      assert.ok(await etiqueta.evaluate(el=>el.scrollWidth<=el.clientWidth),"Sugerencias debe caber dentro de su columna");
       await page.getByRole("textbox",{name:"Lunes, semana 1",exact:true}).fill("Rodaje de ejemplo");
       const campo=page.getByRole("textbox",{name:"Martes, semana 1",exact:true});await campo.fill("10 min suaves + 4 × 200 m + afloje");
       await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
@@ -799,6 +804,8 @@ try {
     await page.getByRole("region", { name: "Bloque 2", exact: true }).getByRole("button", { name: "Agregar ejercicio", exact: true }).click();
     const nuevo = page.getByLabel("Ejercicio, semana 1", { exact: true });
     await nuevo.waitFor();
+    assert.equal(await nuevo.inputValue(), "3×8");
+    assert.equal(await page.getByLabel("Descanso de ejercicio", { exact: true }).inputValue(), "60 s");
     assert.equal(planes[0].sesiones[0].ejercicios.length, 1, "La tarjeta debe aparecer antes de que responda el servidor");
     await page.getByRole("region", { name: "Bloque 1", exact: true }).getByLabel("Zumo, semana 1", { exact: true }).waitFor();
     await page.getByRole("region", { name: "Bloque 2", exact: true }).getByLabel("Ejercicio, semana 1", { exact: true }).waitFor();
@@ -810,6 +817,8 @@ try {
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].ejercicios.length, 2);
     assert.equal(planes[0].sesiones[0].ejercicios[1].semanas[0].prescripcion, "3×12");
+    assert.equal(planes[0].sesiones[0].ejercicios[1].descanso, "60 s");
+    assert.ok(planes[0].sesiones[0].ejercicios[1].semanas.slice(1).every(c=>c.prescripcion==="3×8"));
     await page.reload();
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await page.getByRole("region", { name: "Bloque 1", exact: true }).getByLabel("Zumo, semana 1", { exact: true }).waitFor();

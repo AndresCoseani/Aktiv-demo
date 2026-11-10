@@ -36,13 +36,13 @@ export function EditorEjerciciosPlan({ ejercicios, bloques, semana, semanasVisib
   }, []);
   const tabla = ancho >= 700;
   // Reservar espacio para nombre, descanso, acciones y separación entre campos.
-  const capacidad = tabla ? Math.max(1, Math.floor((ancho - 340) / 112)) : 1;
+  const capacidad = tabla ? Math.max(1, Math.floor((ancho - 440) / 88)) : 1;
   const inicio = Math.floor((semana - 1) / capacidad) * capacidad;
   const semanasVisibles = semanas.slice(inicio, inicio + capacidad);
   // El número interno identifica el bloque; el orden visual sigue los ejercicios.
   const grupos = bloquesDelPlan(ejercicios, bloques);
   const libre = primerBloqueLibre(ejercicios, bloques);
-  const columnas = { "--columnas-ejercicio": `minmax(10rem,1.5fr) repeat(${semanasVisibles.length},minmax(0,1fr)) 6rem 2rem` } as CSSProperties;
+  const columnas = { "--columnas-ejercicio": `minmax(16rem,3fr) repeat(${semanasVisibles.length},minmax(0,1fr)) 6rem 2rem` } as CSSProperties;
   function soltar(e: React.DragEvent, grupo: number) {
     e.preventDefault();
     const id = e.dataTransfer.getData(TIPO_ARRASTRE);

@@ -26,8 +26,8 @@
   },
   "modelo-duplicar": {
     "src": "/manual/modelo-duplicar.png",
-    "ancho": 550,
-    "alto": 286
+    "ancho": 539,
+    "alto": 281
   },
   "modelo-editar": {
     "src": "/manual/modelo-editar.png",
@@ -36,7 +36,7 @@
   },
   "modelo-eliminar": {
     "src": "/manual/modelo-eliminar.png",
-    "ancho": 537,
+    "ancho": 539,
     "alto": 250
   },
   "modelo-asignar": {
@@ -311,8 +311,8 @@
   },
   "running-copiar": {
     "src": "/manual/running-copiar.png",
-    "ancho": 420,
-    "alto": 417
+    "ancho": 429,
+    "alto": 425
   },
   "running-movil": {
     "src": "/manual/running-movil.png",

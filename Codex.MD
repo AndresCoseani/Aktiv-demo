@@ -1,3 +1,5 @@
+Legibilidad del editor (10/11/2026): + Agregar actividad comparte fila con actividades, también en grilla Running. Nombre de ejercicio gana ancho frente a semanas; etiqueta Sugerencias tiene columna140px y ajuste de texto. Solo ejercicios mensuales/modelos NUEVOS empiezan con descanso60 s y todas las semanas3×8 editables. Alta guarda descanso en POST y prescripciones mediante parches; comparación inicial usa semanas vacías reales del servidor, incluso al reintentar, evitando perder valores. No se cambian datos previos ni semanas agregadas a planes existentes. Manual/capturas y pruebas browser actualizados.
+
 Solicitudes de alta (10/11/2026): se trasladan de Alumnos al Dashboard, inmediatamente debajo del saludo y antes de métricas. Se conservan aprobación individual/todas, actualización y enlace. Manual y prueba de registro actualizados. Usuario confirma aplicada migración51 en producción. Misma PR12, rama feat/running-semanal.
 
 # Aktiv — contexto único del proyecto

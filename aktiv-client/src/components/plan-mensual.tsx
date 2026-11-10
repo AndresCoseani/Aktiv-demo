@@ -239,7 +239,7 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
     </div>;
   }
   if(editable && tipo==="Running" && !anteriorRunning) return <div className="space-y-5">
-    <div role="group" aria-label="Tipo de entrenamiento" className="flex flex-wrap justify-center gap-2">{tipos.map(t=><Button key={t} variant={tipo===t?"secondary":"outline"} aria-pressed={tipo===t} onClick={()=>navegar(()=>setTipo(t))}>{t}</Button>)}</div>
+    <div role="group" aria-label="Tipo de entrenamiento" className="flex flex-wrap justify-center gap-2">{tipos.map(t=><Button key={t} variant={tipo===t?"secondary":"outline"} aria-pressed={tipo===t} onClick={()=>navegar(()=>setTipo(t))}>{t}</Button>)}{editable && <NuevaActividad crear={crearActividad} onCreada={(nueva) => navegar(() => { setTipo(nueva); setSeleccionSesion(null); })} />}</div>
     <RunningSemanal key={plan.id+":"+plan.semanas} plan={{...plan,running}} editable onDatos={setRunning} />
     {sesiones.length>0&&<Button variant="outline" onClick={()=>navegar(()=>setAnteriorRunning(true))}>Ver sesiones anteriores de Running</Button>}
     <p className="text-sm text-muted-foreground">La grilla no borra ni convierte las sesiones anteriores. Podés consultarlas y editarlas desde su botón.</p>
@@ -247,8 +247,7 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
   return <div className="space-y-4">
     {tipo==="Running"&&<Button variant="outline" onClick={()=>navegar(()=>setAnteriorRunning(false))}>Volver a la grilla de Running</Button>}
     {plan.inicio && !actual && <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">{hoyISO() < inicio ? "Este plan todavía no empezó." : `Este plan de ${plan.semanas} semanas terminó.`} Podés consultar sus semanas.</p>}
-    <div role="group" aria-label="Tipo de entrenamiento" className="flex flex-wrap justify-center gap-2">{tipos.map((t) => <Button key={t} className="max-w-full whitespace-normal break-words" disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}</div>
-    <div className="flex justify-center"><NuevaActividad crear={crearActividad} onCreada={(nueva) => navegar(() => { setTipo(nueva); setSeleccionSesion(null); })} /></div>
+    <div role="group" aria-label="Tipo de entrenamiento" className="flex flex-wrap justify-center gap-2">{tipos.map((t) => <Button key={t} className="max-w-full whitespace-normal break-words" disabled={ocupado} variant={tipo === t ? "secondary" : "outline"} aria-pressed={tipo === t} onClick={() => navegar(() => { setTipo(t); setSeleccionSesion(null); })}>{t}</Button>)}{editable && <NuevaActividad crear={crearActividad} onCreada={(nueva) => navegar(() => { setTipo(nueva); setSeleccionSesion(null); })} />}</div>
     {errorActividad && <p role="alert" className="text-sm text-destructive">{errorActividad}</p>}
     {(sesiones.length > 0 || editable) && <div className="space-y-2">
       <h3 className="sr-only">Días de {tipo.toLowerCase()}</h3>
@@ -382,8 +381,9 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       // Validar el borrador entero antes de empezar a escribir.
       const operaciones: { ruta: string; datos: object }[] = [];
       if (Object.keys(c).length) operaciones.push({ ruta: `/sesiones/${sesion.id}`, datos: parcheSesionApi.parse(c) });
+      // El alta crea celdas vacías en el servidor; los valores iniciales también deben guardarse.
       for (const ej of borrador.ejercicios) {
-        const previo = guardado.ejercicios.find((p) => p.id === ej.id) ?? altaPendiente;
+        const previo = guardado.ejercicios.find((p) => p.id === ej.id) ?? (altaPendiente ? { ...altaPendiente, semanas: altaPendiente.semanas.map((c) => ({ ...c, prescripcion: "" })) } : null);
         if (!previo) throw new Error("No pudimos identificar el ejercicio pendiente.");
         const campos = (v: EjercicioMensual) => ({ nombre: v.nombre, descanso: v.descanso, grupo: v.grupo, orden: v.orden });
         const ce = cambio(campos(previo), campos(ej));
@@ -396,7 +396,7 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       if (altaPendiente) {
         const { id, nombre, descanso, grupo } = altaPendiente;
         await api.post(`/sesiones/${sesion.id}/ejercicios`, { id, nombre, descanso, grupo });
-        setGuardado((anterior) => ({ ...anterior, ejercicios: [...anterior.ejercicios, altaPendiente] }));
+        setGuardado((anterior) => ({ ...anterior, ejercicios: [...anterior.ejercicios, { ...altaPendiente, semanas: altaPendiente.semanas.map((c) => ({ ...c, prescripcion: "" })) }] }));
         setAltaPendiente(null);
       }
       // El alta anterior es una dependencia; estos parches ya son independientes.
@@ -426,7 +426,7 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
   }
   function agregarEjercicio(grupo: number) {
     if (altaPendiente) return;
-    const nuevo: EjercicioMensual = { id: nuevoId(), nombre: "", descanso: "", grupo, orden: Math.max(-1, ...borrador.ejercicios.map((e) => e.orden)) + 1, semanas: semanasDelPlan(totalSemanas).map((semana) => ({ semana, prescripcion: "", peso: null, pesoFecha: null })) };
+    const nuevo: EjercicioMensual = { id: nuevoId(), nombre: "", descanso: "60 s", grupo, orden: Math.max(-1, ...borrador.ejercicios.map((e) => e.orden)) + 1, semanas: semanasDelPlan(totalSemanas).map((semana) => ({ semana, prescripcion: "3×8", peso: null, pesoFecha: null })) };
     setBorrador((anterior) => ({ ...anterior, ejercicios: [...anterior.ejercicios, nuevo] }));
     setAltaPendiente(nuevo); setError("");
   }
