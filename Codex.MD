@@ -435,3 +435,7 @@ Captura ampliada de Logs: advertencia LegacyRouteConverter por /api/*, seguida d
 Acuerdo de trabajo confirmado: desde ahora cambios en ramas con PR hacia main; no volver al flujo de pushes directos a main de la sesi?n anterior. Se valid? el CI editado por Andr?s con actionlint; se agreg? filtro branches: [main] y se aline? el blueprint de Render con el CI solo en PR. No se cre? ni public? una rama/PR en este turno de revisi?n y configuraci?n.
 
 Correcci?n posterior de Andr?s: CI para cualquier PR, incluidas ramas destino como submain. Se retir? branches: [main]. El frontend ya ejecuta next build mediante npm run build y luego next start para pruebas; la API compila con nest build, no Next. Se nombraron expl?citamente los dos pasos de compilaci?n, sin duplicarlos. Se retiro el simulacro mensual por pedido de Andres; permanece la comprobacion de restauracion dentro del backup nocturno.
+
+### Aprobación conjunta de alumnos — 9 de noviembre de 2026
+- Solicitudes de alta: botón Aprobar todos con progreso; las solicitudes que fallen siguen pendientes. Conserva el tilde individual. No requiere migración nueva.
+- Validado con typecheck, ESLint, build de Next y navegador móvil/escritorio, incluyendo fallo parcial y reintento.
