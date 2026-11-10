@@ -232,6 +232,10 @@ with comprobaciones(migracion, descripcion, pieza, ok) as (values
     and not coalesce(has_function_privilege('authenticated',to_regprocedure('public.completar_registro_alumno(uuid,uuid)'),'EXECUTE'),true)
     and coalesce(has_function_privilege('authenticated',to_regprocedure('public.aprobar_registro_alumno(uuid)'),'EXECUTE'),false)
     and not coalesce(has_function_privilege('anon',to_regprocedure('public.aprobar_registro_alumno(uuid)'),'EXECUTE'),true))
+  ,(50, 'Fecha de alta en Argentina', 'valor por defecto con zona horaria explícita',
+    exists(select 1 from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
+      where d.adrelid=to_regclass('public.alumnos') and a.attname='alta_en'
+        and pg_get_expr(d.adbin,d.adrelid) like '%America/Argentina/Buenos_Aires%'))
 )
 select migracion, descripcion,
   case when bool_and(ok) then 'OK' when bool_or(ok=false) then 'REVISAR' else 'MANUAL' end as estado,

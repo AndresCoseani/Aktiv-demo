@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { fechaISO, textoOpcional, textoRequerido } from "./comunes";
+import { hoyISO } from "./fechas";
 
 export const horaClaseSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Hora inválida");
 const horarioBaseSchema = z.object({
@@ -37,7 +38,7 @@ export type ClaseAgenda = z.output<typeof claseAgendaSchema>;
 export type AgendaRespuesta = z.output<typeof agendaRespuestaSchema>;
 
 export function fechaArgentina(ahora = new Date()) {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(ahora);
+  return hoyISO(ahora);
 }
 export function desplazarFecha(fecha: string, dias: number) {
   const fechaUtc = new Date(`${fecha}T12:00:00Z`);

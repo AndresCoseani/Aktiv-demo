@@ -1,5 +1,6 @@
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { createClient } from "@supabase/supabase-js";
+import { hoyISO } from "@aktiv/contrato";
 import { Entorno, Sesion, levantarApi, entornoDeTest, uuid } from "./helpers";
 
 describe("Registro público con aprobación",()=>{
@@ -26,8 +27,8 @@ describe("Registro público con aprobación",()=>{
   expect((await c.login(email,dni)).body.codigo).toBe("registro_pendiente");
   expect((await A.post(`/api/auth/solicitudes-alta/${solicitud.id}/aprobar`,{})).status).toBe(201);
   expect((await c.login(email,dni)).body.session.role).toBe("alumno");
-  const ficha=(await env.admin.from("alumnos").select("dni,telefono").eq("user_id",u!.id).single()).data;
-  expect(ficha).toMatchObject({dni,telefono:""});
+  const ficha=(await env.admin.from("alumnos").select("dni,telefono,alta_en").eq("user_id",u!.id).single()).data;
+  expect(ficha).toMatchObject({dni,telefono:"",alta_en:hoyISO()});
   // Repetir el alta no cambia el DNI/contraseña ni la identidad existente.
   expect((await new Sesion(app).post("/api/auth/registro",{nombre:"Otro nombre",dni:"45999999",email})).status).toBe(204);
   expect((await new Sesion(app).login(email,dni)).body.session.role).toBe("alumno");

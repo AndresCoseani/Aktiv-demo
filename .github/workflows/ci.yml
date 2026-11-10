@@ -209,6 +209,9 @@ jobs:
           node -e 'const fs=require("fs"); const s=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/supabase-local.json")); fs.writeFileSync("test/.env.test",`SUPABASE_URL=${s.API_URL}\nSUPABASE_ANON_KEY=${s.ANON_KEY}\nSUPABASE_SERVICE_ROLE_KEY=${s.SERVICE_ROLE_KEY}\n`);'
       - run: npm run test:e2e
       - run: npm run test:db
+      - name: Verificar fecha argentina y reparación de altas (con rollback)
+        run: |
+          node -e 'const fs=require("fs"); const m=fs.readFileSync("supabase/migrations/20261119000000_fecha_alta_argentina.sql","utf8").replace(/^begin;\r?$/m,"").replace(/^commit;\r?$/m,""); process.stdout.write(fs.readFileSync("test/fecha-alta.sql","utf8").replace("-- MIGRACION_50",m));' | docker exec -i supabase_db_aktiv_prototipe psql -U postgres -d postgres -v ON_ERROR_STOP=1
       - name: Apagar entorno local
         if: always()
         run: if command -v supabase >/dev/null; then supabase stop --no-backup; fi
