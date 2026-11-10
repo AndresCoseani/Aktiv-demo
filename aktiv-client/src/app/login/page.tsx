@@ -111,7 +111,6 @@ export default function LoginPage() {
           </div>
 
           <Link href="/recuperar-clave" className="block text-right text-sm text-primary underline-offset-4 hover:underline">¿Olvidaste tu contraseña?</Link>
-          <Link href="/registro" className="block text-center text-sm text-primary underline-offset-4 hover:underline">¿Sos nuevo? Registrate en Aktiv</Link>
           {(error || errorCarga) && (
             <p role="alert" className="text-sm text-destructive">
               {error || errorCarga}
@@ -127,6 +126,7 @@ export default function LoginPage() {
             {enviando ? "Entrando…" : "Entrar"}
             {!enviando && <ArrowRight data-icon="inline-end" />}
           </Button>
+          <Link href="/registro" className="block text-center text-sm text-primary underline-offset-4 hover:underline">¿Sos nuevo? Registrate en Aktiv</Link>
           <p className="text-center text-xs leading-relaxed text-muted-foreground">Si tu profe preparó tu acceso con DNI, esa es tu contraseña inicial, sin puntos. La sesión se recuerda en este dispositivo; si es compartido, cerrá sesión al terminar.</p>
         </form>
 
