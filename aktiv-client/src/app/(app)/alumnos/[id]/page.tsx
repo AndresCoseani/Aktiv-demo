@@ -120,7 +120,7 @@ export default function AlumnoDetallePage() {
         if (hayBorradoresMensuales()) toast.error("Guardá la sesión antes de cambiar de pestaña.");
         else setTab(valor);
       }} className="min-w-0 gap-6">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto sm:flex sm:h-9 sm:w-fit sm:group-data-horizontal/tabs:h-9">
+        <TabsList className="grid h-auto w-full grid-cols-4 gap-1 group-data-horizontal/tabs:h-auto sm:flex sm:h-9 sm:w-fit sm:group-data-horizontal/tabs:h-9">
           <TabsTrigger value="resumen" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Resumen</TabsTrigger>
           <TabsTrigger value="ficha" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">
             Ficha
