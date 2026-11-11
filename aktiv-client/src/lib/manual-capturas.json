@@ -71,8 +71,8 @@
   },
   "alumno-nuevo": {
     "src": "/manual/alumno-nuevo.png",
-    "ancho": 496,
-    "alto": 506
+    "ancho": 495,
+    "alto": 505
   },
   "alumno-resumen": {
     "src": "/manual/alumno-resumen.png",
@@ -81,8 +81,8 @@
   },
   "alumno-acceso": {
     "src": "/manual/alumno-acceso.png",
-    "ancho": 489,
-    "alto": 366
+    "ancho": 494,
+    "alto": 369
   },
   "alumno-planes": {
     "src": "/manual/alumno-planes.png",
@@ -91,8 +91,8 @@
   },
   "plan-nuevo": {
     "src": "/manual/plan-nuevo.png",
-    "ancho": 495,
-    "alto": 768
+    "ancho": 496,
+    "alto": 770
   },
   "plan-duplicar": {
     "src": "/manual/plan-duplicar.png",
@@ -101,18 +101,18 @@
   },
   "plan-editar": {
     "src": "/manual/plan-editar.png",
-    "ancho": 496,
-    "alto": 474
+    "ancho": 489,
+    "alto": 468
   },
   "plan-eliminar": {
     "src": "/manual/plan-eliminar.png",
-    "ancho": 432,
-    "alto": 234
+    "ancho": 422,
+    "alto": 230
   },
   "plan-guardar-modelo": {
     "src": "/manual/plan-guardar-modelo.png",
-    "ancho": 496,
-    "alto": 306
+    "ancho": 492,
+    "alto": 304
   },
   "plan-activar": {
     "src": "/manual/plan-activar.png",
@@ -121,13 +121,13 @@
   },
   "dia-editar": {
     "src": "/manual/dia-editar.png",
-    "ancho": 481,
-    "alto": 401
+    "ancho": 487,
+    "alto": 406
   },
   "dia-duplicar": {
     "src": "/manual/dia-duplicar.png",
-    "ancho": 496,
-    "alto": 438
+    "ancho": 488,
+    "alto": 431
   },
   "ejercicios-lista": {
     "src": "/manual/ejercicios-lista.png",
@@ -366,8 +366,8 @@
   },
   "planificacion-crear": {
     "src": "/manual/planificacion-crear.png",
-    "ancho": 432,
-    "alto": 411
+    "ancho": 431,
+    "alto": 410
   },
   "planificacion-modal-profe": {
     "src": "/manual/planificacion-modal-profe.png",
@@ -376,13 +376,13 @@
   },
   "planificacion-excepcion": {
     "src": "/manual/planificacion-excepcion.png",
-    "ancho": 426,
-    "alto": 369
+    "ancho": 432,
+    "alto": 374
   },
   "planificacion-copiar": {
     "src": "/manual/planificacion-copiar.png",
-    "ancho": 431,
-    "alto": 467
+    "ancho": 432,
+    "alto": 468
   },
   "planificacion-movil": {
     "src": "/manual/planificacion-movil.png",
@@ -396,7 +396,7 @@
   },
   "alumno-informacion": {
     "src": "/manual/alumno-informacion.png",
-    "ancho": 484,
-    "alto": 454
+    "ancho": 496,
+    "alto": 465
   }
 }

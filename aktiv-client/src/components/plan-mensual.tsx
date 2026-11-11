@@ -16,6 +16,7 @@ import { RunningSemanal } from "./running-semanal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { FechaInput } from "@/components/fecha-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -79,17 +80,23 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div className="min-w-0"><h2 className="flex items-center gap-2 text-lg font-medium tracking-tight"><CalendarDays className="size-5 shrink-0 text-primary" />Plan de entrenamiento</h2>
         {!unificado&&<p className="mt-1 text-sm text-muted-foreground">Sesiones por día y progresión por semanas.</p>}</div>
-      {editable && <Button variant="outline" size="sm" disabled={ocupado || datos.cargando || Boolean(datos.error)} onClick={() => navegar(() => { setCrear(true); })}><Plus />Nuevo plan</Button>}
+      {editable && <Button variant={unificado?"default":"outline"} size="sm" disabled={ocupado || datos.cargando || Boolean(datos.error)} onClick={() => navegar(() => { setCrear(true); })}><Plus />Nuevo plan</Button>}
     </div>
     {datos.cargando ? <p role="status" className="py-8 text-sm text-muted-foreground">Cargando planes…</p> : datos.error ?
       <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm"><p>{datos.error}</p><Button variant="outline" size="sm" className="mt-2" onClick={datos.reintentar}>Reintentar</Button></div> : <>
-      {(editable||unificado) && visibles.length > 1 && <div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">
+      {!(editable&&unificado) && (editable||unificado) && visibles.length > 1 && <div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">
         {visibles.map((p) => <Button key={p.id} variant={p.id === plan?.id ? "secondary" : "outline"} size="sm" aria-pressed={p.id === plan?.id} onClick={() => navegar(() => setSeleccion(p.id))}>
           {p.activo && <Check className="size-3.5" />}{p.nombre || "Sin nombre"}
         </Button>)}
       </div>}
       {!editable && !unificado && visibles.length > 0 ? <CalendarioPlanes planes={visibles} /> : plan ? <>
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
+        {editable&&unificado?<div className="space-y-2">
+          <div aria-label="Acciones del plan" role="group" className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border/70 px-3 py-2">
+            <Button variant="outline" className="h-auto min-h-9 min-w-0 max-w-[65%] justify-start whitespace-normal px-4 py-1.5 text-left font-medium" aria-label="Editar plan de entrenamiento" title="Editar nombre, inicio y duración" disabled={ocupado} onClick={()=>navegar(()=>setEditando(plan))}>{plan.nombre||"Sin nombre"}</Button>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3"><Switch aria-label={plan.activo?"Desactivar plan":"Activar plan"} title={plan.activo?"Desactivar plan":"Activar plan"} checked={plan.activo} disabled={ocupado} style={{backgroundColor:plan.activo?"var(--success)":"var(--destructive)"}} onCheckedChange={v=>navegar(()=>void accion(v?"activar":"desactivar"))} /><Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={()=>navegar(()=>setDuplicandoPlan(plan))}><Copy /></Button><Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" title="Eliminar plan" disabled={ocupado} onClick={()=>navegar(()=>setBorrar(true))}><Trash2 className="text-destructive" /></Button></div>
+          </div>
+          <details className="group/otros-planes"><summary className="w-fit cursor-pointer rounded-md px-1 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">Ver más planes</summary><div className="mt-2 space-y-3 rounded-lg border border-border/60 p-3"><div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">{visibles.map(p=><Button key={p.id} variant={p.id===plan.id?"secondary":"outline"} size="sm" aria-pressed={p.id===plan.id} onClick={()=>navegar(()=>setSeleccion(p.id))}>{p.activo&&<Check className="size-3.5" />}{p.nombre||"Sin nombre"}</Button>)}</div><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio,{conAnio:true})} · {plan.semanas} semanas · {plan.activo?"Activo":"Borrador"}</p><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" aria-label="Organizar rutinas" aria-pressed={organizando} onClick={()=>navegar(()=>setOrganizando(v=>!v))}><LibraryBig />{organizando?"Volver a la grilla":"Organizar rutinas"}</Button><Button variant="outline" size="sm" disabled={ocupado} onClick={()=>navegar(()=>setGuardandoModelo(true))}><BookmarkPlus />Guardar como modelo</Button></div></div></details>
+        </div>:<>        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
           <div className="min-w-0 flex-1 basis-48"><p className="break-words text-lg font-medium tracking-tight">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
           {editable && <div className="flex flex-wrap items-center gap-1">
             {unificado&&<Button variant="ghost" size="icon" aria-label="Organizar rutinas" title={organizando?"Volver a la grilla":"Organizar rutinas"} aria-pressed={organizando} onClick={()=>navegar(()=>setOrganizando(v=>!v))}><LibraryBig /></Button>}
@@ -100,7 +107,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
             <Button size="icon-sm" variant="ghost" aria-label="Editar plan de entrenamiento" title="Editar plan" disabled={ocupado} onClick={() => navegar(() => setEditando(plan))}><Pencil /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" disabled={ocupado} onClick={() => navegar(() => setBorrar(true))}><Trash2 className="text-destructive" /></Button>
           </div>}
-        </div>
+        </div></>}
         <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&editable&&organizando?<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable />:unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} renderRutina={(s,semana,cerrar)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
       </> : <p className="min-w-0 break-words rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{editable ? "Creá un plan, elegí su duración y agregá las sesiones." : "Tu profe todavía no activó un plan de entrenamiento."}</p>}
     </>}

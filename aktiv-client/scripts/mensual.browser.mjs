@@ -9,6 +9,11 @@ const baseUrl = process.env.MENSUAL_URL ?? "http://localhost:3101";
 const destino = process.env.MENSUAL_ARTIFACTS ?? join(process.env.TEMP, "aktiv-mensual-capturas");
 await mkdir(destino, { recursive: true });
 // Las pruebas del calendario anterior vuelven a esa vista explícitamente tras recargar.
+async function abrirRutinas(page) {
+ const resumen=page.getByText("Ver más planes",{exact:true});await resumen.waitFor();
+ if(!await resumen.evaluate(e=>e.parentElement.open))await resumen.click();
+ await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+}
 async function recargar(page) { const diaria=await page.getByRole("button",{name:"Ver grilla semanal",exact:true}).count()>0;await page.reload();if(diaria)await page.getByRole("button",{name:"Vista diaria",exact:true}).click(); }
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const alumnoId = "a0000000-0000-4000-8000-000000000001";
@@ -223,13 +228,13 @@ try {
   if(process.argv.includes("--running-tipos")) {
     planes[0].semanas=4;
     for(const ancho of [1440,390]) {
-      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();
+      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await abrirRutinas(page);await page.getByRole("button",{name:"Running",exact:true}).click();
       assert.equal(await page.getByLabel("Semana de Running",{exact:true}).isVisible(),ancho<768);
       const actividad=page.getByLabel("Actividad de Martes, semana 1",{exact:true}),texto=page.getByLabel("Martes, semana 1",{exact:true});
       await texto.fill("Rodaje que se conserva");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
       fallar=true;await actividad.selectOption("GYM");await page.getByRole("alert").filter({hasText:"Fallo controlado de Running"}).waitFor();assert.equal(await texto.count(),0);await page.getByRole("button",{name:"Reintentar guardado",exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('[role="alert"]')&&!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(planes[0].running[1].martes,"Rodaje que se conserva");
-      await recargar(page);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await actividad.inputValue(),"GYM");assert.equal(await texto.count(),0);
+      await recargar(page);await abrirRutinas(page);await page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await actividad.inputValue(),"GYM");assert.equal(await texto.count(),0);
       await actividad.selectOption("Running");assert.equal(await texto.inputValue(),"Rodaje que se conserva");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
       await actividad.selectOption("Descanso");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(await texto.count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await ctx.close();
@@ -241,12 +246,12 @@ try {
   } else
   if(process.argv.includes("--dias")) {
     for(const ancho of [1440,390]) {
-      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await abrirRutinas(page);
       const selector=page.getByRole("button",{name:"Asignar días de la semana",exact:true});await selector.click();
       await page.getByRole("checkbox",{name:"Lunes",exact:true}).check();await page.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await page.getByRole("checkbox",{name:"Viernes",exact:true}).check();
       await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
       assert.deepEqual(planes[0].sesiones[0].dias,[1,3,5]);assert.equal(planes[0].sesiones.length,1);
-      await recargar(page);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await selector.click();for(const dia of ["Lunes","Miércoles","Viernes"])assert.equal(await page.getByRole("checkbox",{name:dia,exact:true}).isChecked(),true);
+      await recargar(page);await abrirRutinas(page);await selector.click();for(const dia of ["Lunes","Miércoles","Viernes"])assert.equal(await page.getByRole("checkbox",{name:dia,exact:true}).isChecked(),true);
       await page.getByRole("button",{name:"Sin asignar",exact:true}).click();await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();assert.deepEqual(planes[0].sesiones[0].dias,[]);
       await selector.click();await page.getByRole("checkbox",{name:"Lunes",exact:true}).check();await page.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await ctx.close();
@@ -258,7 +263,7 @@ try {
   if(process.argv.includes("--running")) {
     const fuerzaAntes=structuredClone(planes[0].sesiones);
     for(const ancho of [1440,390]){
-      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();
+      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await abrirRutinas(page);await page.getByRole("button",{name:"Running",exact:true}).click();
       const actividades=page.getByRole("group",{name:"Tipo de entrenamiento",exact:true});
       await actividades.getByRole("button",{name:"Agregar actividad",exact:true}).waitFor();
       if(ancho===1440){const running=await actividades.getByRole("button",{name:"Running",exact:true}).boundingBox();const agregar=await actividades.getByRole("button",{name:"Agregar actividad",exact:true}).boundingBox();assert.ok(agregar.x>=running.x+running.width&&Math.abs(agregar.y-running.y)<5);}
@@ -280,7 +285,7 @@ try {
       await page.getByRole("button",{name:"Copiar semana",exact:true}).click();await page.getByRole("button",{name:"Reemplazar semana de destino",exact:true}).click();await page.getByRole("dialog").waitFor({state:"hidden"});
       assert.deepEqual(planes[0].running[2],planes[0].running[1]);
       await page.getByRole("tab",{name:"Resumen",exact:true}).click();await page.getByRole("region",{name:"Resumen del alumno",exact:true}).getByText("Rodaje de ejemplo",{exact:true}).waitFor();
-      await recargar(page);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();await campo.waitFor();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
+      await recargar(page);await abrirRutinas(page);await page.getByRole("button",{name:"Running",exact:true}).click();await campo.waitFor();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(planes[0].sesiones,fuerzaAntes);await page.getByRole("tab",{name:"Resumen",exact:true}).click();await page.getByRole("region",{name:"Resumen del alumno",exact:true}).getByText("Rodaje de ejemplo",{exact:true}).waitFor();await ctx.close();
       delete planes[0].running[2];
     }
@@ -313,13 +318,13 @@ try {
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
       await page.screenshot({path:join(destino,`simultaneos-${ancho}.png`),fullPage:true});await ctx.close();
     }
-    const {page,ctx}=await pagina("coach",390);await page.goto(`${baseUrl}/alumnos/${alumnoId}`);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
-    await page.getByRole("button",{name:"Desactivar plan",exact:true}).click();await page.getByRole("button",{name:"Activar plan",exact:true}).waitFor();
+    const {page,ctx}=await pagina("coach",390);await page.goto(`${baseUrl}/alumnos/${alumnoId}`);await abrirRutinas(page);
+    await page.getByRole("switch",{name:"Desactivar plan",exact:true}).click();await page.getByRole("switch",{name:"Activar plan",exact:true}).waitFor();
     assert.equal(planes[0].activo,false);assert.equal(planes[1].activo,true);
-    await page.getByRole("button",{name:"Activar plan",exact:true}).click();await page.getByRole("button",{name:"Desactivar plan",exact:true}).waitFor();assert.equal(planes[1].activo,true);
+    await page.getByRole("switch",{name:"Activar plan",exact:true}).click();await page.getByRole("switch",{name:"Desactivar plan",exact:true}).waitFor();assert.equal(planes[1].activo,true);
     await page.getByRole("button",{name:"Agregar actividad",exact:true}).click();await page.getByRole("textbox",{name:"Nombre de la actividad",exact:true}).fill("Movilidad");await page.getByRole("button",{name:"Crear actividad",exact:true}).click();
     await page.getByRole("button",{name:"Crear Día 1",exact:true}).click();await page.getByText("Movilidad · Día 1",{exact:true}).waitFor();
-    assert.equal(planes[0].sesiones.at(-1).tipo,"Movilidad");await recargar(page);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    assert.equal(planes[0].sesiones.at(-1).tipo,"Movilidad");await recargar(page);await abrirRutinas(page);
     await page.getByRole("group",{name:"Tipo de entrenamiento",exact:true}).getByRole("button",{name:"Movilidad",exact:true}).waitFor();await ctx.close();
     assert.deepEqual(errores,[]);console.log("OK: varios activos, semanas independientes por fecha, futuro oculto, filtros, desactivar/reactivar sin afectar otros, actividad propia persistente y responsive.");
   } else
@@ -376,7 +381,7 @@ try {
     await page.getByRole("dialog").getByRole("button",{name:"Duplicar modelo",exact:true}).click();
     await page.getByRole("heading",{name:"Base principiantes (copia)",exact:true}).waitFor();
     for(const width of [320,390,1024,1440]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);if([390,1440].includes(width))await page.screenshot({path:join(destino,`modelo-editor-${width}.png`),fullPage:true});}
-    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`);await abrirRutinas(page);
     await page.getByRole("button",{name:"Guardar como modelo",exact:true}).click();
     dialogo=page.getByRole("dialog");await dialogo.getByLabel("Nombre",{exact:true}).fill("Modelo desde alumno");
     await dialogo.getByRole("button",{name:"Guardar modelo",exact:true}).click();await dialogo.waitFor({state:"hidden"});
@@ -432,14 +437,14 @@ try {
     const idMovilidad = crypto.randomUUID(), idActivacion = crypto.randomUUID();
     planes[0].sesiones[0].activacion = [{ id: idMovilidad, nombre: "Movilidad de tobillo", indicacion: "10 rep", fase: "Movilidad" }, { id: idActivacion, nombre: "Puente", indicacion: "2x10", fase: "Activación" }, { id: crypto.randomUUID(), nombre: "Activación anterior", indicacion: "1 min" }];
     const { page, ctx } = await pagina("coach", 390);
-    await page.goto(`${baseUrl}/alumnos/${alumnoId}`); await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await page.goto(`${baseUrl}/alumnos/${alumnoId}`); await abrirRutinas(page);
     const movilidad = page.getByRole("region", { name: "Movilidad", exact: true }), activacion = page.getByRole("region", { name: "Activación", exact: true });
     await movilidad.waitFor(); await activacion.waitFor();
     const primero = await movilidad.boundingBox(), segundo = await activacion.boundingBox(); assert(primero.y < segundo.y);
     await activacion.getByRole("button", { name: "Pasar a movilidad", exact: true }).first().click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].activacion.find((e) => e.id === idActivacion).fase, "Movilidad");
-    await recargar(page); await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await recargar(page); await abrirRutinas(page);
     const ejerciciosMovilidad = movilidad.getByRole("combobox", { name: "Ejercicio", exact: true });
     await ejerciciosMovilidad.nth(1).waitFor();
     assert.equal(await ejerciciosMovilidad.count(), 2);
@@ -471,7 +476,7 @@ try {
       await ctx.close();
       const profe = await pagina("coach", ancho);
       await profe.page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-      await profe.page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+      await abrirRutinas(profe.page);
       await profe.page.getByText(`Comentario ${ancho}`, { exact: true }).waitFor();
       assert.equal(await profe.page.getByRole("button", { name: "Marcar como completado", exact: true }).count(), 0);
       await profe.ctx.close();
@@ -514,7 +519,7 @@ try {
     for (const ancho of [1440, 390]) {
       const { page, ctx } = await pagina("coach", ancho);
       await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-      await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+      await abrirRutinas(page);
       const cantidad = planes.length;
       await page.getByRole("button", { name: "Duplicar plan de entrenamiento", exact: true }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
@@ -530,7 +535,7 @@ try {
       assert.equal(planes.length, cantidad);
       await modal.getByRole("button", { name: "Duplicar plan", exact: true }).click();
       await modal.waitFor({ state: "hidden" });
-      await page.getByRole("button", { name: "Activar plan", exact: true }).waitFor();
+      await page.getByRole("switch",{name:"Activar plan",exact:true}).waitFor();
       assert.equal(planes.at(-1).nombre, nombre);
       assert.equal(planes.at(-1).activo, false);
       assert.equal(planes[0].activo, true);
@@ -546,8 +551,8 @@ try {
       assert.equal(planes.at(-1).alumnoId, otroAlumnoId);
       await page.getByRole("button", { name: "Ver alumno", exact: true }).click();
       await page.waitForURL(`**/alumnos/${otroAlumnoId}`);
-      await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
-      await page.getByRole("paragraph").filter({ hasText: `Destino ${ancho}` }).waitFor();
+      await abrirRutinas(page);
+      await page.getByRole("button",{name:"Editar plan de entrenamiento",exact:true}).filter({ hasText: `Destino ${ancho}` }).waitFor();
       await ctx.close();
     }
     assert.deepEqual(errores, []);
@@ -557,7 +562,7 @@ try {
     for (const ancho of [1440, 390]) {
       const { page, ctx } = await pagina("coach", ancho);
       await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-      await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+      await abrirRutinas(page);
       const cantidad = planes[0].sesiones.length;
       await page.getByRole("button", { name: "Duplicar día de entrenamiento", exact: true }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
@@ -582,7 +587,7 @@ try {
       assert(copia.ejercicios[0].semanas.every((c) => c.peso === null && c.pesoFecha === null));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await recargar(page);
-      await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+      await abrirRutinas(page);
       await page.getByRole("button", { name: `Día ${cantidad + 1}`, exact: true }).click();
       await page.getByText(nombre, { exact: true }).waitFor();
       await ctx.close();
@@ -593,7 +598,7 @@ try {
   if (process.argv.includes("--guardado-rapido")) {
     const { page, ctx } = await pagina("coach", 1440);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     await page.getByLabel("Zumo, semana 6", { exact: true }).waitFor();
     assert.equal(await page.getByLabel("Momento del día", { exact: true }).count(), 0);
     const lecturasAntes = lecturasPlanes;
@@ -613,7 +618,7 @@ try {
     assert.equal(lecturasPlanes, lecturasAntes);
     assert.match(await page.getByRole("button", { name: "Día 1", exact: true }).innerText(), /Mar/);
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     assert.equal(await page.getByLabel("Zumo, semana 6", { exact: true }).inputValue(), "9x10");
     await page.getByRole("button", { name: "Editar entrenamiento", exact: true }).click();
     await page.getByRole("dialog").getByRole("button",{name:"Asignar días de la semana",exact:true}).click();assert.equal(await page.getByRole("checkbox",{name:"Martes",exact:true}).isChecked(),true);await page.getByRole("button",{name:"Listo",exact:true}).click();
@@ -625,7 +630,7 @@ try {
     ejerciciosCatalogo = [{ id: crypto.randomUUID(), nombre: "Rolo", categoria: "Movilidad" }, { id: crypto.randomUUID(), nombre: "Hip thrust", categoria: "Fuerza" }];
     const { page, ctx } = await pagina("coach", 390);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     const entrada = page.getByRole("region", { name: "Entrada en calor", exact: true });
     const texto = entrada.getByRole("textbox", { name: "Entrada en calor", exact: true });
     assert.match(await texto.inputValue(), /Activación con rolo/);
@@ -671,14 +676,14 @@ try {
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.deepEqual(planes[0].sesiones[0].activacion.map((e) => e.nombre), ["Hip thrust", "Rolo"]);
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     assert.equal(await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).first().inputValue(), "Hip thrust");
     await entrada.getByRole("button", { name: "Reordenar activación 1", exact: true }).press("ArrowDown");
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await entrada.getByRole("button", { name: "Quitar ejercicio de entrada en calor 2", exact: true }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     assert.equal(await texto.inputValue(), "Una sola serie por ejercicio");
     assert.equal(await entrada.getByLabel("Indicación de activación 1", { exact: true }).inputValue(), "1 min por grupo muscular");
     assert.equal(planes[0].sesiones[0].activacion.length, 1);
@@ -711,7 +716,7 @@ try {
     ejerciciosCatalogo = ["Hiptrust", "Hip Trust"].map((nombre) => ({ id: crypto.randomUUID(), nombre, categoria: "Fuerza" }));
     const { page, ctx } = await pagina("coach", 390);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     const buscador = page.getByRole("combobox", { name: "Ejercicio", exact: true });
     await buscador.fill("Hip");
     await page.getByRole("option", { name: /Hiptrust/ }).waitFor();
@@ -734,7 +739,7 @@ try {
     await catalogoGuardado;
     assert.equal(ejerciciosCatalogo.at(-1).categoria, "Equilibrio");
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     const entrada = page.getByRole("region", { name: "Entrada en calor", exact: true });
     await entrada.getByRole("button", { name: "Agregar ejercicio de activación", exact: true }).click();
     await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).fill("Ejercicio de equilibrio");
@@ -773,7 +778,7 @@ try {
       planes[0].sesiones[0].ejercicios[0].semanas = Array.from({ length: total }, (_, i) => ({ semana: i + 1, prescripcion: i ? "" : "4×8", peso: null, pesoFecha: null }));
       await page.setViewportSize({ width: 1440, height: 1000 });
       await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-      await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+      await abrirRutinas(page);
       await page.getByLabel("Zumo, semana 5", { exact: true }).waitFor();
       if (total === 5) assert.equal(await page.getByRole("textbox", { name: /^Zumo, semana/ }).count(), 5);
       await page.getByRole("button", { name: `Semana ${total}`, exact: true }).click();
@@ -800,14 +805,14 @@ try {
     planes[0].sesiones[0].bloques = [];
     const { page, ctx } = await pagina("coach", 390);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     await page.getByRole("button", { name: "Crear bloque", exact: true }).click();
     await page.getByRole("button", { name: "Crear bloque", exact: true }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.deepEqual(planes[0].sesiones[0].bloques, [1, 2]);
     assert.equal(planes[0].sesiones[0].ejercicios.length, 0);
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     const primero = page.getByRole("region", { name: "Bloque 1", exact: true });
     const segundo = page.getByRole("region", { name: "Bloque 2", exact: true });
     await segundo.waitFor();
@@ -823,7 +828,7 @@ try {
     await segundo.waitFor({ state: "hidden" });
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     await primero.getByText("2 ejercicios juntos", { exact: true }).waitFor();
     assert.deepEqual(planes[0].sesiones[0].bloques, [1]);
     assert.deepEqual(errores, []);
@@ -835,7 +840,7 @@ try {
     demoraAlta = 1800; fallarAlta = true;
     const { page, ctx } = await pagina("coach", 1440);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     await page.getByLabel("Zumo, semana 1", { exact: true }).fill("4×10");
     await page.getByRole("button", { name: "Crear bloque", exact: true }).click();
     await page.getByRole("region", { name: "Bloque 2", exact: true }).getByRole("button", { name: "Agregar ejercicio", exact: true }).click();
@@ -857,7 +862,7 @@ try {
     assert.equal(planes[0].sesiones[0].ejercicios[1].descanso, "60 s");
     assert.ok(planes[0].sesiones[0].ejercicios[1].semanas.slice(1).every(c=>c.prescripcion==="3×8"));
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     await page.getByRole("region", { name: "Bloque 1", exact: true }).getByLabel("Zumo, semana 1", { exact: true }).waitFor();
     await page.getByRole("region", { name: "Bloque 2", exact: true }).getByLabel("Ejercicio, semana 1", { exact: true }).waitFor();
     assert.equal(await nuevo.inputValue(), "3×12");
@@ -882,7 +887,7 @@ try {
     planes[0].sesiones[0].ejercicios.push({ ...structuredClone(planes[0].sesiones[0].ejercicios[0]), id: crypto.randomUUID(), nombre: "Hip thrust", grupo: 2, orden: 1 });
     const { page, ctx } = await pagina("coach", 1440);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     const bloque1 = page.getByRole("region", { name: "Bloque 1", exact: true });
     const bloque2 = page.getByRole("region", { name: "Bloque 2", exact: true });
     await bloque2.waitFor();
@@ -909,7 +914,7 @@ try {
     await bloque2.waitFor();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await recargar(page);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     await bloque2.waitFor();
     assert.equal(planes[0].sesiones[0].ejercicios[1].grupo, 2);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
@@ -954,7 +959,7 @@ try {
       for (const ancho of [320, 360, 375, 390, 430, 768, 1024, 1440]) {
         await page.setViewportSize({ width: ancho, height: 900 });
         await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-        if (!vacio) await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+        if (!vacio) await abrirRutinas(page);
         await page.getByRole("tabpanel",{name:"Resumen",exact:true}).getByRole("heading", { name: "Plan de entrenamiento", exact: true }).waitFor();
         if (vacio) await page.getByRole("tabpanel",{name:"Resumen",exact:true}).getByText("Creá un plan, elegí su duración y agregá las sesiones.", { exact: true }).waitFor();
         else {
@@ -988,7 +993,7 @@ try {
     planes[0].semanas = 12;
     await page.setViewportSize({ width: 320, height: 900 });
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+    await abrirRutinas(page);
     await page.getByRole("button", { name: "Semanas siguientes", exact: true }).click();
     await page.getByRole("button", { name: "Semana 12", exact: true }).click();
     await page.getByText("Semana 12 de 12", { exact: true }).waitFor();
@@ -998,7 +1003,7 @@ try {
   } else {
   const { page, ctx } = await pagina("coach", 1440);
   await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-  await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+  await abrirRutinas(page);
   await page.getByLabel("Zumo, semana 1", { exact: true }).waitFor();
   assert.equal(await page.getByText("Editar nombre, inicio y duración", { exact: true }).count(), 0);
   await page.getByRole("button", { name: "Editar plan de entrenamiento", exact: true }).click();
@@ -1045,7 +1050,7 @@ try {
   assert.equal(await entrada.evaluate((e) => document.activeElement === e), true, "El autoguardado perdió el foco");
   demora = 0;
   await recargar(page);
-  await page.getByRole("button",{name:"Organizar rutinas",exact:true}).click();
+  await abrirRutinas(page);
   assert.equal(await page.getByLabel("Zumo, semana 1", { exact: true }).inputValue(), "4×10");
   await page.setViewportSize({ width: 390, height: 900 });
   await page.getByRole("button", { name: "Semana 2", exact: true }).click();
@@ -1093,6 +1098,8 @@ try {
   assert.equal(planes.at(-1).sesiones[0].ejercicios[0].semanas.length, 8);
   assert.equal(planes.at(-1).inicio, "2026-12-04", "La fecha enviada debe conservar ISO");
   await page.getByRole("button", { name: "Crear Día 3", exact: true }).click();
+  await page.getByRole("button", { name: "Crear Día 4", exact: true }).waitFor();
+  await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
   await page.getByRole("button", { name: "Día 2", exact: true }).waitFor();
   await page.getByRole("button", { name: "Running", exact: true }).click();
   await page.getByRole("button", { name: "Ver sesiones anteriores de Running", exact: true }).click();

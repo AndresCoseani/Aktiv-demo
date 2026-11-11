@@ -74,7 +74,8 @@ async function foto(page, nombre, marcas = [], modal = false) {
   await page.evaluate(() => document.querySelectorAll("[data-manual-marca]").forEach(n => n.remove()));
   console.log(`Captura: ${nombre}`);
 }
-const boton = (p, n) => p.getByRole("button", { name: n, exact: true });
+const boton = (p, n) => p.getByRole(["Activar plan","Desactivar plan"].includes(n)?"switch":"button", { name: n, exact: true });
+async function abrirRutinas(p){const resumen=p.getByText("Ver más planes",{exact:true});await resumen.waitFor();if(!await resumen.evaluate(e=>e.parentElement.open))await resumen.click();await boton(p,"Organizar rutinas").click();}
 async function cerrar(p) { const id=await p.getByRole("dialog").last().getAttribute("id"); const d=p.locator(`[id="${id}"]`); const cancelar = d.getByRole("button", { name: "Cancelar", exact: true }); if (await cancelar.count()) await cancelar.last().click(); else await d.getByRole("button", { name: "Close", exact: true }).click(); await d.waitFor({ state: "hidden" }); }
 async function grupo(nombre, hacer, rol) {
   if (process.argv[2] && process.argv[2] !== nombre) return;
@@ -103,9 +104,9 @@ try {
   await grupo("alumnos", async p => {
     await p.goto(`${base}/alumnos`); await boton(p, "Nuevo alumno").waitFor(); await foto(p, "alumnos-lista", [[boton(p, "Nuevo alumno"), "1 · Alta manual"]]);
     await boton(p, "Nuevo alumno").click(); await foto(p, "alumno-nuevo", [], true); await cerrar(p);
-    await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("button",{name:"Organizar rutinas",exact:true}), "Abrir sus planes"]]);
+    await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("button",{name:"Editar plan de entrenamiento",exact:true}), "Plan seleccionado"]]);
     await boton(p,"Información del alumno").click(); await foto(p,"alumno-informacion",[],true); await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p); await cerrar(p);
-    await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click(); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
+    await abrirRutinas(p); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
     await boton(p, "Nuevo plan").click(); await foto(p, "plan-nuevo", [], true); await cerrar(p);
     for (const [accion, captura] of [["Duplicar plan de entrenamiento", "plan-duplicar"], ["Editar plan de entrenamiento", "plan-editar"], ["Eliminar plan de entrenamiento", "plan-eliminar"], ["Guardar como modelo", "plan-guardar-modelo"]]) { await boton(p, accion).click(); await foto(p, captura, [], true); await cerrar(p); }
     await foto(p, "plan-activar", [[boton(p, "Desactivar plan"), "Ocultar sin borrar el plan"]]);
@@ -143,7 +144,7 @@ try {
     await p.goto(`${base}/certificados`); await foto(p, "certificados-lista");
   });
   await grupo("dias", async p=>{
-    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await boton(p,"Asignar días de la semana").click();await p.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await foto(p,"dias-asignar",[[p.getByRole("checkbox",{name:"Lunes",exact:true}),"Marcá todos los días de esta rutina"]]);
+    await p.goto(base+"/alumnos/"+alumnoId);await abrirRutinas(p);await boton(p,"Asignar días de la semana").click();await p.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await foto(p,"dias-asignar",[[p.getByRole("checkbox",{name:"Lunes",exact:true}),"Marcá todos los días de esta rutina"]]);
     await boton(p,"Listo").click();await boton(p,"Editar entrenamiento").click();await foto(p,"dia-editar",[],true);await cerrar(p);await boton(p,"Duplicar día de entrenamiento").click();await foto(p,"dia-duplicar",[],true);
   });
   await grupo("solicitudes", async p => {
@@ -156,12 +157,12 @@ try {
   }, "alumno");
   await grupo("running-tipos",async p=>{
     plan.running={"1":{lunes:"GYM",martes:"Rodaje suave",miercoles:"GYM",viernes:"Descanso",sabado:"Técnica",domingo:"Fondo suave"}};
-    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await boton(p,"Running").click();
+    await p.goto(base+"/alumnos/"+alumnoId);await abrirRutinas(p);await boton(p,"Running").click();
     await foto(p,"running-tipo-dia",[[p.getByLabel("Actividad de Lunes, semana 1",{exact:true}),"Elegí Running, GYM o Descanso"]]);
   });
   await grupo("running", async p=>{
     plan.running={"1":{lunes:"Gimnasio",martes:"10 min suaves + 4 × 200 m + afloje",miercoles:"Descanso",jueves:"Rodaje suave",viernes:"Descanso",sabado:"Técnica y progresivos",domingo:"Fondo suave",volumen:"25,5",sugerencias:"Datos ficticios para explicar la carga."},"2":{martes:"Rodaje progresivo",volumen:"28"}};
-    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await boton(p,"Running").click();
+    await p.goto(base+"/alumnos/"+alumnoId);await abrirRutinas(p);await boton(p,"Running").click();
     await foto(p,"running-grilla",[[p.getByRole("textbox",{name:"Martes, semana 1",exact:true}),"Escribí la sesión completa"]]);
     await foto(p,"running-volumen",[[p.getByRole("textbox",{name:"Volumen semanal, semana 1",exact:true}),"Kilómetros de la semana"],[p.getByRole("textbox",{name:"Sugerencias, semana 1",exact:true}),"Indicaciones generales"]]);
     await boton(p,"Copiar semana").click();await foto(p,"running-copiar",[],true);await cerrar(p);
