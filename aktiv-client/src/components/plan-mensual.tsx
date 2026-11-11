@@ -535,7 +535,7 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
 export function RutinaPlanModal({plan,sesion,editable,semanaInicial,onCerrar}:{plan:Pick<PlanMensual,"sesiones"|"semanas">&{inicio?:string};sesion:SesionEntrenamiento;editable:boolean;semanaInicial:number;onCerrar:()=>void}) {
  const [semana,setSemana]=useState(()=>plan.inicio?(semanaDelPlan(plan.inicio,hoyISO(),plan.semanas)??semanaInicial):semanaInicial);
  const numero=plan.sesiones.filter(s=>s.tipo===sesion.tipo).findIndex(s=>s.id===sesion.id)+1;
- const cerrar=()=>{if(!hayBorradoresMensuales())onCerrar();};
+ const cerrar=()=>{if(!hayBorradoresMensuales(sesion.id))onCerrar();};
  return <Dialog open onOpenChange={v=>!v&&cerrar()}><DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-5 overflow-y-auto sm:max-w-[1080px]">
   <DialogHeader className={editable?"sr-only":"border-b pb-3 text-center"}><DialogTitle>{sesion.nombre||`${sesion.tipo} – Día ${numero}`}</DialogTitle><DialogDescription className="sr-only">Día de entrenamiento</DialogDescription></DialogHeader>
 

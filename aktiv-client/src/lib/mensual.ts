@@ -14,7 +14,7 @@ export function avisarCambioMensual(sesion?: SesionEntrenamiento) {
   window.dispatchEvent(new CustomEvent(EVENTO_MENSUAL, { detail: { sesion } }));
 }
 const borradores = new Set<string>();
-export function hayBorradoresMensuales() { return borradores.size > 0; }
+export function hayBorradoresMensuales(sesionId?:string) { return sesionId ? [...borradores].some(id=>id===sesionId||id.startsWith(`seguimiento:${sesionId}:`)) : borradores.size > 0; }
 export function registrarBorradorMensual(id: string, sucio: boolean) {
   if (sucio) borradores.add(id); else borradores.delete(id);
   return () => { borradores.delete(id); };
