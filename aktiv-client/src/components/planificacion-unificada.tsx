@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode, type CSSProperties } from "react";
-import { Activity, ArrowLeft, ArrowRight, Copy, Dumbbell, Footprints, Moon, Plus } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, BedDouble, Copy, Dumbbell, Footprints, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { actividadesDelDia, actualizarDistribucion, asignarDiaApi, altaSesionApi, DIAS_PLAN, DIAS_RUNNING, semanaDelPlan, type ActividadDia, type Distribucion, type PlanMensual, type Running, type SesionEntrenamiento } from "@aktiv/contrato";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
+import { Switch } from "./ui/switch";
 import { CeldaRunning } from "./running-semanal";
 import { NuevaActividad, useActividadesPlan } from "./actividades-plan";
 import { usePlanEditor } from "./plan-editor-context";
@@ -16,7 +17,7 @@ import { formatFecha, hoyISO, nuevoId } from "@/lib/format";
 type Plan = Pick<PlanMensual,"id"|"semanas"|"sesiones"|"running"|"distribucion"> & {inicio?:string;nombre?:string};
 type Props = {plan:Plan;editable:boolean;renderRutina:(s:SesionEntrenamiento,semana:number,cerrar:()=>void)=>ReactNode};
 const textoError=(e:unknown)=>e instanceof Error?e.message:"No se pudo guardar. Reintentá.";
-const icono=(tipo:string)=>tipo==="Running"?Footprints:tipo==="Fuerza"||tipo==="GYM"?Dumbbell:tipo==="Descanso"?Moon:Activity;
+const icono=(tipo:string)=>tipo==="Running"?Footprints:tipo==="Fuerza"||tipo==="GYM"?Dumbbell:tipo==="Descanso"?BedDouble:Activity;
 const numeroRutina=(p:Plan,s:SesionEntrenamiento)=>p.sesiones.filter(v=>v.tipo===s.tipo).findIndex(v=>v.id===s.id)+1;
 const nombreRutina=(p:Plan,s:SesionEntrenamiento)=>`${s.tipo} · Día ${numeroRutina(p,s)}`;
 const selector="w-full min-w-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring";
@@ -26,6 +27,8 @@ function Asignador({valor,tipos,sesiones,label,onGuardar,onPendiente,soloRutina=
  const serial=JSON.stringify(valor),sucio=JSON.stringify(lista)!==guardada;
  if(!sucio&&!ocupado&&serial!==guardada){setLista(JSON.parse(serial));setGuardada(serial);}
  const controlId=(soloRutina?"rutina:":"actividad:")+label;
+ const anteriores=useRef<ActividadDia[]>(valor.filter(a=>a.tipo!=="Descanso"));
+ const descansa=lista.length>0&&lista.every(a=>a.tipo==="Descanso");
  useEffect(()=>{onPendiente(controlId,sucio||ocupado);return()=>onPendiente(controlId,false);},[controlId,sucio,ocupado,onPendiente]);
  useEffect(()=>{
   if(!sucio||ocupado||error)return;
@@ -35,9 +38,11 @@ function Asignador({valor,tipos,sesiones,label,onGuardar,onPendiente,soloRutina=
  function actualizar(nueva:ActividadDia[]){onPendiente(controlId,JSON.stringify(nueva)!==guardada);setLista(nueva);setError("");}
  function cambiar(i:number,a:ActividadDia){actualizar(lista.map((actual,n)=>n===i?a:actual));}
  return <div className="min-w-0 space-y-2">
-  {!soloRutina&&<div role="group" aria-label={`Actividades de ${label}`} className="flex flex-wrap gap-1">
-   {[...new Set(["Fuerza","Running",...tipos,...lista.map(a=>a.tipo),"Descanso"])].filter(t=>t!=="Descanso"||!lista.some(a=>a.tipo!=="Descanso")).map(tipo=>{const activo=lista.some(a=>a.tipo===tipo),descanso=lista.length>0&&lista.every(a=>a.tipo==="Descanso"),Icono=icono(tipo);return <Button key={tipo} type="button" variant="ghost" aria-label={`${tipo} de ${label}`} title={tipo} aria-pressed={activo} disabled={disabled||(descanso&&tipo!=="Descanso")||(!activo&&lista.length>=8)} className={`size-10 shrink-0 rounded-lg p-0 transition-colors lg:size-8 ${activo?"bg-primary/12 text-primary ring-1 ring-primary/30":"text-muted-foreground hover:bg-muted/60 hover:text-foreground"}`} onClick={()=>actualizar(activo?lista.filter(a=>a.tipo!==tipo):tipo==="Descanso"?[{tipo}]:[...lista.filter(a=>a.tipo!=="Descanso"),{tipo}])}><Icono aria-hidden="true" className="size-[18px]" /></Button>;})}
-  </div>}
+  {!soloRutina&&<><div className="flex min-w-0 items-center justify-between gap-2"><span className="text-xs font-medium text-muted-foreground">{label.includes(",")?"Entrenamiento":label.slice(0,3)}</span><Switch size="sm" aria-label={`Entrena el ${label}`} checked={!descansa} disabled={disabled} onCheckedChange={entrena=>{if(entrena)actualizar(anteriores.current.filter(a=>sesiones.some(s=>s.id===a.sesionId)||!a.sesionId));else{anteriores.current=lista.filter(a=>a.tipo!=="Descanso");actualizar([{tipo:"Descanso"}]);}}} /></div>
+   <div role="group" aria-label={`Actividades de ${label}`} className="flex min-h-24 flex-col items-center justify-center gap-2">
+    {descansa?<div role="status" aria-label={`Descanso de ${label}`} className="flex size-14 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground"><BedDouble aria-hidden="true" className="size-6" /><span className="sr-only">Descanso</span></div>:[...new Set(["Fuerza","Running",...tipos,...lista.map(a=>a.tipo)])].filter(t=>t!=="Descanso").map(tipo=>{const activo=lista.some(a=>a.tipo===tipo),Icono=icono(tipo);return <Button key={tipo} type="button" variant="ghost" aria-label={`${tipo} de ${label}`} title={tipo} aria-pressed={activo} disabled={disabled||(!activo&&lista.length>=8)} className={`h-9 w-12 shrink-0 rounded-lg border p-0 transition-colors ${activo?"border-primary/35 bg-primary/10 text-primary":"border-border/70 bg-muted/25 text-muted-foreground/60 hover:bg-muted/50 hover:text-foreground"}`} onClick={()=>actualizar(activo?lista.filter(a=>a.tipo!==tipo):[...lista.filter(a=>a.tipo!=="Descanso"),{tipo}])}><Icono aria-hidden="true" className="size-5" /></Button>;})}
+   </div>
+  </>}
   {mostrarRutina&&lista.map((a,i)=>!["Running","Descanso"].includes(a.tipo)&&<select key={a.sesionId??a.tipo+i} disabled={disabled} aria-label={`Rutina de ${a.tipo} para ${label}`} className={selector} value={a.sesionId??""} onChange={e=>cambiar(i,{tipo:a.tipo,...(e.target.value?{sesionId:e.target.value}:{})})}>
    <option value="">Elegir rutina…</option>{sesiones.filter(s=>s.tipo===a.tipo).map((s,n)=><option key={s.id} value={s.id}>{s.tipo} · Día {n+1}{s.nombre?` · ${s.nombre}`:""}</option>)}
   </select>)}
@@ -71,9 +76,9 @@ export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
  async function crearRutina(e:React.FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);setOcupado(true);setError("");try{const dto=altaSesionApi.parse({id:nuevoId(),nombre:String(f.get("nombre")),tipo:String(f.get("tipo")),dia:null,calentamiento:"",enfriamiento:""});await api.post(`/planes-mensuales/${plan.id}/sesiones`,dto);avisarCambioMensual();setNueva(false);toast.success("Rutina creada. Ya podés asignarla a un día.");}catch(e){setError(textoError(e));}finally{setOcupado(false);}}
  const abierta=plan.sesiones.find(s=>s.id===rutina?.id);
  return <section aria-label="Planificación unificada" className="min-w-0 space-y-5">
-  <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-medium tracking-tight">Actividades de la semana</h3><p className="mt-1 text-sm text-muted-foreground">{editable?"Combiná actividades. Elegí las rutinas en la grilla.":"Tu planificación semanal. Abrí una rutina para ver los ejercicios."}</p></div>{editable&&<div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={()=>navegar(()=>{setNueva(true);setError("");})}><Plus />Crear rutina</Button><NuevaActividad crear={crear} onCreada={()=>toast.success("Actividad creada")} /></div>}</div>
+  <div className="space-y-3 rounded-xl border border-primary/20 p-3 sm:p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 aria-label="Actividades de la semana" className="text-base font-medium tracking-tight">Semana</h3><p className="mt-1 text-sm text-muted-foreground">{editable?"Encendé el switch si entrena. Elegí sus actividades ahora o más adelante.":"Tu planificación semanal. Abrí una rutina para ver los ejercicios."}</p></div>{editable&&<div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={()=>navegar(()=>{setNueva(true);setError("");})}><Plus />Crear rutina</Button><NuevaActividad crear={crear} onCreada={()=>toast.success("Actividad creada")} /></div>}</div>
    {errorActividades&&editable&&<p role="alert" className="text-sm text-destructive">{errorActividades}</p>}
-   <div className="grid min-w-0 grid-cols-2 gap-y-4 sm:grid-cols-3 lg:grid-cols-7">{DIAS_PLAN.map((dia,i)=><section key={dia} aria-label={`Asignación de ${dia}`} className="min-w-0 space-y-2 border-l border-border/50 px-2 first:border-l-0"><h4 className="text-[13px] font-medium text-muted-foreground">{dia.slice(0,3)}</h4>{editable?<Asignador mostrarRutina={false} disabled={pendiente&&!pendientes["actividad:"+dia]} valor={distribucion.base?.[i+1]??actividadesDelDia({...plan,distribucion:{}},i+1,1)} tipos={tipos} sesiones={plan.sesiones} label={dia} onPendiente={onPendiente} onGuardar={a=>asignar(i+1,a)} />:<p className="break-words text-sm text-muted-foreground">{actividadesDelDia(datos,i+1,semana).map(a=>a.tipo).join(" + ")||"Sin asignar"}</p>}{Object.values(distribucion.semanas??{}).some(d=>d[i+1]!==undefined)&&<p className="text-xs text-primary">Varía por semana</p>}</section>)}</div>
+   <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">{DIAS_PLAN.map((dia,i)=><section key={dia} aria-label={`Asignación de ${dia}`} className="min-w-0 rounded-xl border border-border/70 p-3">{!editable&&<h4 className="text-xs font-medium text-muted-foreground">{dia.slice(0,3)}</h4>}{editable?<Asignador mostrarRutina={false} disabled={pendiente&&!pendientes["actividad:"+dia]} valor={distribucion.base?.[i+1]??actividadesDelDia({...plan,distribucion:{}},i+1,1)} tipos={tipos} sesiones={plan.sesiones} label={dia} onPendiente={onPendiente} onGuardar={a=>asignar(i+1,a)} />:<p className="break-words text-sm text-muted-foreground">{actividadesDelDia(datos,i+1,semana).map(a=>a.tipo).join(" + ")||"Sin asignar"}</p>}{Object.values(distribucion.semanas??{}).some(d=>d[i+1]!==undefined)&&<p className="text-xs text-primary">Varía por semana</p>}</section>)}</div>
   </div>
   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3"><p role="status" className="text-sm text-muted-foreground">{editable?(pendiente?"Hay cambios pendientes de guardar":"Planificación guardada"):"Plan de tu profesor"}</p>{editable&&plan.semanas>1&&<Button size="sm" variant="outline" disabled={pendiente} onClick={()=>navegar(()=>{setOrigen(semana);setDestino(semana===plan.semanas?1:semana+1);setError("");setCopiar(true);})}><Copy />Duplicar semana</Button>}</div>
   <div className="flex items-center justify-between gap-3 md:hidden"><Button variant="outline" size="icon-sm" aria-label="Semana anterior de planificación" disabled={pendiente||semana===1} onClick={()=>navegar(()=>setSemana(s=>s-1))}><ArrowLeft /></Button><label className="flex items-center gap-2 text-sm">Semana<select className={selector} aria-label="Semana de planificación" value={semana} disabled={pendiente} onChange={e=>navegar(()=>setSemana(Number(e.target.value)))}>{Array.from({length:plan.semanas},(_,i)=><option key={i} value={i+1}>{i+1} de {plan.semanas}</option>)}</select></label><Button variant="outline" size="icon-sm" aria-label="Semana siguiente de planificación" disabled={pendiente||semana===plan.semanas} onClick={()=>navegar(()=>setSemana(s=>s+1))}><ArrowRight /></Button></div>

@@ -366,23 +366,23 @@
   },
   "planificacion-crear": {
     "src": "/manual/planificacion-crear.png",
-    "ancho": 430,
-    "alto": 409
+    "ancho": 432,
+    "alto": 411
   },
   "planificacion-modal-profe": {
     "src": "/manual/planificacion-modal-profe.png",
-    "ancho": 1227,
+    "ancho": 1228,
     "alto": 900
   },
   "planificacion-excepcion": {
     "src": "/manual/planificacion-excepcion.png",
-    "ancho": 425,
-    "alto": 278
+    "ancho": 426,
+    "alto": 369
   },
   "planificacion-copiar": {
     "src": "/manual/planificacion-copiar.png",
-    "ancho": 427,
-    "alto": 463
+    "ancho": 431,
+    "alto": 467
   },
   "planificacion-movil": {
     "src": "/manual/planificacion-movil.png",
