@@ -48,6 +48,18 @@ describe("API de Aktiv (contra Supabase local)", () => {
     S2 = await new Sesion(app).entrar(cuentaA2.email);
   });
 
+  it("desactivar bloquea login, renovación y sesión abierta; reactivar conserva la contraseña",async()=>{
+    expect((await S1.get("/api/auth/me")).status).toBe(200);
+    expect((await A.patch('/api/alumnos/'+alumnoA1,{activo:false})).status).toBe(200);
+    expect((await S1.get("/api/auth/me")).body.codigo).toBe("alumno_inactivo");
+    const login=await request(app.getHttpServer()).post("/api/auth/login").set(H).send({usuario:cuentaA1.email,clave:PASS});
+    expect(login.status).toBe(401);expect(login.body.codigo).toBe("alumno_inactivo");expect(login.headers["set-cookie"]).toBeUndefined();
+    expect((await S1.post("/api/auth/refresh",{})).body.codigo).toBe("alumno_inactivo");
+    expect((await A.patch('/api/alumnos/'+alumnoA1,{activo:true})).status).toBe(200);
+    S1=await new Sesion(app).entrar(cuentaA1.email);
+    expect((await S1.get("/api/datos")).status).toBe(200);
+  });
+
   afterAll(async () => {
     await env.limpiar();
     await app.close();

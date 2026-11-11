@@ -335,6 +335,12 @@ export function actualizarAlumno(id: string, cambios: Partial<Alumno>) {
   });
 }
 
+export async function cambiarEstadoAlumno(id:string,cambios:{activo:boolean;proximoPago:string|null}) {
+  await remoto.guardarEstadoAlumno(id,cambios);
+  const actual=getSnapshot();
+  publicar({...actual,alumnos:actual.alumnos.map(a=>a.id===id?{...a,...cambios}:a)});
+}
+
 export function crearAlumno(
   datos: Pick<Alumno, "nombre" | "email" | "telefono" | "objetivo" | "nivel"> & { dni?: string },
 ) {

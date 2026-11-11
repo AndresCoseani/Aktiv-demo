@@ -71,8 +71,8 @@
   },
   "alumno-nuevo": {
     "src": "/manual/alumno-nuevo.png",
-    "ancho": 494,
-    "alto": 504
+    "ancho": 496,
+    "alto": 506
   },
   "alumno-resumen": {
     "src": "/manual/alumno-resumen.png",
@@ -81,8 +81,8 @@
   },
   "alumno-acceso": {
     "src": "/manual/alumno-acceso.png",
-    "ancho": 495,
-    "alto": 370
+    "ancho": 489,
+    "alto": 366
   },
   "alumno-planes": {
     "src": "/manual/alumno-planes.png",
@@ -91,8 +91,8 @@
   },
   "plan-nuevo": {
     "src": "/manual/plan-nuevo.png",
-    "ancho": 496,
-    "alto": 770
+    "ancho": 495,
+    "alto": 768
   },
   "plan-duplicar": {
     "src": "/manual/plan-duplicar.png",
@@ -101,18 +101,18 @@
   },
   "plan-editar": {
     "src": "/manual/plan-editar.png",
-    "ancho": 491,
-    "alto": 470
+    "ancho": 496,
+    "alto": 474
   },
   "plan-eliminar": {
     "src": "/manual/plan-eliminar.png",
-    "ancho": 428,
-    "alto": 233
+    "ancho": 432,
+    "alto": 234
   },
   "plan-guardar-modelo": {
     "src": "/manual/plan-guardar-modelo.png",
-    "ancho": 485,
-    "alto": 300
+    "ancho": 496,
+    "alto": 306
   },
   "plan-activar": {
     "src": "/manual/plan-activar.png",
@@ -121,13 +121,13 @@
   },
   "dia-editar": {
     "src": "/manual/dia-editar.png",
-    "ancho": 496,
-    "alto": 414
+    "ancho": 481,
+    "alto": 401
   },
   "dia-duplicar": {
     "src": "/manual/dia-duplicar.png",
-    "ancho": 493,
-    "alto": 435
+    "ancho": 496,
+    "alto": 438
   },
   "ejercicios-lista": {
     "src": "/manual/ejercicios-lista.png",
@@ -246,7 +246,7 @@
   },
   "marca-nueva": {
     "src": "/manual/marca-nueva.png",
-    "ancho": 495,
+    "ancho": 496,
     "alto": 426
   },
   "alumno-carreras": {
@@ -366,23 +366,23 @@
   },
   "planificacion-crear": {
     "src": "/manual/planificacion-crear.png",
-    "ancho": 431,
-    "alto": 410
+    "ancho": 430,
+    "alto": 409
   },
   "planificacion-modal-profe": {
     "src": "/manual/planificacion-modal-profe.png",
-    "ancho": 1228,
+    "ancho": 1227,
     "alto": 900
   },
   "planificacion-excepcion": {
     "src": "/manual/planificacion-excepcion.png",
-    "ancho": 432,
-    "alto": 282
+    "ancho": 425,
+    "alto": 278
   },
   "planificacion-copiar": {
     "src": "/manual/planificacion-copiar.png",
-    "ancho": 432,
-    "alto": 468
+    "ancho": 427,
+    "alto": 463
   },
   "planificacion-movil": {
     "src": "/manual/planificacion-movil.png",
@@ -393,5 +393,10 @@
     "src": "/manual/planificacion-modal-alumno.png",
     "ancho": 1228,
     "alto": 900
+  },
+  "alumno-informacion": {
+    "src": "/manual/alumno-informacion.png",
+    "ancho": 484,
+    "alto": 454
   }
 }

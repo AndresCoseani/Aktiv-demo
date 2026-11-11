@@ -94,6 +94,7 @@ async function pagina(rol, ancho=390) {
 try {
   const coach=await pagina("coach",1440);
   await coach.page.goto(`${base}/alumnos/${alumnoId}`);
+  await coach.page.getByRole("button",{name:"Información del alumno",exact:true}).click();
   await coach.page.getByRole("button",{name:"Preparar acceso con DNI",exact:true}).click();
   await coach.page.getByLabel("DNI del alumno",{exact:true}).fill("12.345.678");
   await coach.page.getByRole("button",{name:"Crear acceso",exact:true}).click();

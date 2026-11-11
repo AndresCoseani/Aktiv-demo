@@ -459,6 +459,13 @@ export function programarSync() {
   temporizador = setTimeout(() => void sincronizar(), 600);
 }
 
+/** El bloqueo de acceso se confirma en servidor antes de mostrar el nuevo estado. */
+export async function guardarEstadoAlumno(id:string,cambios:{activo:boolean;proximoPago:string|null}) {
+  await api.patch(`/alumnos/${id}`,cambios);
+  const anterior=base?.alumnos.get(id);
+  if(anterior)Object.assign(anterior,cambios);
+}
+
 /**
  * Manda los cambios pendientes. La promesa se resuelve cuando terminó el
  * guardado (incluido lo que se editó mientras tanto), así que se puede esperar

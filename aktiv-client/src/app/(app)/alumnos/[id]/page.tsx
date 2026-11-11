@@ -3,25 +3,18 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Banknote, Mail, Phone, UserSearch } from "lucide-react";
+import { ArrowLeft, Banknote, Info, Mail, Phone, UserSearch } from "lucide-react";
 import { toast } from "sonner";
 import { AccesoAlumno, EliminarAlumno } from "@/components/acceso-card";
 import { CarrerasDeAlumno } from "@/components/carreras-view";
-import { EstadoBadge, PagoTexto } from "@/components/estado";
 import { FichaMedica } from "@/components/ficha-medica";
 import { MarcasPanel } from "@/components/marcas-panel";
 import { AlumnoResumen } from "@/components/alumno-resumen";
 import { PlanEditor } from "@/components/plan-editor";
 import { PlanMensualPanel } from "@/components/plan-mensual";
 import { usePlanesMensuales, hayBorradoresMensuales } from "@/lib/mensual";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FechaInput } from "@/components/fecha-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -34,12 +27,15 @@ import {
   iniciales,
   parseISO,
   sumarMeses,
+  textoRelativo,
 } from "@/lib/format";
 import { useRol } from "@/lib/guards";
-import { actualizarAlumno, useStore } from "@/lib/store";
+import { actualizarAlumno, cambiarEstadoAlumno, useStore } from "@/lib/store";
 
 export default function AlumnoDetallePage() {
   const [tab, setTab] = useState("resumen");
+  const [informacion,setInformacion]=useState(false);
+  const [guardandoEstado,setGuardandoEstado]=useState(false);
   const session = useRol("coach");
   const { id } = useParams<{ id: string }>();
   const mensual = usePlanesMensuales(id);
@@ -60,15 +56,14 @@ export default function AlumnoDetallePage() {
     );
   }
 
-  function cambiarEstado(activo: boolean) {
-    if (!alumno) return;
-    actualizarAlumno(alumno.id, {
-      activo,
-      // al reactivar, si no tenía pago programado le armamos uno para dentro de un mes
-      proximoPago:
-        activo && !alumno.proximoPago ? sumarMeses(1) : alumno.proximoPago,
-    });
-    toast.success(activo ? "Alumno activado" : "Alumno marcado como inactivo");
+  async function cambiarEstado(activo: boolean) {
+    if (!alumno || guardandoEstado) return;
+    setGuardandoEstado(true);
+    try {
+      await cambiarEstadoAlumno(alumno.id, {activo, proximoPago:activo&&!alumno.proximoPago?sumarMeses(1):alumno.proximoPago});
+      toast.success(activo?"Alumno activado":"Alumno desactivado. Su acceso queda bloqueado.");
+    } catch(e) {toast.error(e instanceof Error?e.message:"No se pudo cambiar el estado. Reintentá.");}
+    finally {setGuardandoEstado(false);}
   }
 
   function registrarPago() {
@@ -104,84 +99,21 @@ export default function AlumnoDetallePage() {
           Alumnos
         </Link>
 
-        <header className="flex min-w-0 flex-col gap-6 rounded-xl border border-border/70 bg-card/70 p-5 sm:p-6 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <Avatar size="lg" className="size-12 shrink-0 rounded-xl sm:size-14">
-            <AvatarFallback className="rounded-xl border border-primary/25 bg-primary/10 text-lg font-medium text-primary">
-              {iniciales(alumno.nombre)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <h1 className="break-words text-2xl font-medium tracking-[-0.035em] sm:text-[28px]">
-              {alumno.nombre}
-            </h1>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {alumno.nivel} · Desde{" "}
-              {formatFecha(alumno.altaEn, { conAnio: true })}
-            </p>
-            <p className="mt-1 flex min-w-0 flex-col items-start gap-x-4 gap-y-1 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center">
-              <span className="inline-flex min-w-0 max-w-full items-start gap-1.5">
-                <Mail className="mt-0.5 size-3.5 shrink-0" />
-                <span className="min-w-0 break-all">{alumno.email || "Sin email"}</span>
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Phone className="size-3.5 shrink-0" />
-                {alumno.telefono || "Sin teléfono"}
-              </span>
-            </p>
-            <AccesoAlumno alumno={alumno} />
+        <header className="flex min-w-0 flex-col gap-5 rounded-xl border border-border/70 bg-card/60 px-5 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <div aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full border border-primary/25 bg-primary/10 text-base font-medium text-primary">{iniciales(alumno.nombre)}</div>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-2"><h1 className="min-w-0 break-words text-2xl font-medium tracking-[-0.035em]">{alumno.nombre}</h1><Button variant="ghost" size="icon" aria-label="Información del alumno" title="Información y acceso" onClick={()=>setInformacion(true)}><Info className="size-[18px] text-muted-foreground" /></Button></div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"><span>{alumno.nivel}</span><span aria-hidden="true">·</span><span className={alumno.activo?"text-success":"text-destructive"}>{alumno.activo?"Activo":"Inactivo"}</span><Label htmlFor="estado-switch" className="sr-only">{alumno.activo?"Desactivar":"Activar"}</Label><Switch id="estado-switch" checked={alumno.activo} disabled={guardandoEstado} onCheckedChange={cambiarEstado} style={{backgroundColor:alumno.activo?"var(--success)":"var(--destructive)"}} />{guardandoEstado&&<span role="status">Guardando…</span>}</div>
+            </div>
           </div>
-          </div>
-      <section aria-label="Estado y pago" className="grid w-full gap-2 sm:grid-cols-[9.5rem_minmax(0,1fr)] xl:w-[36rem] xl:shrink-0">
-        <Card className="min-w-0 gap-2 py-3">
-          <CardHeader className="px-4">
-            <CardDescription>Estado</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-2 px-4">
-            <div className="flex items-center gap-3">
-              <EstadoBadge activo={alumno.activo} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="estado-switch" className="sr-only">
-                {alumno.activo ? "Desactivar" : "Activar"}
-              </Label>
-              <Switch
-                id="estado-switch"
-                checked={alumno.activo}
-                onCheckedChange={cambiarEstado}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 gap-2 py-3">
-          <CardHeader className="px-4">
-            <CardDescription>Próximo pago</CardDescription>
-          </CardHeader>
-          <CardContent className="flex min-w-0 flex-wrap items-center justify-between gap-3 px-4">
-            <PagoTexto
-              fecha={alumno.proximoPago}
-              className="text-sm"
-            />
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
-              <FechaInput
-                aria-label="Fecha del próximo pago"
-                value={alumno.proximoPago ?? ""}
-                min={hoyISO()}
-                onChange={(e) =>
-                  actualizarAlumno(alumno.id, { proximoPago: e.target.value || null })
-                }
-                className="h-8 min-w-0 flex-1 basis-36 text-xs sm:w-36 sm:flex-none"
-              />
-              <Button variant="outline" size="sm" className="h-8 shrink-0" onClick={registrarPago}>
-                <Banknote data-icon="inline-start" />
-                Registrar pago
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+          <section aria-label="Estado y pago" className="min-w-0 space-y-2 rounded-lg border border-border/60 px-4 py-3 lg:w-[25rem] lg:shrink-0">
+            <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs"><span className="text-muted-foreground">Próximo pago</span>{alumno.proximoPago?<><span className="font-medium tabular-nums">{formatFecha(alumno.proximoPago)}</span><span className="text-muted-foreground">({textoRelativo(alumno.proximoPago)})</span></>:<span className="text-muted-foreground">Sin fecha</span>}</p>
+            <div className="flex min-w-0 flex-wrap items-center gap-2"><FechaInput aria-label="Fecha del próximo pago" value={alumno.proximoPago??""} min={hoyISO()} onChange={e=>actualizarAlumno(alumno.id,{proximoPago:e.target.value||null})} className="h-8 min-w-0 flex-1 basis-32 text-xs" /><Button variant="outline" size="sm" className="h-8 shrink-0" onClick={registrarPago}><Banknote />Registrar pago</Button></div>
+          </section>
         </header>
+        <Dialog open={informacion} onOpenChange={setInformacion}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Información del alumno</DialogTitle><DialogDescription>{alumno.nombre}</DialogDescription></DialogHeader><dl className="space-y-4 text-sm"><div><dt className="text-xs text-muted-foreground">Email</dt><dd className="mt-1 flex items-start gap-2 break-all"><Mail className="mt-1 size-4 shrink-0 text-muted-foreground" />{alumno.email||"Sin email"}</dd></div><div><dt className="text-xs text-muted-foreground">Teléfono</dt><dd className="mt-1 flex items-center gap-2"><Phone className="size-4 text-muted-foreground" />{alumno.telefono||"Sin teléfono"}</dd></div><div><dt className="text-xs text-muted-foreground">Alumno desde</dt><dd className="mt-1">{formatFecha(alumno.altaEn,{conAnio:true})}</dd></div>{alumno.objetivo&&<div><dt className="text-xs text-muted-foreground">Objetivo</dt><dd className="mt-1 break-words">{alumno.objetivo}</dd></div>}</dl><div className="border-t pt-3"><AccesoAlumno alumno={alumno} />{!alumno.activo&&<p className="mt-3 text-sm text-destructive">El alumno está inactivo y no puede iniciar sesión. Reactivalo desde el switch de la cabecera para habilitar su acceso.</p>}</div></DialogContent></Dialog>
+
       </div>
 
       <Tabs value={tab} onValueChange={(valor) => {

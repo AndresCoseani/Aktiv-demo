@@ -75,7 +75,7 @@ async function foto(page, nombre, marcas = [], modal = false) {
   console.log(`Captura: ${nombre}`);
 }
 const boton = (p, n) => p.getByRole("button", { name: n, exact: true });
-async function cerrar(p) { const d = p.getByRole("dialog"); const cancelar = d.getByRole("button", { name: "Cancelar", exact: true }); if (await cancelar.count()) await cancelar.last().click(); else await d.getByRole("button", { name: "Close", exact: true }).click(); await d.waitFor({ state: "hidden" }); }
+async function cerrar(p) { const id=await p.getByRole("dialog").last().getAttribute("id"); const d=p.locator(`[id="${id}"]`); const cancelar = d.getByRole("button", { name: "Cancelar", exact: true }); if (await cancelar.count()) await cancelar.last().click(); else await d.getByRole("button", { name: "Close", exact: true }).click(); await d.waitFor({ state: "hidden" }); }
 async function grupo(nombre, hacer, rol) {
   if (process.argv[2] && process.argv[2] !== nombre) return;
   const { page, ctx } = await pagina(rol);
@@ -104,7 +104,7 @@ try {
     await p.goto(`${base}/alumnos`); await boton(p, "Nuevo alumno").waitFor(); await foto(p, "alumnos-lista", [[boton(p, "Nuevo alumno"), "1 · Alta manual"]]);
     await boton(p, "Nuevo alumno").click(); await foto(p, "alumno-nuevo", [], true); await cerrar(p);
     await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("button",{name:"Organizar rutinas",exact:true}), "Abrir sus planes"]]);
-    await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p);
+    await boton(p,"Información del alumno").click(); await foto(p,"alumno-informacion",[],true); await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p); await cerrar(p);
     await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click(); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
     await boton(p, "Nuevo plan").click(); await foto(p, "plan-nuevo", [], true); await cerrar(p);
     for (const [accion, captura] of [["Duplicar plan de entrenamiento", "plan-duplicar"], ["Editar plan de entrenamiento", "plan-editar"], ["Eliminar plan de entrenamiento", "plan-eliminar"], ["Guardar como modelo", "plan-guardar-modelo"]]) { await boton(p, accion).click(); await foto(p, captura, [], true); await cerrar(p); }

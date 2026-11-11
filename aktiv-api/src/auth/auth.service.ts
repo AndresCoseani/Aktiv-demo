@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable, Optional } from "@nestjs/common";
 import { RegistroService } from "./registro.service";
 import { ENV, type Env } from "../config/env";
-import { ErrorApi, noAutenticado, sinPermiso } from "../common/errores";
+import { ErrorApi, lanzarSiError, noAutenticado, sinPermiso } from "../common/errores";
 import type { Rol, Usuario } from "../common/tipos";
 import { SupabaseService } from "../supabase/supabase.service";
 
@@ -200,7 +200,10 @@ export class AuthService {
   /** Valida un access token y devuelve el usuario con su rol (con caché corta) */
   async usuarioDesdeToken(token: string): Promise<Usuario> {
     const hit = this.cache.get(token);
-    if (hit && hit.vence > Date.now()) return hit.usuario;
+    if (hit && hit.vence > Date.now()) {
+      await this.comprobarEstadoAlumno(hit.usuario);
+      return hit.usuario;
+    }
 
     const { data, error } = await this.supa.anonimo().auth.getUser(token);
     if (error || !data.user) {
@@ -234,6 +237,18 @@ export class AuthService {
       }
       throw sinPermiso("Tu cuenta todavía no está habilitada. Hablá con tu profe.");
     }
-    return { id, email: data.email ?? email, rol: data.rol as Rol, nombre: data.nombre, token };
+    const usuario={ id, email: data.email ?? email, rol: data.rol as Rol, nombre: data.nombre, token };
+    await this.comprobarEstadoAlumno(usuario);
+    return usuario;
+  }
+
+  private async comprobarEstadoAlumno(usuario:Usuario) {
+    if(usuario.rol!=="alumno")return;
+    const {data,error}=await this.supa.delUsuario(usuario.token).from("alumnos").select("activo").eq("user_id",usuario.id).maybeSingle();
+    lanzarSiError(error);
+    if(!data?.activo) {
+      this.cache.delete(usuario.token);
+      throw noAutenticado("alumno_inactivo","Tu acceso está desactivado. Hablá con tu profesor para reactivarlo.");
+    }
   }
 }
