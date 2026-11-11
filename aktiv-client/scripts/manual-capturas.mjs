@@ -188,7 +188,8 @@ try {
     await foto(p,"planificacion-ficha",[[p.getByRole("heading",{name:alumno.nombre,exact:true}),"La planificación abre en Resumen"]]);
     await foto(p,"planificacion-actividades",[[grilla.getByRole("button",{name:"Fuerza de Martes",exact:true}),"Elegí la actividad para cada día"]]);
     await foto(p,"planificacion-rutina",[[grilla.getByLabel("Rutina de Fuerza para Martes",{exact:true}),"Vinculá Fuerza · Día 1 o Día 2"]]);
-    await foto(p,"planificacion-grilla",[[grilla.getByLabel("Lunes, semana 1",{exact:true}),"Texto de Running para esta semana"]]);
+    await foto(p,"planificacion-grilla",[[grilla.getByRole("button",{name:"Abrir Running, Lunes, semana 1",exact:true}),"Texto de Running para esta semana"]]);
+    await grilla.getByRole("button",{name:"Abrir Running, Lunes, semana 1",exact:true}).click();await foto(p,"planificacion-running-detalle",[],true);await cerrar(p);
     await foto(p,"planificacion-crear",[[boton(p,"Crear día"),"Creá un día y editá sus bloques en el modal"]]);
     await grilla.getByRole("button",{name:"Abrir Fuerza - Día 1, Martes, semana 1",exact:true}).click();await p.getByRole("dialog").getByLabel("Series de Sentadilla, semana 1",{exact:true}).waitFor();await foto(p,"planificacion-modal-profe",[[boton(p,"Nuevo bloque"),"Agregá bloques por actividad"]],true);await boton(p,"Nuevo bloque").click();await foto(p,"planificacion-bloque",[],true);await cerrar(p);await cerrar(p);
     await p.setViewportSize({width:390,height:900});await foto(p,"planificacion-movil",[[grilla.getByLabel("Semana de planificación",{exact:true}),"Una semana a la vez"]]);
