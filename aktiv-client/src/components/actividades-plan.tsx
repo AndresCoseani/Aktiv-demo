@@ -7,14 +7,15 @@ import { api } from "@/lib/api";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-export function useActividadesPlan() {
+export function useActividadesPlan(habilitado = true) {
   const [actividades, setActividades] = useState(["Fuerza", "Running"]);
   const [error, setError] = useState("");
   useEffect(() => {
+    if(!habilitado)return;
     let vigente = true;
     api.get<string[]>("/actividades-plan").then((r) => { if (vigente) setActividades(r); }).catch(() => { if (vigente) setError("No pudimos cargar las actividades. Revisá la conexión y la migración 48."); });
     return () => { vigente = false; };
-  }, []);
+  }, [habilitado]);
   async function crear(nombre: string) {
     const dto = actividadPlanSchema.safeParse(nombre);
     if (!dto.success) throw new Error(dto.error.issues[0].message);

@@ -1,4 +1,6 @@
 "use client";
+import { PlanificacionUnificada } from "./planificacion-unificada";
+import { textoRunningPlanificado, textoDiaRunning } from "@aktiv/contrato";
 import { DiasSesion } from "@/components/dias-sesion";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
@@ -6,7 +8,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2 
 import { toast } from "sonner";
 import { ZodError } from "zod";
 import {
-  diasDeSesion, DIAS_PLAN, MAX_SEMANAS_PLAN, semanasDelPlan, prescripcionEfectiva, semanaDelPlan,
+  actividadesDelDia, diasDeSesion, DIAS_PLAN, MAX_SEMANAS_PLAN, semanasDelPlan, prescripcionEfectiva, semanaDelPlan,
   altaMensualApi, altaSesionApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi,
   parcheCeldaAlumnoApi, parcheCeldaProfeApi, parcheMensualApi, type PlanMensual, type SesionEntrenamiento, type EjercicioMensual,
 } from "@aktiv/contrato";
@@ -38,10 +40,11 @@ function cambio<T extends object>(antes: T, despues: T) {
   return Object.fromEntries(Object.entries(despues).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(antes[k as keyof T])));
 }
 
-export function PlanMensualPanel({ alumnoId, editable = false, children }: { alumnoId: string; editable?: boolean; children?: ReactNode }) {
-  const datos = usePlanesMensuales(alumnoId);
+export function PlanMensualPanel({ alumnoId, editable = false, children, unificado=false, datosExternos }: { alumnoId: string; editable?: boolean; children?: ReactNode; unificado?:boolean; datosExternos?:ReturnType<typeof usePlanesMensuales> }) {
+  const propios = usePlanesMensuales(datosExternos?undefined:alumnoId);const datos=datosExternos??propios;
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [crear, setCrear] = useState(false);
+  const [vistaDiaria,setVistaDiaria]=useState(false);
 
   const [ocupado, setOcupado] = useState(false);
   const [borrar, setBorrar] = useState(false);
@@ -49,7 +52,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
   const [guardandoModelo, setGuardandoModelo] = useState(false);
   const [duplicandoPlan, setDuplicandoPlan] = useState<PlanMensual | null>(null);
   const visibles = editable ? datos.planes : datos.planes.filter((p) => p.activo);
-  const plan = visibles.find((p) => p.id === seleccion) ?? visibles.find((p) => p.activo) ?? visibles.at(-1);
+  const plan = visibles.find((p) => p.id === seleccion) ?? visibles.find((p) => p.activo && (editable || !unificado || p.inicio<=hoyISO())) ?? visibles.find((p)=>p.activo) ?? visibles.at(-1);
 
   async function nuevo(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,12 +82,12 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
     </div>
     {datos.cargando ? <p role="status" className="py-8 text-sm text-muted-foreground">Cargando planes…</p> : datos.error ?
       <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm"><p>{datos.error}</p><Button variant="outline" size="sm" className="mt-2" onClick={datos.reintentar}>Reintentar</Button></div> : <>
-      {editable && visibles.length > 1 && <div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">
+      {(editable||unificado) && visibles.length > 1 && <div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">
         {visibles.map((p) => <Button key={p.id} variant={p.id === plan?.id ? "secondary" : "outline"} size="sm" aria-pressed={p.id === plan?.id} onClick={() => navegar(() => setSeleccion(p.id))}>
           {p.activo && <Check className="size-3.5" />}{p.nombre || "Sin nombre"}
         </Button>)}
       </div>}
-      {!editable && visibles.length > 0 ? <CalendarioPlanes planes={visibles} /> : plan ? <>
+      {!editable && !unificado && visibles.length > 0 ? <CalendarioPlanes planes={visibles} /> : plan ? <>
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-5 pt-1">
           <div className="min-w-0 flex-1 basis-48"><p className="break-words font-medium">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
           {editable && <div className="flex flex-wrap gap-2">
@@ -96,7 +99,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children }: { alu
             <Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" disabled={ocupado} onClick={() => navegar(() => setBorrar(true))}><Trash2 className="text-destructive" /></Button>
           </div>}
         </div>
-        <ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />
+        <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} renderRutina={(s,semana,cerrar)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
       </> : <p className="min-w-0 break-words rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{editable ? "Creá un plan, elegí su duración y agregá las sesiones." : "Tu profe todavía no activó un plan de entrenamiento."}</p>}
     </>}
     {children && <details className="rounded-xl border px-4 py-3"><summary className="cursor-pointer text-sm text-muted-foreground">Planes anteriores</summary><div className="mt-4">{children}</div></details>}
@@ -269,7 +272,7 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
   </div>;
 }
 
-type PropsEditorSesion = { sesion: SesionEntrenamiento; numeroDia: number; semana: number; semanasVisibles: number[]; totalSemanas: number; onDuplicar: () => void };
+type PropsEditorSesion = { sesion: SesionEntrenamiento; numeroDia: number; semana: number; semanasVisibles: number[]; totalSemanas: number; enModal?:boolean; onDuplicar: () => void };
 
 function EditorSesion(props: PropsEditorSesion) {
   // Los formularios conservan su borrador durante las recargas de otras cards.
@@ -311,7 +314,7 @@ function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: Sesio
   </Dialog>;
 }
 
-function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEntrenamiento; onGuardar: (sesion: SesionEntrenamiento) => void; onCerrar: () => void }) {
+function EditarSesionDialog({ sesion, onGuardar, onCerrar, soloNombre=false }: { sesion: SesionEntrenamiento; onGuardar: (sesion: SesionEntrenamiento) => void; onCerrar: () => void; soloNombre?:boolean }) {
   const { api } = usePlanEditor();
   const [dias, setDias] = useState(()=>diasDeSesion(sesion));
   const [ocupado, setOcupado] = useState(false);
@@ -321,7 +324,7 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEnt
     const f = new FormData(e.currentTarget);
     setOcupado(true); setError("");
     try {
-      const resultado = parcheSesionApi.safeParse({ nombre: String(f.get("nombre")).trim(), dia: dias[0] ?? null, dias });
+      const resultado = parcheSesionApi.safeParse({ nombre: String(f.get("nombre")).trim(), ...(soloNombre?{}:{dia: dias[0] ?? null, dias}) });
       if (!resultado.success) { setError(resultado.error.issues[0]?.message ?? "Revisá los datos del entrenamiento."); return; }
       await api.patch(`/sesiones/${sesion.id}`, resultado.data);
       const actualizada = { ...sesion, ...resultado.data };
@@ -335,7 +338,7 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEnt
         <DialogHeader><DialogTitle>Editar entrenamiento</DialogTitle><DialogDescription>Cambiá el nombre y el día en que le toca al alumno.</DialogDescription></DialogHeader>
         <fieldset disabled={ocupado} className="min-w-0 space-y-4">
           <label className="block space-y-1 text-sm">Nombre del día<Input name="nombre" defaultValue={sesion.nombre} maxLength={60} autoFocus /></label>
-          <div className="space-y-2"><p className="text-sm">Días de la semana</p><DiasSesion value={dias} onChange={setDias} disabled={ocupado} /></div>
+          {!soloNombre&&<div className="space-y-2"><p className="text-sm">Días de la semana</p><DiasSesion value={dias} onChange={setDias} disabled={ocupado} /></div>}
           <p className="text-xs text-muted-foreground">Podés asignar varios entrenamientos al mismo día. Aparecen en «Hoy te toca».</p>
         </fieldset>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -345,7 +348,7 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar }: { sesion: SesionEnt
   </Dialog>;
 }
 
-function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas, onDuplicar }: PropsEditorSesion) {
+function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas, onDuplicar, enModal=false }: PropsEditorSesion) {
   const { api, modelo } = usePlanEditor();
   const [borrador, setBorrador] = useState(sesion);
   const [guardado, setGuardado] = useState(sesion);
@@ -443,15 +446,15 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       avisarCambioMensual(); setConfirmar(false); setQuitar(null);
     } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
   }
-  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle><div className="mt-2"><DiasSesion value={diasDeSesion(borrador)} onChange={(dias)=>setBorrador(b=>({...b,dias,dia:dias[0]??null}))} /></div></div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>
-    {editando && <EditarSesionDialog sesion={borrador} onCerrar={() => setEditando(false)} onGuardar={(actualizada) => { setBorrador(actualizada); setGuardado(actualizada); }} />}
+  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle>{!enModal&&<div className="mt-2"><DiasSesion value={diasDeSesion(borrador)} onChange={(dias)=>setBorrador(b=>({...b,dias,dia:dias[0]??null}))} /></div>}</div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>
+    {editando && <EditarSesionDialog soloNombre={enModal} sesion={borrador} onCerrar={() => setEditando(false)} onGuardar={(actualizada) => { setBorrador(actualizada); setGuardado(actualizada); }} />}
     <CardContent><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50">
       <fieldset className="min-w-0 space-y-8">
         <EntradaEnCalorEditor texto={borrador.calentamiento} ejercicios={borrador.activacion} onTexto={(calentamiento) => setBorrador((anterior) => ({ ...anterior, calentamiento }))} onEjercicios={(activacion) => setBorrador((anterior) => ({ ...anterior, activacion }))} />
         <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Entrenamiento</h3><div className="flex flex-wrap gap-2">
           {semana > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setBorrador((b) => ({ ...b, ejercicios: b.ejercicios.map((e) => ({ ...e, semanas: e.semanas.map((c) => c.semana === semana ? { ...c, prescripcion: c.prescripcion.trim() ? c.prescripcion : prescripcionEfectiva(e.semanas, semana - 1) } : c) })) }))}>Completar vacíos de S{semana} con S{semana - 1}</Button>}
           </div></div>
-          <EditorEjerciciosPlan ejercicios={borrador.ejercicios} bloques={borrador.bloques} tipo={borrador.tipo} semana={semana} semanasVisibles={semanasVisibles} ocupado={ocupado || Boolean(altaPendiente)} altaPendiente={Boolean(altaPendiente)} sucio={sucio} onCambiar={ejercicio} onCrearBloque={crearBloque} onQuitarBloque={(grupo) => setBorrador((anterior) => ({ ...anterior, bloques: anterior.bloques.filter((g) => g !== grupo) }))} onAgregar={agregarEjercicio} onQuitar={setQuitar} />
+          <EditorEjerciciosPlan maxColumnas={enModal?4:undefined} ejercicios={borrador.ejercicios} bloques={borrador.bloques} tipo={borrador.tipo} semana={semana} semanasVisibles={semanasVisibles} ocupado={ocupado || Boolean(altaPendiente)} altaPendiente={Boolean(altaPendiente)} sucio={sucio} onCambiar={ejercicio} onCrearBloque={crearBloque} onQuitarBloque={(grupo) => setBorrador((anterior) => ({ ...anterior, bloques: anterior.bloques.filter((g) => g !== grupo) }))} onAgregar={agregarEjercicio} onQuitar={setQuitar} />
         </div>
         <label className="block space-y-2 text-sm font-medium">Vuelta a la calma<Textarea className="min-h-20 font-normal" maxLength={4000} value={borrador.enfriamiento} onChange={(e) => setBorrador({ ...borrador, enfriamiento: e.target.value })} placeholder="Estiramientos, movilidad suave…" /></label>
       </fieldset>
@@ -475,20 +478,22 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
   const tipos = [...new Set(planes.flatMap(p=>[...p.sesiones.map(s=>s.tipo),...(Object.keys(p.running??{}).length?["Running"]:[])]))];
   const tieneContenidoAnterior=(s:SesionEntrenamiento)=>Boolean(s.calentamiento.trim()||s.enfriamiento.trim()||s.activacion.length||s.ejercicios.length||(s.nombre.trim()&&!/^Running\s*[·-]?\s*Día\s*\d+$/i.test(s.nombre)));
   const mostrarAnterior=(p:PlanMensual,s:SesionEntrenamiento)=>s.tipo!=="Running"||!Object.keys(p.running??{}).length||tieneContenidoAnterior(s);
-  const sinCargaRunning=(fecha:string,numero:number)=>planes.some(p=>{const semana=semanaDelPlan(p.inicio,fecha,p.semanas);return semana!==null&&Object.keys(p.running??{}).length>0&&!p.running?.[semana]?.[(["lunes","martes","miercoles","jueves","viernes","sabado","domingo"] as const)[numero-1]]?.trim();});
+  const sinCargaRunning=(fecha:string,numero:number)=>planes.some(p=>{const semana=semanaDelPlan(p.inicio,fecha,p.semanas);return semana!==null&&actividadesDelDia(p,numero,semana).some(a=>a.tipo==="Running"&&!a.sesionId)&&!textoDiaRunning(p.running?.[semana],(["lunes","martes","miercoles","jueves","viernes","sabado","domingo"] as const)[numero-1]).trim();});
   const entradas = (dia: string, numero: number) => planes.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, dia, plan.semanas);
     if(!semana)return [];
-    const anteriores=plan.sesiones.filter(s=>diasDeSesion(s).includes(numero)&&mostrarAnterior(plan,s)&&(filtro===null||s.tipo===filtro)).map(sesion=>({plan,sesion,semana}));
-    const texto=plan.running?.[semana]?.[(["lunes","martes","miercoles","jueves","viernes","sabado","domingo"] as const)[numero-1]];
-    if(texto?.trim()&&(filtro===null||filtro==="Running"))anteriores.push({plan,semana,sesion:{id:"running:"+plan.id+":"+numero,nombre:texto,tipo:"Running",dia:numero,orden:0,franja:"Sin definir",calentamiento:"",enfriamiento:"",activacion:[],bloques:[],ejercicios:[]}});
+    const asignadas=actividadesDelDia(plan,numero,semana);
+    const anteriores=plan.sesiones.filter(s=>asignadas.some(a=>a.sesionId===s.id)&&mostrarAnterior(plan,s)&&(filtro===null||s.tipo===filtro)).map(sesion=>({plan,sesion,semana}));
+    const texto=textoRunningPlanificado(plan,numero,semana);
+    if(texto?.trim()&&asignadas.some(a=>!a.sesionId&&["Running","GYM","Descanso"].includes(a.tipo))&&(filtro===null||filtro==="Running"))anteriores.push({plan,semana,sesion:{id:"running:"+plan.id+":"+numero,nombre:texto,tipo:"Running",dia:numero,orden:0,franja:"Sin definir",calentamiento:"",enfriamiento:"",activacion:[],bloques:[],ejercicios:[]}});
     return anteriores;
   });
+  const sinAsignacion=(numero:number)=>planes.some(p=>{const s=semanaDelPlan(p.inicio,fecha,p.semanas);return s!==null&&Object.keys(p.distribucion??{}).length>0&&actividadesDelDia(p,numero,s).length===0;});
   const numeroDia = (new Date(`${fecha}T12:00:00Z`).getUTCDay() + 6) % 7 + 1;
   const seleccionadas = entradas(fecha, numeroDia);
   const sinAsignar = planes.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, fecha, plan.semanas);
-    return semana ? plan.sesiones.filter((s) => !diasDeSesion(s).length && mostrarAnterior(plan,s) && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
+    return semana&&!Object.keys(plan.distribucion??{}).length ? plan.sesiones.filter((s) => !diasDeSesion(s).length && mostrarAnterior(plan,s) && (filtro === null || s.tipo === filtro)).map((sesion) => ({ plan, sesion, semana })) : [];
   });
   return <div className="min-w-0 space-y-6">
     <div className="flex flex-wrap items-center justify-center gap-2"><Button size="icon-sm" variant="outline" aria-label="Semana anterior" disabled={lunes <= "2000-01-08"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, -7)))}><ArrowLeft /></Button><p className="text-sm font-medium">{formatFecha(lunes)} al {formatFecha(desplazarDia(lunes, 6), { conAnio: true })}</p><Button size="icon-sm" variant="outline" aria-label="Semana siguiente" disabled={fecha >= "2100-12-20"} onClick={() => navegar(() => setFecha((anterior) => desplazarDia(anterior, 7)))}><ArrowRight /></Button><Button size="sm" variant="ghost" onClick={() => navegar(() => setFecha(hoyISO()))}>Hoy</Button></div>
@@ -496,13 +501,34 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
     <div role="group" aria-label="Días de la semana" className="flex min-w-0 flex-wrap justify-center gap-2">{dias.map((dia) => {
       const delDia = entradas(dia.fecha, dia.numero);
       const seleccionada = fecha === dia.fecha;
-      return <Button key={dia.fecha} variant="ghost" aria-label={dia.nombre} aria-pressed={seleccionada} onClick={() => navegar(() => setFecha(dia.fecha))} className={`h-auto min-h-20 min-w-0 basis-[calc((100%-1.5rem)/4)] flex-col justify-start gap-2 self-stretch whitespace-normal rounded-xl border px-1.5 py-3 sm:basis-[calc((100%-3rem)/7)] ${seleccionada ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-transparent bg-muted/40"}`}><span className="text-sm font-semibold">{dia.nombre.slice(0, 3)} {Number(dia.fecha.slice(8))}</span><span className="flex w-full flex-col gap-2 text-xs text-muted-foreground">{delDia.length ? delDia.map(({plan, sesion}) => <span key={sesion.id} className="break-words">{sesion.tipo}<span className="block font-semibold text-foreground">{sesion.id.startsWith("running:")?"Planilla": "Día "+(plan.sesiones.filter((s) => s.tipo === sesion.tipo).findIndex((s) => s.id === sesion.id) + 1)}</span></span>) : (filtro===null||filtro==="Running")&&sinCargaRunning(dia.fecha,dia.numero)?"Sin cargar":"Descanso"}</span></Button>;
+      return <Button key={dia.fecha} variant="ghost" aria-label={dia.nombre} aria-pressed={seleccionada} onClick={() => navegar(() => setFecha(dia.fecha))} className={`h-auto min-h-20 min-w-0 basis-[calc((100%-1.5rem)/4)] flex-col justify-start gap-2 self-stretch whitespace-normal rounded-xl border px-1.5 py-3 sm:basis-[calc((100%-3rem)/7)] ${seleccionada ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-transparent bg-muted/40"}`}><span className="text-sm font-semibold">{dia.nombre.slice(0, 3)} {Number(dia.fecha.slice(8))}</span><span className="flex w-full flex-col gap-2 text-xs text-muted-foreground">{delDia.length ? delDia.map(({plan, sesion}) => <span key={sesion.id} className="break-words">{sesion.tipo}<span className="block font-semibold text-foreground">{sesion.id.startsWith("running:")?"Planilla": "Día "+(plan.sesiones.filter((s) => s.tipo === sesion.tipo).findIndex((s) => s.id === sesion.id) + 1)}</span></span>) : (filtro===null||filtro==="Running")&&sinCargaRunning(dia.fecha,dia.numero)?"Sin cargar":sinAsignacion(dia.numero)?"Sin asignar":"Descanso"}</span></Button>;
     })}</div>
-    <section className="space-y-5"><h3 className="text-lg font-semibold">{fecha === hoyISO() ? "Hoy te toca" : formatFecha(fecha, { conAnio: true })}</h3>{seleccionadas.length ? seleccionadas.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p>{sesion.id.startsWith("running:")?<div className="rounded-xl border bg-card p-5"><h4 className="font-semibold">Running</h4><p className="mt-3 whitespace-pre-wrap break-words leading-7">{sesion.nombre}</p></div>:<LecturaSesion sesion={sesion} semana={semana} />}</div>) : <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No hay entrenamientos asignados para este día{filtro === null ? "." : ` de ${filtro.toLowerCase()}.`}</p>}</section>
+    <section className="space-y-5"><h3 className="text-lg font-semibold">{fecha === hoyISO() ? "Hoy te toca" : formatFecha(fecha, { conAnio: true })}</h3>{seleccionadas.length ? seleccionadas.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p>{sesion.id.startsWith("running:")?<div className="rounded-xl border bg-card p-5"><h4 className="font-semibold">{["GYM","Descanso"].includes(sesion.nombre)?"Día sin running":"Running"}</h4><p className="mt-3 whitespace-pre-wrap break-words leading-7">{sesion.nombre}</p></div>:<LecturaSesion sesion={sesion} semana={semana} />}</div>) : <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No hay entrenamientos asignados para este día{filtro === null ? "." : ` de ${filtro.toLowerCase()}.`}</p>}</section>
     {sinAsignar.length > 0 && <section className="space-y-5"><h3 className="font-semibold">Entrenamientos sin día asignado</h3>{sinAsignar.map(({ plan, sesion, semana }) => <div key={sesion.id} className="space-y-2"><p className="break-words text-sm text-muted-foreground">{plan.nombre} · Semana {semana} de {plan.semanas}</p><LecturaSesion sesion={sesion} semana={semana} /></div>)}</section>}
     {(filtro===null||filtro==="Running")&&planes.filter(p=>Object.keys(p.running??{}).length>0&&semanaDelPlan(p.inicio,fecha,p.semanas)!==null).map(p=><RunningSemanal key={p.id+":"+fecha} plan={p} semanaInicial={semanaDelPlan(p.inicio,fecha,p.semanas)??1} />)}
     <section className="space-y-3 border-t pt-5"><h3 className="text-sm font-semibold">Tus planes activos</h3>{planes.map((p) => <div key={p.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm"><p className="min-w-0 break-words font-medium">{p.nombre}</p><p className="text-muted-foreground">{formatFecha(p.inicio)} · {p.semanas} semanas · {semanaDelPlan(p.inicio, fecha, p.semanas) ? `Semana ${semanaDelPlan(p.inicio, fecha, p.semanas)}` : fecha < p.inicio ? "Todavía no empezó" : "Finalizado"}</p></div>)}</section>
   </div>;
+}
+
+export function RutinaPlanModal({plan,sesion,editable,semanaInicial,onCerrar}:{plan:Pick<PlanMensual,"sesiones"|"semanas">&{inicio?:string};sesion:SesionEntrenamiento;editable:boolean;semanaInicial:number;onCerrar:()=>void}) {
+ const [semana,setSemana]=useState(semanaInicial),[duplicando,setDuplicando]=useState(false);
+ const desde=Math.floor((semana-1)/4)*4+1,semanas=Array.from({length:Math.min(4,plan.semanas-desde+1)},(_,i)=>desde+i);
+ const numero=plan.sesiones.filter(s=>s.tipo===sesion.tipo).findIndex(s=>s.id===sesion.id)+1;
+ const cerrar=()=>navegar(onCerrar);
+ return <Dialog open onOpenChange={v=>!v&&cerrar()}><DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-5 overflow-y-auto sm:max-w-[1180px]">
+  <DialogHeader className="border-b pb-4"><DialogTitle>{sesion.tipo} · Día {numero}</DialogTitle><DialogDescription>{sesion.nombre} · Semanas {desde} a {semanas.at(-1)}{!editable&&" · Indicaciones de tu profesor"}</DialogDescription></DialogHeader>
+  <SemanasPlan total={plan.semanas} semana={semana} actual={plan.inicio?semanaDelPlan(plan.inicio,hoyISO(),plan.semanas):null} onSeleccionar={s=>navegar(()=>setSemana(s))} />
+  {editable?<FormularioSesion key={sesion.id} enModal sesion={sesion} numeroDia={numero} semana={semana} semanasVisibles={semanasDelPlan(plan.semanas)} totalSemanas={plan.semanas} onDuplicar={()=>setDuplicando(true)} />:<div className="space-y-6">
+   <EntradaEnCalorLectura texto={sesion.calentamiento} ejercicios={sesion.activacion} />
+   {bloquesDelPlan(sesion.ejercicios,sesion.bloques).map((grupo,i)=><section key={grupo} className="space-y-3"><h3 className="font-semibold">Bloque {i+1}</h3><div className="max-w-full overflow-x-auto rounded-xl border"><table className="w-full min-w-[560px] text-left text-sm"><thead className="bg-muted/40"><tr><th className="p-3">Ejercicio</th>{semanas.map(s=><th key={s} className={`p-3 ${s===semana?"text-primary":""}`}>Sem. {s}</th>)}<th className="p-3">Descanso</th></tr></thead><tbody>{sesion.ejercicios.filter(e=>e.grupo===grupo).map(e=><tr key={e.id} className="border-t"><th className="max-w-64 break-words p-3 font-medium">{e.nombre||"Sin nombre"}</th>{semanas.map(s=><td key={s} className={`p-3 ${s===semana?"bg-primary/5 text-primary":""}`}>{prescripcionEfectiva(e.semanas,s)||"—"}</td>)}<td className="p-3">{e.descanso||"—"}</td></tr>)}</tbody></table></div></section>)}
+   {!sesion.ejercicios.length&&<p className="text-sm text-muted-foreground">Esta sesión todavía no tiene ejercicios.</p>}
+   {sesion.tipo==="Fuerza"&&sesion.ejercicios.length>0&&<section className="space-y-3"><h3 className="font-semibold">Mis pesos · Semana {semana}</h3>{sesion.ejercicios.map(e=><div key={e.id+":"+semana} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><span className="text-sm">{e.nombre}</span><PesoSemanal ejercicio={e} semana={semana} /></div>)}</section>}
+   {sesion.enfriamiento&&<section className="space-y-2"><h3 className="font-semibold">Vuelta a la calma</h3><p className="whitespace-pre-wrap text-sm text-muted-foreground">{sesion.enfriamiento}</p></section>}
+   <SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} />
+  </div>}
+  <DialogFooter className="border-t pt-4"><Button onClick={cerrar}>Listo</Button></DialogFooter>
+  {duplicando&&<DuplicarSesionDialog sesion={sesion} onCerrar={()=>setDuplicando(false)} onDuplicada={()=>{avisarCambioMensual();setDuplicando(false);}} />}
+ </DialogContent></Dialog>;
 }
 
 function LecturaSesion({ sesion, semana }: { sesion: SesionEntrenamiento; semana: number }) {

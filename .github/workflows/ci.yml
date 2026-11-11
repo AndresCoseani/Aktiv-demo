@@ -179,7 +179,7 @@ jobs:
             sleep 1
           done
           test "$listo" = 1
-          for recorrido in lucas recuperacion carga-sesion manual registro ejercicios; do
+          for recorrido in lucas recuperacion carga-sesion manual registro ejercicios planificacion; do
             echo "::group::Recorrido: $recorrido"
             if node "scripts/$recorrido.browser.mjs"; then
               echo "::endgroup::"
@@ -189,7 +189,7 @@ jobs:
               exit 1
             fi
           done
-          for modo in '' --simultaneos --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --dias --running --catalogo --calentamiento --movilidad --carreras --modelos --bloques-vacios --bloques --responsive; do
+          for modo in '' --simultaneos --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --dias --running-tipos --running --catalogo --calentamiento --movilidad --carreras --modelos --bloques-vacios --bloques --responsive; do
             echo "::group::Planes: ${modo:-principal}"
             if node scripts/mensual.browser.mjs $modo; then
               echo "::endgroup::"

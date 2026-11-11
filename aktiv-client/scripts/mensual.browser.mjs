@@ -8,6 +8,8 @@ const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).h
 const baseUrl = process.env.MENSUAL_URL ?? "http://localhost:3101";
 const destino = process.env.MENSUAL_ARTIFACTS ?? join(process.env.TEMP, "aktiv-mensual-capturas");
 await mkdir(destino, { recursive: true });
+// Las pruebas del calendario anterior vuelven a esa vista explícitamente tras recargar.
+async function recargar(page) { const diaria=await page.getByRole("button",{name:"Ver grilla semanal",exact:true}).count()>0;await page.reload();if(diaria)await page.getByRole("button",{name:"Vista diaria",exact:true}).click(); }
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const alumnoId = "a0000000-0000-4000-8000-000000000001";
 const otroAlumnoId = "a0000000-0000-4000-8000-000000000098";
@@ -218,6 +220,25 @@ async function pagina(rol, ancho) {
   return { page, ctx };
 }
 try {
+  if(process.argv.includes("--running-tipos")) {
+    planes[0].semanas=4;
+    for(const ancho of [1440,390]) {
+      const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("tab",{name:"Plan",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();
+      assert.equal(await page.getByLabel("Semana de Running",{exact:true}).isVisible(),ancho<768);
+      const actividad=page.getByLabel("Actividad de Martes, semana 1",{exact:true}),texto=page.getByLabel("Martes, semana 1",{exact:true});
+      await texto.fill("Rodaje que se conserva");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
+      fallar=true;await actividad.selectOption("GYM");await page.getByRole("alert").filter({hasText:"Fallo controlado de Running"}).waitFor();assert.equal(await texto.count(),0);await page.getByRole("button",{name:"Reintentar guardado",exact:true}).click();
+      await page.waitForFunction(()=>!document.querySelector('[role="alert"]')&&!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(planes[0].running[1].martes,"Rodaje que se conserva");
+      await recargar(page);await page.getByRole("tab",{name:"Plan",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await actividad.inputValue(),"GYM");assert.equal(await texto.count(),0);
+      await actividad.selectOption("Running");assert.equal(await texto.inputValue(),"Rodaje que se conserva");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
+      await actividad.selectOption("Descanso");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(await texto.count(),0);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await ctx.close();
+      // Restore editable mode for the next viewport.
+      planes[0].running[1].martes_tipo="Running";
+    }
+    planes[0].running[1].martes_tipo="GYM";const {page,ctx}=await pagina("alumno",390);await page.goto(baseUrl+"/mi-plan");await page.getByRole("button",{name:"Vista diaria",exact:true}).click();await page.getByRole("button",{name:"Martes",exact:true}).click();await page.getByText("GYM",{exact:true}).first().waitFor();assert.equal(await page.getByText("Rodaje que se conserva",{exact:true}).count(),0);await ctx.close();
+    assert.deepEqual(errores,[]);console.log("OK: Running/GYM/Descanso, borrador preservado, error/reintento, recarga, navegación responsive y lectura del alumno.");
+  } else
   if(process.argv.includes("--dias")) {
     for(const ancho of [1440,390]) {
       const {page,ctx}=await pagina("coach",ancho);await page.goto(baseUrl+"/alumnos/"+alumnoId);await page.getByRole("tab",{name:"Plan",exact:true}).click();
@@ -225,12 +246,12 @@ try {
       await page.getByRole("checkbox",{name:"Lunes",exact:true}).check();await page.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await page.getByRole("checkbox",{name:"Viernes",exact:true}).check();
       await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
       assert.deepEqual(planes[0].sesiones[0].dias,[1,3,5]);assert.equal(planes[0].sesiones.length,1);
-      await page.reload();await page.getByRole("tab",{name:"Plan",exact:true}).click();await selector.click();for(const dia of ["Lunes","Miércoles","Viernes"])assert.equal(await page.getByRole("checkbox",{name:dia,exact:true}).isChecked(),true);
+      await recargar(page);await page.getByRole("tab",{name:"Plan",exact:true}).click();await selector.click();for(const dia of ["Lunes","Miércoles","Viernes"])assert.equal(await page.getByRole("checkbox",{name:dia,exact:true}).isChecked(),true);
       await page.getByRole("button",{name:"Sin asignar",exact:true}).click();await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();assert.deepEqual(planes[0].sesiones[0].dias,[]);
       await selector.click();await page.getByRole("checkbox",{name:"Lunes",exact:true}).check();await page.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await page.getByRole("button",{name:"Listo",exact:true}).click();await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await ctx.close();
     }
-    const {page,ctx}=await pagina("alumno",390);await page.goto(baseUrl+"/mi-plan");
+    const {page,ctx}=await pagina("alumno",390);await page.goto(baseUrl+"/mi-plan");await page.getByRole("button",{name:"Vista diaria",exact:true}).click();
     for(const dia of ["Lunes","Miércoles"]) {await page.getByRole("button",{name:dia,exact:true}).click();await page.getByText("Zumo",{exact:true}).waitFor();}
     await ctx.close();assert.deepEqual(errores,[]);console.log("OK: checklist multiselección, limpiar, recarga y misma sesión en varios días del alumno, móvil/escritorio.");
   } else
@@ -254,17 +275,17 @@ try {
       await page.getByRole("button",{name:"Fuerza",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
       await page.getByRole("textbox",{name:"Volumen semanal, semana 1",exact:true}).fill("25,5");await page.getByRole("textbox",{name:"Sugerencias, semana 1",exact:true}).fill("Ejemplo: regular el esfuerzo");
       await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));
-      if(ancho===1440){await page.getByLabel("Semana de Running",{exact:true}).selectOption("5");const ultima=page.getByRole("textbox",{name:"Martes, semana 5",exact:true});await ultima.fill("Descanso");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(planes[0].running[5].martes,"Descanso");assert.equal(planes[0].running[4],undefined);await page.getByLabel("Semana de Running",{exact:true}).selectOption("1");}
+      if(ancho===1440){await page.getByLabel("Grupo de semanas de Running",{exact:true}).selectOption("5");const ultima=page.getByRole("textbox",{name:"Martes, semana 5",exact:true});await ultima.fill("Descanso");await page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(planes[0].running[5].martes,"Descanso");assert.equal(planes[0].running[4],undefined);await page.getByLabel("Grupo de semanas de Running",{exact:true}).selectOption("1");}
       await page.getByRole("button",{name:"Copiar semana",exact:true}).click();await page.getByRole("dialog").getByRole("button",{name:"Cancelar",exact:true}).click();assert.equal(planes[0].running[2],undefined);
       await page.getByRole("button",{name:"Copiar semana",exact:true}).click();await page.getByRole("button",{name:"Reemplazar semana de destino",exact:true}).click();await page.getByRole("dialog").waitFor({state:"hidden"});
       assert.deepEqual(planes[0].running[2],planes[0].running[1]);
       await page.getByRole("tab",{name:"Resumen",exact:true}).click();await page.getByRole("region",{name:"Resumen del alumno",exact:true}).getByText("Rodaje de ejemplo",{exact:true}).waitFor();
-      await page.reload();await page.getByRole("tab",{name:"Plan",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();await campo.waitFor();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
+      await recargar(page);await page.getByRole("tab",{name:"Plan",exact:true}).click();await page.getByRole("button",{name:"Running",exact:true}).click();await campo.waitFor();assert.equal(await campo.inputValue(),"15 min suaves + 4 × 200 m + afloje");
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(planes[0].sesiones,fuerzaAntes);await page.getByRole("tab",{name:"Resumen",exact:true}).click();await page.getByRole("region",{name:"Resumen del alumno",exact:true}).getByText("Rodaje de ejemplo",{exact:true}).waitFor();await ctx.close();
       delete planes[0].running[2];
     }
-    const alumno=await pagina("alumno",390);await alumno.page.goto(baseUrl+"/mi-plan");const grilla=alumno.page.getByRole("region",{name:"Planilla de Running",exact:true});await grilla.waitFor();await grilla.getByText("15 min suaves + 4 × 200 m + afloje",{exact:true}).waitFor();assert.equal(await grilla.getByRole("textbox").count(),0);await alumno.ctx.close();const m={id:crypto.randomUUID(),nombre:"Modelo Running de prueba",semanas:6,revision:0,running:{},sesiones:structuredClone(fuerzaAntes)};modelosCatalogo.push(m);
-    const biblioteca=await pagina("coach",390);await biblioteca.page.goto(baseUrl+"/planes?modelo="+m.id);await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();const campoModelo=biblioteca.page.getByRole("textbox",{name:"Martes, semana 1",exact:true});await campoModelo.fill("Texto del modelo Running");await biblioteca.page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(m.running[1].martes,"Texto del modelo Running");assert.equal(m.sesiones.length,fuerzaAntes.length);await biblioteca.page.getByRole("button",{name:"Fuerza",exact:true}).click();await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campoModelo.inputValue(),"Texto del modelo Running");await biblioteca.page.reload();await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campoModelo.inputValue(),"Texto del modelo Running");await biblioteca.ctx.close();
+    const alumno=await pagina("alumno",390);await alumno.page.goto(baseUrl+"/mi-plan");await alumno.page.getByRole("button",{name:"Vista diaria",exact:true}).click();const grilla=alumno.page.getByRole("region",{name:"Planilla de Running",exact:true});await grilla.waitFor();await grilla.getByText("15 min suaves + 4 × 200 m + afloje",{exact:true}).waitFor();assert.equal(await grilla.getByRole("textbox").count(),0);await alumno.ctx.close();const m={id:crypto.randomUUID(),nombre:"Modelo Running de prueba",semanas:6,revision:0,running:{},sesiones:structuredClone(fuerzaAntes)};modelosCatalogo.push(m);
+    const biblioteca=await pagina("coach",390);await biblioteca.page.goto(baseUrl+"/planes?modelo="+m.id);await biblioteca.page.getByRole("button",{name:"Editor de rutinas",exact:true}).click();await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();const campoModelo=biblioteca.page.getByRole("textbox",{name:"Martes, semana 1",exact:true});await campoModelo.fill("Texto del modelo Running");await biblioteca.page.waitForFunction(()=>!document.body.innerText.includes("Cambios pendientes")&&!document.body.innerText.includes("Guardando…"));assert.equal(m.running[1].martes,"Texto del modelo Running");assert.equal(m.sesiones.length,fuerzaAntes.length);await biblioteca.page.getByRole("button",{name:"Fuerza",exact:true}).click();await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campoModelo.inputValue(),"Texto del modelo Running");await recargar(biblioteca.page);await biblioteca.page.getByRole("button",{name:"Editor de rutinas",exact:true}).click();await biblioteca.page.getByRole("button",{name:"Running",exact:true}).click();assert.equal(await campoModelo.inputValue(),"Texto del modelo Running");await biblioteca.ctx.close();
     assert.deepEqual(errores,[]);console.log("OK: Running texto libre, guardado, error/reintento, volumen/sugerencias, copia/cancelación, recarga, alumno y Fuerza intacta.");
   } else
   if (process.argv.includes("--simultaneos")) {
@@ -273,7 +294,7 @@ try {
     planes.push(segundo);
     const futuro=structuredClone(segundo);futuro.id=crypto.randomUUID();futuro.nombre="Plan futuro";futuro.inicio="2026-12-01";futuro.sesiones[0].id=crypto.randomUUID();futuro.sesiones[0].nombre="No debe aparecer hoy";planes.push(futuro);
     for(const ancho of [320,390,1440]) {
-      const {page,ctx}=await pagina("alumno",ancho);await page.goto(`${baseUrl}/mi-plan`);
+      const {page,ctx}=await pagina("alumno",ancho);await page.goto(`${baseUrl}/mi-plan`);await page.getByRole("button",{name:"Vista diaria",exact:true}).click();
       await page.getByText("Fuerza A",{exact:true}).waitFor();await page.getByText("Rodaje independiente",{exact:true}).waitFor();
       await page.getByText("Running independiente · Semana 2 de 6",{exact:true}).waitFor();
       assert.equal(await page.getByText("No debe aparecer hoy",{exact:true}).count(),0);
@@ -298,7 +319,7 @@ try {
     await page.getByRole("button",{name:"Activar plan",exact:true}).click();await page.getByRole("button",{name:"Desactivar plan",exact:true}).waitFor();assert.equal(planes[1].activo,true);
     await page.getByRole("button",{name:"Agregar actividad",exact:true}).click();await page.getByRole("textbox",{name:"Nombre de la actividad",exact:true}).fill("Movilidad");await page.getByRole("button",{name:"Crear actividad",exact:true}).click();
     await page.getByRole("button",{name:"Crear Día 1",exact:true}).click();await page.getByText("Movilidad · Día 1",{exact:true}).waitFor();
-    assert.equal(planes[0].sesiones.at(-1).tipo,"Movilidad");await page.reload();await page.getByRole("tab",{name:"Plan",exact:true}).click();
+    assert.equal(planes[0].sesiones.at(-1).tipo,"Movilidad");await recargar(page);await page.getByRole("tab",{name:"Plan",exact:true}).click();
     await page.getByRole("group",{name:"Tipo de entrenamiento",exact:true}).getByRole("button",{name:"Movilidad",exact:true}).waitFor();await ctx.close();
     assert.deepEqual(errores,[]);console.log("OK: varios activos, semanas independientes por fecha, futuro oculto, filtros, desactivar/reactivar sin afectar otros, actividad propia persistente y responsive.");
   } else
@@ -315,7 +336,7 @@ try {
     await dialogo.getByLabel("Días de running",{exact:true}).fill("1");
     await dialogo.getByRole("button",{name:"Crear modelo",exact:true}).click();
     await page.getByRole("heading",{name:"Base principiantes",exact:true}).waitFor();
-    const modelo=modelosCatalogo[0];assert.equal(modelo.sesiones.length,2);
+    const modelo=modelosCatalogo[0];assert.equal(modelo.sesiones.length,2);await page.getByRole("button",{name:"Editor de rutinas",exact:true}).click();
     assert.equal(await page.getByText(/Este plan .*terminó/).count(),0);
     await page.getByRole("button",{name:"Crear bloque",exact:true}).click();
     await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
@@ -343,7 +364,7 @@ try {
     await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).fill("6x8");
     await page.getByText("Guardado automáticamente",{exact:true}).waitFor();
     assert.equal(copia.sesiones[0].ejercicios[0].semanas[0].prescripcion,"4x8");
-    await page.reload();await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).waitFor();
+    await recargar(page);await page.getByRole("button",{name:"Editor de rutinas",exact:true}).click();await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).waitFor();
     assert.equal(await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).inputValue(),"6x8");
     await page.waitForLoadState("networkidle");const lecturasAntes=lecturasModelos;
     await page.getByRole("textbox",{name:"Sentadilla, semana 1",exact:true}).fill("7x8");
@@ -384,7 +405,7 @@ try {
       await page.getByRole("option", { name: "10K", exact: true }).click();
       const guardado = page.waitForResponse((r) => r.url().endsWith(`/inscripciones/${inscripcion.id}`) && r.request().method() === "PATCH");
       await dialogo.getByRole("button", { name: "Guardar", exact: true }).click(); await guardado;
-      await page.reload(); await page.getByRole("tab", { name: "Carreras", exact: true }).click();
+      await recargar(page); await page.getByRole("tab", { name: "Carreras", exact: true }).click();
       await page.getByText("Objetivo Terminar cómodo y bajar de 50 min en 10K", { exact: true }).waitFor();
       assert.equal(inscripcion.distanciaKm, 10); assert.equal(inscripcion.objetivoSeg, null);
       await page.goto(`${baseUrl}/carreras`);
@@ -418,12 +439,12 @@ try {
     await activacion.getByRole("button", { name: "Pasar a movilidad", exact: true }).first().click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.equal(planes[0].sesiones[0].activacion.find((e) => e.id === idActivacion).fase, "Movilidad");
-    await page.reload(); await page.getByRole("tab", { name: "Plan", exact: true }).click();
+    await recargar(page); await page.getByRole("tab", { name: "Plan", exact: true }).click();
     const ejerciciosMovilidad = movilidad.getByRole("combobox", { name: "Ejercicio", exact: true });
     await ejerciciosMovilidad.nth(1).waitFor();
     assert.equal(await ejerciciosMovilidad.count(), 2);
     await ctx.close();
-    const alumno = await pagina("alumno", 390); await alumno.page.goto(`${baseUrl}/mi-plan`);
+    const alumno = await pagina("alumno", 390); await alumno.page.goto(`${baseUrl}/mi-plan`);await alumno.page.getByRole("button",{name:"Vista diaria",exact:true}).click();
     await alumno.page.getByText("1. Movilidad de tobillo", { exact: true }).waitFor();
     const m = await alumno.page.getByRole("region", { name: "Movilidad", exact: true }).boundingBox();
     const a = await alumno.page.getByRole("region", { name: "Activación", exact: true }).boundingBox(); assert(m.y < a.y);
@@ -433,7 +454,7 @@ try {
   if (process.argv.includes("--seguimiento")) {
     for (const ancho of [1440, 390]) {
       const { page, ctx } = await pagina("alumno", ancho);
-      await page.goto(`${baseUrl}/mi-plan`);
+      await page.goto(`${baseUrl}/mi-plan`);await page.getByRole("button",{name:"Vista diaria",exact:true}).click();
       const seguimiento = page.getByRole("region", { name: "Seguimiento de semana 1", exact: true });
       await seguimiento.getByRole("button", { name: "Marcar como completado", exact: true }).click();
       await seguimiento.getByRole("group", { name: "Cómo te sentiste" }).getByRole("button", { name: "Bien", exact: true }).click();
@@ -443,7 +464,7 @@ try {
       assert.equal(await seguimiento.getByLabel("Comentario para Lucas").inputValue(), `Comentario ${ancho}`);
       await seguimiento.getByRole("button", { name: "Reintentar seguimiento" }).click();
       await seguimiento.getByRole("status").filter({ hasText: "Guardado automáticamente" }).waitFor();
-      await page.reload();
+      await recargar(page);
       assert.equal(await seguimiento.getByRole("button", { name: "Completado", exact: true }).getAttribute("aria-pressed"), "true");
       assert.equal(await seguimiento.getByLabel("Comentario para Lucas").inputValue(), `Comentario ${ancho}`);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -465,7 +486,7 @@ try {
     planes[0].sesiones.push({ ...structuredClone(fuerza), id: crypto.randomUUID(), tipo: "Running", nombre: "Running B", dia: 4, orden: 2, ejercicios: [] });
     for (const ancho of [1440, 390]) {
       const { page, ctx } = await pagina("alumno", ancho);
-      await page.goto(`${baseUrl}/mi-plan`);
+      await page.goto(`${baseUrl}/mi-plan`);await page.getByRole("button",{name:"Vista diaria",exact:true}).click();
       const calendario = page.getByRole("group", { name: "Días de la semana", exact: true });
       const lunes = calendario.getByRole("button", { name: "Lunes", exact: true });
       assert.match(await lunes.innerText(), /Fuerza\s+Día 1/);
@@ -560,7 +581,7 @@ try {
       assert.notEqual(copia.ejercicios[0].id, ejercicioId);
       assert(copia.ejercicios[0].semanas.every((c) => c.peso === null && c.pesoFecha === null));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-      await page.reload();
+      await recargar(page);
       await page.getByRole("tab", { name: "Plan", exact: true }).click();
       await page.getByRole("button", { name: `Día ${cantidad + 1}`, exact: true }).click();
       await page.getByText(nombre, { exact: true }).waitFor();
@@ -591,7 +612,7 @@ try {
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     assert.equal(lecturasPlanes, lecturasAntes);
     assert.match(await page.getByRole("button", { name: "Día 1", exact: true }).innerText(), /Mar/);
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     assert.equal(await page.getByLabel("Zumo, semana 6", { exact: true }).inputValue(), "9x10");
     await page.getByRole("button", { name: "Editar entrenamiento", exact: true }).click();
@@ -649,14 +670,14 @@ try {
     await tactil.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.deepEqual(planes[0].sesiones[0].activacion.map((e) => e.nombre), ["Hip thrust", "Rolo"]);
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     assert.equal(await entrada.getByRole("combobox", { name: "Ejercicio", exact: true }).first().inputValue(), "Hip thrust");
     await entrada.getByRole("button", { name: "Reordenar activación 1", exact: true }).press("ArrowDown");
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     await entrada.getByRole("button", { name: "Quitar ejercicio de entrada en calor 2", exact: true }).click();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     assert.equal(await texto.inputValue(), "Una sola serie por ejercicio");
     assert.equal(await entrada.getByLabel("Indicación de activación 1", { exact: true }).inputValue(), "1 min por grupo muscular");
@@ -667,7 +688,7 @@ try {
     await page.screenshot({ path: join(destino, "plan-minimal-escritorio.png"), fullPage: true });
     await ctx.close();
     const alumno = await pagina("alumno", 390);
-    await alumno.page.goto(`${baseUrl}/mi-plan`);
+    await alumno.page.goto(`${baseUrl}/mi-plan`);await alumno.page.getByRole("button",{name:"Vista diaria",exact:true}).click();
     await alumno.page.getByText("Una sola serie por ejercicio", { exact: true }).waitFor();
     const ejercicioLectura = alumno.page.getByText("1. Rolo", { exact: true });
     await ejercicioLectura.waitFor();
@@ -712,7 +733,7 @@ try {
     assert.equal(planes[0].sesiones[0].ejercicios[0].nombre, "Ejercicio de equilibrio");
     await catalogoGuardado;
     assert.equal(ejerciciosCatalogo.at(-1).categoria, "Equilibrio");
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     const entrada = page.getByRole("region", { name: "Entrada en calor", exact: true });
     await entrada.getByRole("button", { name: "Agregar ejercicio de activación", exact: true }).click();
@@ -735,7 +756,7 @@ try {
     assert.equal(await dialogoCategoria.getByRole("textbox", { name: "Nombre", exact: true }).inputValue(), "Agilidad");
     await dialogoCategoria.getByRole("button", { name: "Crear categoría", exact: true }).click();
     await dialogoCategoria.waitFor({ state: "hidden" });
-    await page.reload();
+    await recargar(page);
     const filtroAgilidad = page.getByRole("group", { name: "Filtrar por categoría", exact: true }).getByRole("button", { name: /^Agilidad(?:\s|\d|$)/ });
     await filtroAgilidad.waitFor();
     await filtroAgilidad.click();
@@ -785,7 +806,7 @@ try {
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
     assert.deepEqual(planes[0].sesiones[0].bloques, [1, 2]);
     assert.equal(planes[0].sesiones[0].ejercicios.length, 0);
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     const primero = page.getByRole("region", { name: "Bloque 1", exact: true });
     const segundo = page.getByRole("region", { name: "Bloque 2", exact: true });
@@ -801,7 +822,7 @@ try {
     await segundo.getByRole("button", { name: "Eliminar bloque 2 vacío", exact: true }).click();
     await segundo.waitFor({ state: "hidden" });
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await primero.getByText("2 ejercicios juntos", { exact: true }).waitFor();
     assert.deepEqual(planes[0].sesiones[0].bloques, [1]);
@@ -835,7 +856,7 @@ try {
     assert.equal(planes[0].sesiones[0].ejercicios[1].semanas[0].prescripcion, "3×12");
     assert.equal(planes[0].sesiones[0].ejercicios[1].descanso, "60 s");
     assert.ok(planes[0].sesiones[0].ejercicios[1].semanas.slice(1).every(c=>c.prescripcion==="3×8"));
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await page.getByRole("region", { name: "Bloque 1", exact: true }).getByLabel("Zumo, semana 1", { exact: true }).waitFor();
     await page.getByRole("region", { name: "Bloque 2", exact: true }).getByLabel("Ejercicio, semana 1", { exact: true }).waitFor();
@@ -887,7 +908,7 @@ try {
     await page.getByRole("combobox", { name: "Mover Hip thrust a bloque", exact: true }).selectOption("2");
     await bloque2.waitFor();
     await page.getByText("Guardado automáticamente", { exact: true }).waitFor();
-    await page.reload();
+    await recargar(page);
     await page.getByRole("tab", { name: "Plan", exact: true }).click();
     await bloque2.waitFor();
     assert.equal(planes[0].sesiones[0].ejercicios[1].grupo, 2);
@@ -900,24 +921,25 @@ try {
     demoraLectura = 1800;
     const { page, ctx } = await pagina("coach", 390);
     await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
-    await page.getByText("Cargando semana de entrenamiento…", { exact: true }).waitFor();
+    await page.getByText("Cargando planes…", { exact: true }).waitFor();
     assert.equal(await page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Vista del plan anterior", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Día de descanso", { exact: true }).count(), 0);
-    await page.getByText("1 plan activo · Asignación opcional al calendario", { exact: true }).waitFor();
+    await page.getByRole("heading",{name:"Actividades de la semana",exact:true}).waitFor();
     errorLectura = true;
-    await page.reload();
-    await page.getByText("No pudimos consultar la semana de entrenamiento.", { exact: true }).waitFor();
+    await recargar(page);
+    await page.getByText("Fallo controlado de lectura", { exact: true }).waitFor();
     assert.equal(await page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Vista del plan anterior", { exact: true }).count(), 0);
     errorLectura = false;
     await page.getByRole("button", { name: "Reintentar", exact: true }).click();
-    await page.getByText("1 plan activo · Asignación opcional al calendario", { exact: true }).waitFor();
+    await page.getByRole("heading",{name:"Actividades de la semana",exact:true}).waitFor();
     await ctx.close();
     const estudiante = await pagina("alumno", 390);
     await estudiante.page.goto(`${baseUrl}/mi-plan`);
     await estudiante.page.getByText("Cargando planes…", { exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
+    await estudiante.page.getByRole("button",{name:"Vista diaria",exact:true}).click();
     await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("Mi semana", { exact: true }).count(), 0);
     await estudiante.ctx.close();
@@ -933,8 +955,8 @@ try {
         await page.setViewportSize({ width: ancho, height: 900 });
         await page.goto(`${baseUrl}/alumnos/${alumnoId}`);
         await page.getByRole("tab", { name: "Plan", exact: true }).click();
-        await page.getByRole("heading", { name: "Plan de entrenamiento", exact: true }).waitFor();
-        if (vacio) await page.getByText("Creá un plan, elegí su duración y agregá las sesiones.", { exact: true }).waitFor();
+        await page.getByRole("tabpanel",{name:"Plan",exact:true}).getByRole("heading", { name: "Plan de entrenamiento", exact: true }).waitFor();
+        if (vacio) await page.getByRole("tabpanel",{name:"Plan",exact:true}).getByText("Creá un plan, elegí su duración y agregá las sesiones.", { exact: true }).waitFor();
         else {
           await page.getByLabel("Zumo, semana 1", { exact: true }).waitFor();
           assert.equal(await page.getByRole("group", { name: "Semana del plan", exact: true }).getByRole("button").count(), 5);
@@ -1022,7 +1044,7 @@ try {
   assert.equal(await entrada.inputValue(), "Segunda edición mientras se guarda");
   assert.equal(await entrada.evaluate((e) => document.activeElement === e), true, "El autoguardado perdió el foco");
   demora = 0;
-  await page.reload();
+  await recargar(page);
   await page.getByRole("tab", { name: "Plan", exact: true }).click();
   assert.equal(await page.getByLabel("Zumo, semana 1", { exact: true }).inputValue(), "4×10");
   await page.setViewportSize({ width: 390, height: 900 });
@@ -1102,7 +1124,7 @@ try {
   }
   await ctx.close();
   const estudiante = await pagina("alumno", 390);
-  await estudiante.page.goto(`${baseUrl}/mi-plan`);
+  await estudiante.page.goto(`${baseUrl}/mi-plan`);await estudiante.page.getByRole("button",{name:"Vista diaria",exact:true}).click();
   for (let i=0;i<2;i++) await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).click();
   await estudiante.page.getByText("4×10", { exact: true }).waitFor();
   for (let i=0;i<4;i++) await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).click();

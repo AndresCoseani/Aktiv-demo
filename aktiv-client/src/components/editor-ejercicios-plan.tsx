@@ -17,10 +17,10 @@ export function primerBloqueLibre(ejercicios: EjercicioMensual[], bloques: numbe
   return Array.from({ length: 20 }, (_, i) => i + 1).find((g) => !existentes.includes(g));
 }
 
-export function EditorEjerciciosPlan({ ejercicios, bloques, semana, semanasVisibles: semanas, ocupado, altaPendiente, sucio, onCambiar, onCrearBloque, onQuitarBloque, onAgregar, onQuitar }: {
+export function EditorEjerciciosPlan({ ejercicios, bloques, semana, semanasVisibles: semanas, ocupado, altaPendiente, sucio, onCambiar, onCrearBloque, onQuitarBloque, onAgregar, onQuitar, maxColumnas }: {
   ejercicios: EjercicioMensual[]; tipo: SesionEntrenamiento["tipo"]; semana: number; semanasVisibles: number[];
   bloques: number[];
-  ocupado: boolean; altaPendiente: boolean; sucio: boolean;
+  maxColumnas?:number; ocupado: boolean; altaPendiente: boolean; sucio: boolean;
   onCambiar: (id: string, campos: Partial<EjercicioMensual>) => void;
   onCrearBloque: () => void; onQuitarBloque: (grupo: number) => void;
   onAgregar: (grupo: number) => void; onQuitar: (id: string) => void;
@@ -36,7 +36,7 @@ export function EditorEjerciciosPlan({ ejercicios, bloques, semana, semanasVisib
   }, []);
   const tabla = ancho >= 700;
   // Reservar espacio para nombre, descanso, acciones y separación entre campos.
-  const capacidad = tabla ? Math.max(1, Math.floor((ancho - 440) / 88)) : 1;
+  const capacidad = tabla ? Math.min(maxColumnas??104,Math.max(1, Math.floor((ancho - 440) / 88))) : 1;
   const inicio = Math.floor((semana - 1) / capacidad) * capacidad;
   const semanasVisibles = semanas.slice(inicio, inicio + capacidad);
   // El número interno identifica el bloque; el orden visual sigue los ejercicios.
@@ -55,7 +55,7 @@ export function EditorEjerciciosPlan({ ejercicios, bloques, semana, semanasVisib
       const delBloque = ejercicios.filter((e) => e.grupo === grupo);
       return <section key={grupo} aria-label={`Bloque ${indice + 1}`} onDragOver={(e) => { if (arrastrando) e.preventDefault(); }} onDrop={(e) => soltar(e, grupo)} className={cn("min-w-0 rounded-xl bg-muted/20 p-4 space-y-4 ring-1 ring-border/40", arrastrando && "ring-primary/60 bg-primary/5")}>
         <div className="flex flex-wrap items-center justify-between gap-1"><h4 className="text-sm font-medium">Bloque {indice + 1}</h4><div className="flex items-center gap-2"><p className="text-xs text-muted-foreground">{delBloque.length > 1 ? `${delBloque.length} ejercicios juntos` : delBloque.length ? "1 ejercicio" : "Vacío"}</p>{!delBloque.length && <Button type="button" size="icon-sm" variant="ghost" aria-label={`Eliminar bloque ${indice + 1} vacío`} disabled={ocupado} onClick={() => onQuitarBloque(grupo)}><Trash2 /></Button>}</div></div>
-        {tabla && delBloque.length > 0 && <div className="grid grid-cols-[var(--columnas-ejercicio)] gap-3 text-xs text-muted-foreground"><span>Ejercicio</span>{semanasVisibles.map((s) => <span key={s}>Semana {s}</span>)}<span>Descanso</span><span className="sr-only">Acciones</span></div>}
+        {tabla && delBloque.length > 0 && <div className="grid grid-cols-[var(--columnas-ejercicio)] gap-3 text-xs text-muted-foreground"><span>Ejercicio</span>{semanasVisibles.map((s) => <span key={s} className={s===semana?"font-semibold text-primary":undefined}>Semana {s}</span>)}<span>Descanso</span><span className="sr-only">Acciones</span></div>}
         {delBloque.map((ej) => <div key={ej.id} className={cn("grid min-w-0 gap-3 border-t pt-3", tabla && "grid-cols-[var(--columnas-ejercicio)]")}>
           <div className="min-w-0 space-y-2">
             <div className="flex min-w-0 items-center gap-1"><button type="button" draggable aria-label={`Arrastrar ${ej.nombre || "ejercicio"} a otro bloque`} title="Arrastrar a otro bloque" onDragStart={(e) => { e.dataTransfer.setData(TIPO_ARRASTRE, ej.id); e.dataTransfer.effectAllowed = "move"; setArrastrando(ej.id); }} onDragEnd={() => setArrastrando(null)} className="cursor-grab rounded p-1 text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing"><GripVertical className="size-4" /></button><div className="min-w-0 flex-1"><EjercicioCombobox value={ej.nombre}  onChange={(nombre) => onCambiar(ej.id, { nombre })} /></div></div>

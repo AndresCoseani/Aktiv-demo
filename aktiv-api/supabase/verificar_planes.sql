@@ -250,6 +250,17 @@ with comprobaciones(migracion, descripcion, pieza, ok) as (values
   ,(52, 'Sesiones en varios días', 'duplicación atómica privada',
     coalesce(has_function_privilege('authenticated',to_regprocedure('public.duplicar_sesion_dias(uuid,uuid,text,smallint,smallint[])'),'EXECUTE'),false)
     and not coalesce(has_function_privilege('anon',to_regprocedure('public.duplicar_sesion_dias(uuid,uuid,text,smallint,smallint[])'),'EXECUTE'),true))
+  ,(53, 'Días de Running, GYM y Descanso', 'validador y guardado de tipos',
+    coalesce(pg_get_functiondef(to_regprocedure('public.validar_running()')) like '%lunes_tipo%',false)
+    and coalesce(pg_get_functiondef(to_regprocedure('public.guardar_running(uuid,jsonb,boolean)')) like '%lunes_tipo%',false))
+  ,(54, 'Planificación unificada', 'columnas y validación de vínculos',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_mensuales' and column_name='distribucion')
+    and exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_modelo' and column_name='distribucion')
+    and (select count(*)=2 from pg_trigger where tgname in ('validar_distribucion_plan','validar_distribucion_modelo') and tgenabled in ('O','A') and not tgisinternal))
+  ,(54, 'Planificación unificada', 'asignación y copia privadas',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.asignar_dia_plan(uuid,jsonb)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.asignar_dia_plan(uuid,jsonb)'),'EXECUTE'),true)
+    and coalesce(has_function_privilege('authenticated',to_regprocedure('public.copiar_semana_plan(uuid,integer,integer)'),'EXECUTE'),false))
 )
 select migracion, descripcion,
   case when bool_and(ok) then 'OK' when bool_or(ok=false) then 'REVISAR' else 'MANUAL' end as estado,

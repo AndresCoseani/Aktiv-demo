@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, Patch, Post } from "@nestjs/common";
 import { z } from "zod";
 import {
-  altaMensualApi, altaSesionApi, altaEjercicioMensualApi, parcheMensualApi,
+  copiarSemanaRunningApi, asignarDiaApi, altaMensualApi, altaSesionApi, altaEjercicioMensualApi, parcheMensualApi,
   parcheSesionApi, parcheEjercicioMensualApi, parcheCeldaAlumnoApi, parcheCeldaProfeApi,
   planesMensualesRespuesta, uuidSchema, duplicarSesionApi, duplicarPlanApi,
-  MAX_SEMANAS_PLAN, guardarRunningApi, copiarSemanaRunningApi,
+  MAX_SEMANAS_PLAN, guardarRunningApi,
   actividadesIniciales, diasInicialesSchema,
   guardarSeguimientoApi, seguimientoRespuesta,
 } from "@aktiv/contrato";
@@ -154,6 +154,11 @@ export class MensualesService {
     return seguimientoRespuesta.parse({ registro: r.data, habilitado: true });
   }
 
+  async copiarSemana(u:Usuario,plan:string,body:unknown) {const dto=validarOLanzar(copiarSemanaRunningApi,body);const r=await this.supa.delUsuario(u.token).rpc("copiar_semana_plan",{p_plan:plan,p_origen:dto.origen,p_destino:dto.destino});lanzarSiError(r.error);return {id:plan};}
+  async asignarDia(u:Usuario,plan:string,body:unknown) {
+    const dto=validarOLanzar(asignarDiaApi,body);
+    const r=await this.supa.delUsuario(u.token).rpc("asignar_dia_plan",{p_plan:plan,p_cambio:dto});lanzarSiError(r.error);return {id:plan};
+  }
   async duplicarSesion(u: Usuario, origen: string, body: unknown) {
     const dto = validarOLanzar(duplicarSesionApi, body);
     const db = this.supa.delUsuario(u.token);
@@ -194,6 +199,10 @@ export class MensualesController {
   borrarPlan(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string) { return this.servicio.eliminar(u, "plan", recurso); }
   @Roles("coach") @Post("planes-mensuales/:id/sesiones")
   sesion(@UsuarioActual() u: Usuario, @Param("id", id()) padre: string, @Body() body: unknown) { return this.servicio.crear(u, "sesion", padre, body); }
+  @Roles("coach") @Patch("planes-mensuales/:id/distribucion")
+  asignar(@UsuarioActual() u:Usuario,@Param("id",id()) plan:string,@Body() body:unknown){return this.servicio.asignarDia(u,plan,body);}
+  @Roles("coach") @Post("planes-mensuales/:id/planificacion/copiar")
+  copiarPlanificacion(@UsuarioActual() u:Usuario,@Param("id",id()) plan:string,@Body() body:unknown){return this.servicio.copiarSemana(u,plan,body);}
   @Roles("coach") @Patch("planes-mensuales/:id/running")
   running(@UsuarioActual() u:Usuario,@Param("id",id()) plan:string,@Body() body:unknown){return this.servicio.running(u,plan,body);}
   @Roles("coach") @Post("planes-mensuales/:id/running/copiar")

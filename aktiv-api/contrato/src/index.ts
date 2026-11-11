@@ -71,3 +71,5 @@ export type EstadoAcceso = z.infer<typeof estadoAccesoSchema>;
 export type EjercicioCustom = z.infer<typeof ejercicioCustomSchema>;
 
 export * from "./running";
+
+export * from "./planificacion";

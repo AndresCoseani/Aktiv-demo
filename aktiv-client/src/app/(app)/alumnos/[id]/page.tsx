@@ -1,5 +1,4 @@
 "use client";
-import { diasDeSesion } from "@aktiv/contrato";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -15,7 +14,6 @@ import { AlumnoResumen } from "@/components/alumno-resumen";
 import { PlanEditor } from "@/components/plan-editor";
 import { PlanMensualPanel } from "@/components/plan-mensual";
 import { usePlanesMensuales, hayBorradoresMensuales } from "@/lib/mensual";
-import { SemanaCard } from "@/components/semana-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -38,7 +36,7 @@ import {
   sumarMeses,
 } from "@/lib/format";
 import { useRol } from "@/lib/guards";
-import { actualizarAlumno, alternarDia, useStore } from "@/lib/store";
+import { actualizarAlumno, useStore } from "@/lib/store";
 
 export default function AlumnoDetallePage() {
   const [tab, setTab] = useState("resumen");
@@ -47,8 +45,6 @@ export default function AlumnoDetallePage() {
   const mensual = usePlanesMensuales(id);
   const { alumnos } = useStore();
   const alumno = alumnos.find((a) => a.id === id);
-  const mesesActivos = mensual.planes.filter((p) => p.activo);
-  const mesActivo = mesesActivos[0];
 
   if (!session) return null;
 
@@ -211,23 +207,13 @@ export default function AlumnoDetallePage() {
 
         <TabsContent value="resumen" className="space-y-6">
 
-      {mensual.cargando ? <div role="status" className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Cargando semana de entrenamiento…</div> : mensual.error ? <div role="alert" className="space-y-3 rounded-xl border bg-card p-5 text-sm"><p>No pudimos consultar la semana de entrenamiento.</p><Button variant="outline" size="sm" onClick={mensual.reintentar}>Reintentar</Button></div> : <SemanaCard
-        titulo="Semana de entrenamiento"
-        semana={mesActivo ? Array.from({ length: 7 }, (_, i) => ({
-          correr: mesesActivos.some((p) => p.sesiones.some((s) => diasDeSesion(s).includes(i + 1) && s.tipo === "Running")),
-          fuerza: mesesActivos.some((p) => p.sesiones.some((s) => diasDeSesion(s).includes(i + 1) && s.tipo === "Fuerza")),
-        })) : alumno.semana}
-        descripcion={mesActivo ? `${mesesActivos.length} ${mesesActivos.length === 1 ? "plan activo" : "planes activos"} · Asignación opcional al calendario` : undefined}
-        actividades={mesActivo ? Array.from({ length: 7 }, (_, i) => [...new Set(mesesActivos.flatMap((p) => p.sesiones.filter((s) => diasDeSesion(s).includes(i + 1)).map((s) => s.tipo)))]) : undefined}
-        sinDiasFijos={mesesActivos.some((p) => p.sesiones.some((s) => !diasDeSesion(s).length))}
-        onAlternar={mesActivo ? undefined : (dia, tipo) => alternarDia(alumno.id, dia, tipo)}
-      />}
+      <PlanMensualPanel alumnoId={alumno.id} datosExternos={mensual} editable unificado />
 
         <AlumnoResumen alumno={alumno} mensual={mensual} onAbrir={setTab} />
         </TabsContent>
 
         <TabsContent value="plan" className="min-w-0">
-          <PlanMensualPanel alumnoId={alumno.id} editable>
+          <PlanMensualPanel alumnoId={alumno.id} datosExternos={mensual} editable>
             {alumno.planes.length > 0 ? <PlanEditor alumno={alumno} /> : (
               <p className="py-2 text-sm text-muted-foreground">No hay planes anteriores registrados.</p>
             )}

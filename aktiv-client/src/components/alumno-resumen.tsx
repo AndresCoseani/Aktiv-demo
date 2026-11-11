@@ -1,5 +1,6 @@
 "use client";
-import { diasDeSesion } from "@aktiv/contrato";
+import { textoRunningPlanificado } from "@aktiv/contrato";
+import { actividadesDelDia } from "@aktiv/contrato";
 
 import { ArrowUpRight, CalendarDays, ClipboardList, Medal, StickyNote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { diaDeHoy, formatFecha, formatTiempo, hoyISO } from "@/lib/format";
 import { LIMITES } from "@/lib/schemas";
 import { actualizarAlumno, useStore } from "@/lib/store";
 import type { Alumno, Marca } from "@/lib/types";
-import { CAMPOS_RUNNING, prescripcionEfectiva, semanaDelPlan } from "@aktiv/contrato";
+import { prescripcionEfectiva, semanaDelPlan } from "@aktiv/contrato";
 import type { usePlanesMensuales } from "@/lib/mensual";
 
 export function AlumnoResumen({ alumno, mensual, onAbrir }: {
@@ -23,9 +24,9 @@ export function AlumnoResumen({ alumno, mensual, onAbrir }: {
   const mes = meses[0];
   const sesionesHoy = meses.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, hoyISO(), plan.semanas);
-    return semana ? plan.sesiones.filter((s) => diasDeSesion(s).includes(diaDeHoy() + 1)).map((sesion) => ({ sesion, plan, semana })) : [];
+    return semana ? plan.sesiones.filter((s) => actividadesDelDia(plan,diaDeHoy()+1,semana).some(a=>a.sesionId===s.id)).map((sesion) => ({ sesion, plan, semana })) : [];
   });
-  const runningHoy=meses.flatMap(plan=>{const semana=semanaDelPlan(plan.inicio,hoyISO(),plan.semanas);const texto=semana?plan.running?.[semana]?.[CAMPOS_RUNNING[diaDeHoy()]]:null;return texto?.trim()?[{plan,semana,texto}]:[];});
+  const runningHoy=meses.flatMap(plan=>{const semana=semanaDelPlan(plan.inicio,hoyISO(),plan.semanas);const texto=semana?textoRunningPlanificado(plan,diaDeHoy()+1,semana):null;return texto?.trim()?[{plan,semana,texto}]:[];});
   const hoy = alumno.semana[diaDeHoy()];
   const tipos = [hoy?.correr && "Running", hoy?.fuerza && "Fuerza"].filter(Boolean);
   const planes = alumno.planes.filter((p) => p.activo && tipos.includes(p.tipo));

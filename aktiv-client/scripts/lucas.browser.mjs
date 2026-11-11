@@ -6,6 +6,8 @@ import { join } from "node:path";
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
 const base = process.env.MENSUAL_URL ?? "http://localhost:3101";
 const salida = join(process.env.TEMP, "aktiv-lucas-capturas"); await mkdir(salida, { recursive: true });
+// Las pruebas del calendario anterior vuelven a esa vista explícitamente tras recargar.
+async function recargar(page) { const diaria=await page.getByRole("button",{name:"Ver grilla semanal",exact:true}).count()>0;await page.reload();if(diaria)await page.getByRole("button",{name:"Vista diaria",exact:true}).click(); }
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const id = (n) => `a0000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const alumnoId = id(10), usuario = id(1), coachId = id(2), planId = id(20);
@@ -28,6 +30,7 @@ async function pagina(rol, ancho=390) {
     const dto=()=>req.postDataJSON();
     if(path==="/auth/me") body={session};
     else if(path==="/auth/solicitudes-alta") body=[];
+    else if(path==="/actividades-plan") body=["Fuerza","Running"];
     else if(path==="/datos") body={session,alumnos:rol==="coach"?alumnos:[alumno],carreras:[],inscripciones:[],ejerciciosCustom:[]};
     else if(path.endsWith("/planes-mensuales")) body=planes;
     else if (/\/seguimiento\/\d+$/.test(path)) body={ registro: { semana: Number(path.split('/').at(-1)), completado:false, sensacion:null, nota:'', fecha:null }, habilitado: rol==='alumno' };
@@ -127,7 +130,7 @@ try {
   await coach.page.getByRole("button",{name:"Guardar horario",exact:true}).click();
   await coach.page.getByText("18:00–19:00 · Fuerza grupal",{exact:true}).waitFor();
   const estudiante=await pagina("alumno");
-  await estudiante.page.goto(`${base}/mi-plan`);
+  await estudiante.page.goto(`${base}/mi-plan`);await estudiante.page.getByRole("button",{name:"Vista diaria",exact:true}).click();
   await estudiante.page.getByRole("heading",{name:"Hoy te toca",exact:true}).waitFor();
   const siguiente=estudiante.page.getByRole("button",{name:"Semana siguiente",exact:true});
   const diasSemana=estudiante.page.getByRole("group",{name:"Días de la semana",exact:true});
@@ -148,7 +151,7 @@ try {
   await estudiante.page.waitForResponse(r=>r.request().method()==="PATCH" && r.url().includes('/semanas/2') && r.status()===200);
   assert.equal(planes[0].sesiones[0].ejercicios[0].semanas[1].peso,"55");
   assert.equal(planes[0].sesiones[0].ejercicios[0].semanas[0].peso,null);
-  await estudiante.page.reload();
+  await recargar(estudiante.page);
   await estudiante.page.getByRole("button",{name:"Semana siguiente",exact:true}).click();
   assert.equal(await estudiante.page.getByLabel("Peso de Zumo, semana 2",{exact:true}).first().inputValue(),"55");
   for(let i=1;i<=3;i++)await estudiante.page.getByRole("heading",{name:`Entrenamiento ${i}`,exact:true}).waitFor();
@@ -161,7 +164,7 @@ try {
   await estudiante.page.getByText("No se pudo confirmar. Reintentá.",{exact:true}).waitFor(); assert.equal(confirmadas.length,0);
   await estudiante.page.getByRole("button",{name:"Confirmar llegada",exact:true}).click();
   await estudiante.page.getByText("Vas a las 18:30",{exact:true}).waitFor();
-  await estudiante.page.reload(); await estudiante.page.getByText("Vas a las 18:30",{exact:true}).waitFor();
+  await recargar(estudiante.page); await estudiante.page.getByText("Vas a las 18:30",{exact:true}).waitFor();
   await estudiante.page.getByRole('button',{name:'Cambiar hora',exact:true}).click();
   await estudiante.page.getByLabel('Hora estimada de llegada',{exact:true}).fill('23:00');
   await estudiante.page.getByRole('button',{name:'Confirmar llegada',exact:true}).click();
@@ -174,12 +177,12 @@ try {
   assert.equal(await estudiante.page.getByText("Ana Pérez",{exact:true}).count(),0);
   assert.equal(await estudiante.page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true);
   await estudiante.page.screenshot({path:join(salida,"clase-alumno.png"),fullPage:true});
-  await coach.page.reload(); await coach.page.getByText("1 confirmaciones",{exact:true}).waitFor();
+  await recargar(coach.page); await coach.page.getByText("1 confirmaciones",{exact:true}).waitFor();
   await coach.page.getByText("Ana Pérez",{exact:true}).waitFor();
   await coach.page.getByRole("button",{name:"Cancelar entrenamiento",exact:true}).click();
   await coach.page.getByRole("button",{name:"Confirmar",exact:true}).click();
   await coach.page.getByText("Clase cancelada",{exact:true}).waitFor();
-  await estudiante.page.reload(); await estudiante.page.getByText("Clase cancelada",{exact:true}).waitFor();
+  await recargar(estudiante.page); await estudiante.page.getByText("Clase cancelada",{exact:true}).waitFor();
   await estudiante.page.getByRole("button",{name:"Cancelar mi confirmación",exact:true}).click();
   await estudiante.page.getByRole("button",{name:"Avisar que voy",exact:true}).waitFor();assert.equal(confirmadas.length,0);
   await coach.page.getByRole("button",{name:"Reabrir entrenamiento",exact:true}).click();
@@ -189,7 +192,7 @@ try {
   await coach.page.getByRole("button",{name:"Desactivar",exact:true}).click();
   await coach.page.getByRole("button",{name:"Confirmar",exact:true}).click();
   await coach.page.getByText("No hay clases esta semana.",{exact:true}).waitFor();
-  await estudiante.page.reload();await estudiante.page.getByText("No hay clases esta semana.",{exact:true}).waitFor();
+  await recargar(estudiante.page);await estudiante.page.getByText("No hay clases esta semana.",{exact:true}).waitFor();
   // Semana calendario, carga común con excepción, error parcial y reintento sin duplicar.
   await coach.page.getByRole("button",{name:"Nuevo horario",exact:true}).click();
   const modal = coach.page.getByRole("dialog",{name:"Nuevo horario semanal",exact:true});
@@ -239,7 +242,7 @@ try {
   await modal.getByRole("button",{name:"Guardar horario",exact:true}).click();
   await modal.waitFor({state:"hidden"});
   assert.deepEqual(horarios.filter(h=>h.dia===7).map(h=>[h.hora,h.fin,h.lugar]),[["09:00","10:30","Parque"]]);
-  await coach.page.reload();
+  await recargar(coach.page);
   await coach.page.getByRole("heading",{name:/Lunes/}).waitFor();
   assert.equal(await coach.page.getByLabel("Clases de la semana").locator('section').count(),7);
   const tarjetas=await coach.page.getByLabel("Clases de la semana").locator('section').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {y:r.y,ancho:r.width,alto:r.height};}));
