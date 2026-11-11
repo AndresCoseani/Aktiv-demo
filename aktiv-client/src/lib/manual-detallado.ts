@@ -6,9 +6,9 @@ const g = (id: string, categoria: string, titulo: string, descripcion: string, d
 export const guias: GuiaManual[] = [
   g("planificacion-unificada", "Planes", "Planificar la semana desde la ficha del alumno", "Asignar fuerza, running y descanso y editar los días en un modal.", "/alumnos", [
     p("Abrí la ficha", "Entrá en Alumnos y pulsá el nombre. Resumen muestra la planificación directamente. El icono de información junto al nombre abre los datos de contacto y acceso.", "planificacion-ficha"),
-    p("Usá la barra del plan", "El nombre enmarcado abre su edición. Nuevo día crea una rutina y abre su modal. El switch activa o desactiva el plan; los iconos de copiar y papelera duplican o eliminan. Ver más planes permite elegir otro plan.", "planificacion-ficha"),
+    p("Usá la barra del plan", "El nombre enmarcado abre su edición. Crear día crea una rutina y abre su modal. El switch activa o desactiva el plan; los iconos de copiar y papelera duplican o eliminan. Ver más planes permite elegir otro plan.", "planificacion-ficha"),
     p("Elegí cuándo entrena", "En Semana, encendé el switch del día y marcá pesas para Fuerza, pies para Running o ambos. Podés dejarlo sin selección. Apagado significa descanso: se muestra la cama y se ocultan los botones de actividades.", "planificacion-actividades"),
-    p("Creá los días de fuerza", "Pulsá + Nuevo día en la barra. Se abre el mismo modal que se usa para editar. Cambiá su nombre arriba. No se asigna al calendario automáticamente.", "planificacion-crear"),
+    p("Creá los días de fuerza", "Pulsá + Crear día en la barra. Se abre el mismo modal que se usa para editar. Cambiá su nombre arriba. No se asigna al calendario automáticamente.", "planificacion-crear"),
     p("Creá los bloques", "En el modal pulsá + Nuevo bloque, elegí Movilidad, Activación o Fuerza en Tipo de actividad y pulsá Crear. El + de cada bloque agrega un ejercicio. Buscalo o crealo desde su campo.", "planificacion-bloque"),
     p("Completá la semana", "El modal abre la semana actual; los botones Semana 1, Semana 2, etcétera permiten consultar las demás. Cargá series, repeticiones y descanso. Los ejercicios nuevos comienzan con 3×8 y 60 s. Podés escribir indicaciones libres en Repeticiones. Arrastrá el asa para mover ejercicios entre bloques; con las flechas del teclado podés ordenarlos. Indicaciones generales es opcional.", "planificacion-modal-profe"),
     p("Vinculá la rutina", "En la primera columna de la grilla, debajo del día con Fuerza, abrí el selector y elegí el nombre del día creado. La rutina aparece en las semanas como un botón. Pulsalo para abrir el modal. Una misma rutina se puede asignar a varios días.", "planificacion-rutina"),
@@ -129,7 +129,7 @@ export const guias: GuiaManual[] = [
   ], "Para modificar ejercicios entrá a cada sesión. Para cambiar una base de la biblioteca usá Editar modelo: una copia del alumno y un modelo son elementos independientes."),
 
   g("editar-plan", "Planes", "Editar un día de entrenamiento", "Abrir el modal, cambiar su nombre y completar los bloques.", "/alumnos", [
-    p("Abrí el día", "En Resumen, pulsá el botón con el nombre del día en una celda de Fuerza. Nuevo día, en la barra del plan, permite crear otro.", "planificacion-rutina"),
+    p("Abrí el día", "En Resumen, pulsá el botón con el nombre del día en una celda de Fuerza. Crear día, en la barra del plan, permite crear otro.", "planificacion-rutina"),
     p("Editá el nombre", "Escribí directamente en el título del modal. Ese nombre identifica la rutina en la grilla y en el selector de asignación.", "planificacion-modal-profe"),
     p("Elegí la semana", "Al abrir se selecciona la semana actual. Pulsá otra semana para ver o editar sus indicaciones. Las series y repeticiones de los ejercicios del bloque se guardan en esa semana.", "planificacion-modal-profe"),
     p("Completá los bloques", "Nuevo bloque permite elegir Movilidad, Activación o Fuerza. El + de cada bloque agrega ejercicios; buscá el nombre en su campo. Cargá series, repeticiones y descanso.", "planificacion-bloque"),
