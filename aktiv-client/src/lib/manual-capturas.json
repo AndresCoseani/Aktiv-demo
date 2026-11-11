@@ -401,12 +401,17 @@
   },
   "planificacion-bloque": {
     "src": "/manual/planificacion-bloque.png",
-    "ancho": 426,
-    "alto": 255
+    "ancho": 429,
+    "alto": 257
   },
   "planificacion-running-detalle": {
     "src": "/manual/planificacion-running-detalle.png",
-    "ancho": 720,
+    "ancho": 719,
     "alto": 385
+  },
+  "planificacion-menu-movil": {
+    "src": "/manual/planificacion-menu-movil.png",
+    "ancho": 352,
+    "alto": 900
   }
 }

@@ -192,7 +192,7 @@ try {
     await grilla.getByRole("button",{name:"Abrir Running, Lunes, semana 1",exact:true}).click();await foto(p,"planificacion-running-detalle",[],true);await cerrar(p);
     await foto(p,"planificacion-crear",[[boton(p,"Crear día"),"Creá un día y editá sus bloques en el modal"]]);
     await grilla.getByRole("button",{name:"Abrir Fuerza - Día 1, Martes, semana 1",exact:true}).click();await p.getByRole("dialog").getByLabel("Series de Sentadilla, semana 1",{exact:true}).waitFor();await foto(p,"planificacion-modal-profe",[[boton(p,"Nuevo bloque"),"Agregá bloques por actividad"]],true);await boton(p,"Nuevo bloque").click();await foto(p,"planificacion-bloque",[],true);await cerrar(p);await cerrar(p);
-    await p.setViewportSize({width:390,height:900});await foto(p,"planificacion-movil",[[grilla.getByLabel("Semana de planificación",{exact:true}),"Una semana a la vez"]]);
+    await p.setViewportSize({width:390,height:900});await p.getByRole("button",{name:"Abrir menú de navegación",exact:true}).click();await foto(p,"planificacion-menu-movil",[],true);await cerrar(p);await foto(p,"planificacion-movil",[[grilla.getByLabel("Semana de planificación",{exact:true}),"Una semana a la vez"]]);
     const demo=await pagina("alumno");await demo.page.goto(base+"/mi-plan");await demo.page.getByRole("button",{name:"Abrir Fuerza - Día 1, Martes, semana 1",exact:true}).click();await foto(demo.page,"planificacion-modal-alumno",[],true);await demo.ctx.close();
   });
 } finally { await browser.close(); }
