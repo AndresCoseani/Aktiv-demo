@@ -104,19 +104,19 @@ export default function AlumnoDetallePage() {
           Alumnos
         </Link>
 
-        <header className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <header className="flex min-w-0 flex-col gap-6 rounded-xl border border-border/70 bg-card/70 p-5 sm:p-6 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <Avatar size="lg" className="size-11 shrink-0 sm:size-14">
-            <AvatarFallback className="bg-primary/15 text-lg font-semibold text-primary">
+          <Avatar size="lg" className="size-12 shrink-0 rounded-xl sm:size-14">
+            <AvatarFallback className="rounded-xl border border-primary/25 bg-primary/10 text-lg font-medium text-primary">
               {iniciales(alumno.nombre)}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="break-words text-2xl font-medium tracking-[-0.035em] sm:text-[28px]">
               {alumno.nombre}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {alumno.objetivo} · {alumno.nivel} · Alumno desde{" "}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {alumno.nivel} · Desde{" "}
               {formatFecha(alumno.altaEn, { conAnio: true })}
             </p>
             <p className="mt-1 flex min-w-0 flex-col items-start gap-x-4 gap-y-1 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center">
@@ -188,9 +188,8 @@ export default function AlumnoDetallePage() {
         if (hayBorradoresMensuales()) toast.error("Guardá la sesión antes de cambiar de pestaña.");
         else setTab(valor);
       }} className="min-w-0 gap-6">
-        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 group-data-horizontal/tabs:h-auto sm:flex sm:h-9 sm:w-fit sm:group-data-horizontal/tabs:h-9">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto sm:flex sm:h-9 sm:w-fit sm:group-data-horizontal/tabs:h-9">
           <TabsTrigger value="resumen" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Resumen</TabsTrigger>
-          <TabsTrigger value="plan" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Plan</TabsTrigger>
           <TabsTrigger value="ficha" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">
             Ficha médica
             {avisoCertificado && (
@@ -205,19 +204,11 @@ export default function AlumnoDetallePage() {
           <TabsTrigger value="carreras" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Carreras</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="resumen" className="space-y-6">
+        <TabsContent value="resumen" className="space-y-6" id="planificacion-alumno">
 
-      <PlanMensualPanel alumnoId={alumno.id} datosExternos={mensual} editable unificado />
+      <PlanMensualPanel alumnoId={alumno.id} datosExternos={mensual} editable unificado>{alumno.planes.length > 0 && <PlanEditor alumno={alumno} />}</PlanMensualPanel>
 
-        <AlumnoResumen alumno={alumno} mensual={mensual} onAbrir={setTab} />
-        </TabsContent>
-
-        <TabsContent value="plan" className="min-w-0">
-          <PlanMensualPanel alumnoId={alumno.id} datosExternos={mensual} editable>
-            {alumno.planes.length > 0 ? <PlanEditor alumno={alumno} /> : (
-              <p className="py-2 text-sm text-muted-foreground">No hay planes anteriores registrados.</p>
-            )}
-          </PlanMensualPanel>
+        <AlumnoResumen alumno={alumno} mensual={mensual} onAbrir={(vista) => { if (vista === "plan") { setTab("resumen"); document.getElementById("planificacion-alumno")?.scrollIntoView({behavior:"smooth",block:"start"}); } else setTab(vista); }} />
         </TabsContent>
 
         <TabsContent value="ficha">

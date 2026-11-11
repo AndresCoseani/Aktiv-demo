@@ -4,7 +4,7 @@ import { textoRunningPlanificado, textoDiaRunning } from "@aktiv/contrato";
 import { DiasSesion } from "@/components/dias-sesion";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2, LibraryBig, BookmarkPlus, Power } from "lucide-react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 import {
@@ -45,6 +45,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [crear, setCrear] = useState(false);
   const [vistaDiaria,setVistaDiaria]=useState(false);
+  const [organizando,setOrganizando]=useState(false);
 
   const [ocupado, setOcupado] = useState(false);
   const [borrar, setBorrar] = useState(false);
@@ -76,8 +77,8 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
   }
   return <div className="min-w-0 space-y-5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0"><h2 className="flex items-center gap-2 text-lg font-semibold"><CalendarDays className="size-5 shrink-0 text-primary" />Plan de entrenamiento</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Sesiones por día y progresión por semanas.</p></div>
+      <div className="min-w-0"><h2 className="flex items-center gap-2 text-lg font-medium tracking-tight"><CalendarDays className="size-5 shrink-0 text-primary" />Plan de entrenamiento</h2>
+        {!unificado&&<p className="mt-1 text-sm text-muted-foreground">Sesiones por día y progresión por semanas.</p>}</div>
       {editable && <Button variant="outline" size="sm" disabled={ocupado || datos.cargando || Boolean(datos.error)} onClick={() => navegar(() => { setCrear(true); })}><Plus />Nuevo plan</Button>}
     </div>
     {datos.cargando ? <p role="status" className="py-8 text-sm text-muted-foreground">Cargando planes…</p> : datos.error ?
@@ -88,18 +89,19 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
         </Button>)}
       </div>}
       {!editable && !unificado && visibles.length > 0 ? <CalendarioPlanes planes={visibles} /> : plan ? <>
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-5 pt-1">
-          <div className="min-w-0 flex-1 basis-48"><p className="break-words font-medium">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
-          {editable && <div className="flex flex-wrap gap-2">
-            {plan.activo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => navegar(() => void accion("desactivar"))}>{ocupado ? "Guardando…" : "Desactivar plan"}</Button>}
-            {!plan.activo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => navegar(() => void accion("activar"))}>Activar plan</Button>}
-            <Button variant="outline" size="sm" disabled={ocupado} onClick={() => navegar(() => setGuardandoModelo(true))}>Guardar como modelo</Button>
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
+          <div className="min-w-0 flex-1 basis-48"><p className="break-words text-lg font-medium tracking-tight">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
+          {editable && <div className="flex flex-wrap items-center gap-1">
+            {unificado&&<Button variant="ghost" size="icon" aria-label="Organizar rutinas" title={organizando?"Volver a la grilla":"Organizar rutinas"} aria-pressed={organizando} onClick={()=>navegar(()=>setOrganizando(v=>!v))}><LibraryBig /></Button>}
+            {plan.activo && <Button size="icon" variant="ghost" aria-label="Desactivar plan" title="Desactivar plan" disabled={ocupado} onClick={() => navegar(() => void accion("desactivar"))}><Power className="text-primary" /></Button>}
+            {!plan.activo && <Button size="icon" variant="ghost" aria-label="Activar plan" title="Activar plan" disabled={ocupado} onClick={() => navegar(() => void accion("activar"))}><Power /></Button>}
+            <Button variant="ghost" size="icon" aria-label="Guardar como modelo" title="Guardar como modelo" disabled={ocupado} onClick={() => navegar(() => setGuardandoModelo(true))}><BookmarkPlus /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={() => navegar(() => setDuplicandoPlan(plan))}><Copy /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Editar plan de entrenamiento" title="Editar plan" disabled={ocupado} onClick={() => navegar(() => setEditando(plan))}><Pencil /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" disabled={ocupado} onClick={() => navegar(() => setBorrar(true))}><Trash2 className="text-destructive" /></Button>
           </div>}
         </div>
-        <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} renderRutina={(s,semana,cerrar)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
+        <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&editable&&organizando?<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable />:unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} renderRutina={(s,semana,cerrar)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
       </> : <p className="min-w-0 break-words rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{editable ? "Creá un plan, elegí su duración y agregá las sesiones." : "Tu profe todavía no activó un plan de entrenamiento."}</p>}
     </>}
     {children && <details className="rounded-xl border px-4 py-3"><summary className="cursor-pointer text-sm text-muted-foreground">Planes anteriores</summary><div className="mt-4">{children}</div></details>}

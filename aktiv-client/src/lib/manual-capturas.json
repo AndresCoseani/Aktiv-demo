@@ -81,8 +81,8 @@
   },
   "alumno-acceso": {
     "src": "/manual/alumno-acceso.png",
-    "ancho": 487,
-    "alto": 364
+    "ancho": 495,
+    "alto": 370
   },
   "alumno-planes": {
     "src": "/manual/alumno-planes.png",
@@ -91,28 +91,28 @@
   },
   "plan-nuevo": {
     "src": "/manual/plan-nuevo.png",
-    "ancho": 491,
-    "alto": 761
+    "ancho": 496,
+    "alto": 770
   },
   "plan-duplicar": {
     "src": "/manual/plan-duplicar.png",
-    "ancho": 554,
-    "alto": 531
+    "ancho": 560,
+    "alto": 538
   },
   "plan-editar": {
     "src": "/manual/plan-editar.png",
-    "ancho": 477,
-    "alto": 457
+    "ancho": 491,
+    "alto": 470
   },
   "plan-eliminar": {
     "src": "/manual/plan-eliminar.png",
-    "ancho": 416,
-    "alto": 227
+    "ancho": 428,
+    "alto": 233
   },
   "plan-guardar-modelo": {
     "src": "/manual/plan-guardar-modelo.png",
-    "ancho": 477,
-    "alto": 296
+    "ancho": 485,
+    "alto": 300
   },
   "plan-activar": {
     "src": "/manual/plan-activar.png",
@@ -121,13 +121,13 @@
   },
   "dia-editar": {
     "src": "/manual/dia-editar.png",
-    "ancho": 484,
-    "alto": 404
+    "ancho": 496,
+    "alto": 414
   },
   "dia-duplicar": {
     "src": "/manual/dia-duplicar.png",
-    "ancho": 487,
-    "alto": 430
+    "ancho": 493,
+    "alto": 435
   },
   "ejercicios-lista": {
     "src": "/manual/ejercicios-lista.png",
@@ -246,8 +246,8 @@
   },
   "marca-nueva": {
     "src": "/manual/marca-nueva.png",
-    "ancho": 487,
-    "alto": 419
+    "ancho": 495,
+    "alto": 426
   },
   "alumno-carreras": {
     "src": "/manual/alumno-carreras.png",
@@ -276,18 +276,18 @@
   },
   "marca-editar": {
     "src": "/manual/marca-editar.png",
-    "ancho": 494,
-    "alto": 425
+    "ancho": 493,
+    "alto": 423
   },
   "carrera-asignar": {
     "src": "/manual/carrera-asignar.png",
-    "ancho": 489,
-    "alto": 271
+    "ancho": 494,
+    "alto": 274
   },
   "carrera-inscripcion-editar": {
     "src": "/manual/carrera-inscripcion-editar.png",
-    "ancho": 429,
-    "alto": 352
+    "ancho": 432,
+    "alto": 354
   },
   "carrera-resultado": {
     "src": "/manual/carrera-resultado.png",
@@ -296,8 +296,8 @@
   },
   "alumno-eliminar": {
     "src": "/manual/alumno-eliminar.png",
-    "ancho": 496,
-    "alto": 258
+    "ancho": 490,
+    "alto": 256
   },
   "editor-vuelta-calma": {
     "src": "/manual/editor-vuelta-calma.png",
@@ -311,8 +311,8 @@
   },
   "running-copiar": {
     "src": "/manual/running-copiar.png",
-    "ancho": 431,
-    "alto": 427
+    "ancho": 429,
+    "alto": 425
   },
   "running-movil": {
     "src": "/manual/running-movil.png",
@@ -366,8 +366,8 @@
   },
   "planificacion-crear": {
     "src": "/manual/planificacion-crear.png",
-    "ancho": 427,
-    "alto": 407
+    "ancho": 431,
+    "alto": 410
   },
   "planificacion-modal-profe": {
     "src": "/manual/planificacion-modal-profe.png",
@@ -376,13 +376,13 @@
   },
   "planificacion-excepcion": {
     "src": "/manual/planificacion-excepcion.png",
-    "ancho": 427,
-    "alto": 325
+    "ancho": 432,
+    "alto": 282
   },
   "planificacion-copiar": {
     "src": "/manual/planificacion-copiar.png",
-    "ancho": 427,
-    "alto": 463
+    "ancho": 432,
+    "alto": 468
   },
   "planificacion-movil": {
     "src": "/manual/planificacion-movil.png",

@@ -103,9 +103,9 @@ try {
   await grupo("alumnos", async p => {
     await p.goto(`${base}/alumnos`); await boton(p, "Nuevo alumno").waitFor(); await foto(p, "alumnos-lista", [[boton(p, "Nuevo alumno"), "1 · Alta manual"]]);
     await boton(p, "Nuevo alumno").click(); await foto(p, "alumno-nuevo", [], true); await cerrar(p);
-    await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("tab", { name: "Plan", exact: true }), "Abrir sus planes"]]);
+    await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("button",{name:"Organizar rutinas",exact:true}), "Abrir sus planes"]]);
     await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p);
-    await p.getByRole("tab", { name: "Plan", exact: true }).click(); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
+    await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click(); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
     await boton(p, "Nuevo plan").click(); await foto(p, "plan-nuevo", [], true); await cerrar(p);
     for (const [accion, captura] of [["Duplicar plan de entrenamiento", "plan-duplicar"], ["Editar plan de entrenamiento", "plan-editar"], ["Eliminar plan de entrenamiento", "plan-eliminar"], ["Guardar como modelo", "plan-guardar-modelo"]]) { await boton(p, accion).click(); await foto(p, captura, [], true); await cerrar(p); }
     await foto(p, "plan-activar", [[boton(p, "Desactivar plan"), "Ocultar sin borrar el plan"]]);
@@ -143,7 +143,7 @@ try {
     await p.goto(`${base}/certificados`); await foto(p, "certificados-lista");
   });
   await grupo("dias", async p=>{
-    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("tab",{name:"Plan",exact:true}).click();await boton(p,"Asignar días de la semana").click();await p.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await foto(p,"dias-asignar",[[p.getByRole("checkbox",{name:"Lunes",exact:true}),"Marcá todos los días de esta rutina"]]);
+    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await boton(p,"Asignar días de la semana").click();await p.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await foto(p,"dias-asignar",[[p.getByRole("checkbox",{name:"Lunes",exact:true}),"Marcá todos los días de esta rutina"]]);
     await boton(p,"Listo").click();await boton(p,"Editar entrenamiento").click();await foto(p,"dia-editar",[],true);await cerrar(p);await boton(p,"Duplicar día de entrenamiento").click();await foto(p,"dia-duplicar",[],true);
   });
   await grupo("solicitudes", async p => {
@@ -156,12 +156,12 @@ try {
   }, "alumno");
   await grupo("running-tipos",async p=>{
     plan.running={"1":{lunes:"GYM",martes:"Rodaje suave",miercoles:"GYM",viernes:"Descanso",sabado:"Técnica",domingo:"Fondo suave"}};
-    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("tab",{name:"Plan",exact:true}).click();await boton(p,"Running").click();
+    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await boton(p,"Running").click();
     await foto(p,"running-tipo-dia",[[p.getByLabel("Actividad de Lunes, semana 1",{exact:true}),"Elegí Running, GYM o Descanso"]]);
   });
   await grupo("running", async p=>{
     plan.running={"1":{lunes:"Gimnasio",martes:"10 min suaves + 4 × 200 m + afloje",miercoles:"Descanso",jueves:"Rodaje suave",viernes:"Descanso",sabado:"Técnica y progresivos",domingo:"Fondo suave",volumen:"25,5",sugerencias:"Datos ficticios para explicar la carga."},"2":{martes:"Rodaje progresivo",volumen:"28"}};
-    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("tab",{name:"Plan",exact:true}).click();await boton(p,"Running").click();
+    await p.goto(base+"/alumnos/"+alumnoId);await p.getByRole("button",{name:"Organizar rutinas",exact:true}).click();await boton(p,"Running").click();
     await foto(p,"running-grilla",[[p.getByRole("textbox",{name:"Martes, semana 1",exact:true}),"Escribí la sesión completa"]]);
     await foto(p,"running-volumen",[[p.getByRole("textbox",{name:"Volumen semanal, semana 1",exact:true}),"Kilómetros de la semana"],[p.getByRole("textbox",{name:"Sugerencias, semana 1",exact:true}),"Indicaciones generales"]]);
     await boton(p,"Copiar semana").click();await foto(p,"running-copiar",[],true);await cerrar(p);
@@ -184,8 +184,8 @@ try {
     plan.distribucion={base:{1:[{tipo:"Running"}],2:[{tipo:"Fuerza",sesionId:id(30)}],3:[{tipo:"Running"}],4:[{tipo:"Fuerza",sesionId:id(32)}],5:[{tipo:"Descanso"}],6:[{tipo:"Running"}],7:[{tipo:"Running"}]}};
     plan.running={"1":{lunes:"Rodaje suave de ejemplo",miercoles:"Entrada suave + pasadas + afloje",sabado:"Técnica y progresivos",domingo:"Fondo suave",volumen:"25,5",sugerencias:"Indicaciones ficticias para explicar la planificación."},"2":{lunes:"Rodaje progresivo"}};
     await p.goto(base+"/alumnos/"+alumnoId);const grilla=p.getByRole("region",{name:"Planificación unificada",exact:true});await grilla.waitFor();
-    await foto(p,"planificacion-ficha",[[p.getByRole("heading",{name:"Actividades de la semana",exact:true}),"La planificación abre en Resumen"]]);
-    await foto(p,"planificacion-actividades",[[grilla.getByLabel("Actividad de Martes",{exact:true}),"Elegí la actividad para cada día"]]);
+    await foto(p,"planificacion-ficha",[[p.getByRole("heading",{name:alumno.nombre,exact:true}),"La planificación abre en Resumen"]]);
+    await foto(p,"planificacion-actividades",[[grilla.getByRole("button",{name:"Fuerza de Martes",exact:true}),"Elegí la actividad para cada día"]]);
     await foto(p,"planificacion-rutina",[[grilla.getByLabel("Rutina de Fuerza para Martes",{exact:true}),"Vinculá Fuerza · Día 1 o Día 2"]]);
     await foto(p,"planificacion-grilla",[[grilla.getByLabel("Lunes, semana 1",{exact:true}),"Texto de Running para esta semana"]]);
     await boton(p,"Crear rutina").click();await foto(p,"planificacion-crear",[],true);await cerrar(p);
