@@ -18,6 +18,7 @@ const inicio = fechaISO.refine((f) => f >= "2000-01-01" && f <= "2100-01-01", "F
 export const numeroSemanaSchema = cantidadSemanasSchema;
 export const bloquesSesionSchema = z.array(z.number().int().min(1).max(20)).max(20)
   .refine((bloques) => new Set(bloques).size === bloques.length, "Bloque repetido");
+export const actividadesBloquesSchema = z.record(z.string().regex(/^(?:[1-9]|1[0-9]|20)$/), z.enum(["Movilidad", "Activación", "Fuerza"]));
 export const ejercicioActivacionSchema = z.object({ id, nombre: textoOpcional(120), indicacion: textoOpcional(300), fase: z.enum(["Movilidad", "Activación"]).optional() }).strict();
 export const activacionSesionSchema = z.array(ejercicioActivacionSchema).max(20)
   .refine((ejercicios) => new Set(ejercicios.map((e) => e.id)).size === ejercicios.length, "Ejercicio de activación repetido");
@@ -38,6 +39,7 @@ export const sesionEntrenamientoSchema = z.object({
   nombre: textoOpcional(60), calentamiento: textoOpcional(4000), enfriamiento: textoOpcional(4000),
   orden: z.number().int(), ejercicios: z.array(ejercicioMensualSchema),
   bloques: bloquesSesionSchema.default([]),
+  actividadesBloques: actividadesBloquesSchema.optional(),
   activacion: activacionSesionSchema.default([]),
 });
 export const planMensualSchema = z.object({

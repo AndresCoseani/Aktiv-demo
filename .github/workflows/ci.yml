@@ -169,6 +169,7 @@ jobs:
           export PGLITE_MODULE="$RUNNER_TEMP/checks/node_modules/@electric-sql/pglite/dist/index.js"
           node ../aktiv-api/scripts/probar-mensual-sql.mjs
           node ../aktiv-api/scripts/probar-lucas-sql.mjs
+          node ../aktiv-api/scripts/probar-bloques-sql.mjs
           node ../scripts/probar-restore-sql.mjs
           npm run start -- --port 3101 > "$RUNNER_TEMP/aktiv-next.log" 2>&1 &
           servidor=$!
@@ -189,7 +190,9 @@ jobs:
               exit 1
             fi
           done
-          for modo in '' --simultaneos --seguimiento --calendario --duplicar --duplicar-plan --guardado-rapido --semanas --alta --carga --dias --running-tipos --running --catalogo --calentamiento --movilidad --carreras --modelos --bloques-vacios --bloques --responsive; do
+          # La edición desde Resumen se verifica en planificacion.browser.mjs.
+          # Estos recorridos conservan biblioteca, calendario, copias y carga de datos.
+          for modo in --calendario --duplicar-plan --carga --carreras --modelos; do
             echo "::group::Planes: ${modo:-principal}"
             if node scripts/mensual.browser.mjs $modo; then
               echo "::endgroup::"

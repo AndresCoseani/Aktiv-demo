@@ -1,10 +1,11 @@
 "use client";
+import { EditorDia } from "./editor-dia";
 import { PlanificacionUnificada } from "./planificacion-unificada";
 import { textoRunningPlanificado, textoDiaRunning } from "@aktiv/contrato";
 import { DiasSesion } from "@/components/dias-sesion";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2, LibraryBig, BookmarkPlus, Power } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2, BookmarkPlus, Power } from "lucide-react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 import {
@@ -46,7 +47,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [crear, setCrear] = useState(false);
   const [vistaDiaria,setVistaDiaria]=useState(false);
-  const [organizando,setOrganizando]=useState(false);
+  const [diaCreado,setDiaCreado]=useState<SesionEntrenamiento|null>(null);
 
   const [ocupado, setOcupado] = useState(false);
   const [borrar, setBorrar] = useState(false);
@@ -65,6 +66,17 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
       await api.post(`/alumnos/${alumnoId}/planes-mensuales`, dto);
       avisarCambioMensual(); setSeleccion(dto.id); setCrear(false); toast.success("Plan creado");
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
+  }
+  async function nuevoDia() {
+    if (!plan || ocupado) return;
+    setOcupado(true);
+    try {
+      const numero=plan.sesiones.filter(s=>["Fuerza","GYM"].includes(s.tipo)).length+1;
+      const dto=altaSesionApi.parse({id:nuevoId(),tipo:"Fuerza",nombre:`Fuerza – Día ${numero}`,dia:null,calentamiento:"",enfriamiento:""});
+      await api.post(`/planes-mensuales/${plan.id}/sesiones`,dto);
+      setDiaCreado({...dto,orden:plan.sesiones.length,ejercicios:[]});
+      avisarCambioMensual();
+    } catch(e) { toast.error(mensaje(e)); } finally {setOcupado(false);}
   }
   async function accion(tipo: "activar" | "desactivar" | "borrar") {
     if (!plan) return;
@@ -91,15 +103,14 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
       </div>}
       {!editable && !unificado && visibles.length > 0 ? <CalendarioPlanes planes={visibles} /> : plan ? <>
         {editable&&unificado?<div className="space-y-2">
-          <div aria-label="Acciones del plan" role="group" className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-border/70 px-3 py-2">
+          <div aria-label="Acciones del plan" role="group" className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 px-3 py-2">
             <Button variant="outline" className="h-auto min-h-9 min-w-0 max-w-[65%] justify-start whitespace-normal px-4 py-1.5 text-left font-medium" aria-label="Editar plan de entrenamiento" title="Editar nombre, inicio y duración" disabled={ocupado} onClick={()=>navegar(()=>setEditando(plan))}>{plan.nombre||"Sin nombre"}</Button>
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3"><Switch aria-label={plan.activo?"Desactivar plan":"Activar plan"} title={plan.activo?"Desactivar plan":"Activar plan"} checked={plan.activo} disabled={ocupado} style={{backgroundColor:plan.activo?"var(--success)":"var(--destructive)"}} onCheckedChange={v=>navegar(()=>void accion(v?"activar":"desactivar"))} /><Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={()=>navegar(()=>setDuplicandoPlan(plan))}><Copy /></Button><Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" title="Eliminar plan" disabled={ocupado} onClick={()=>navegar(()=>setBorrar(true))}><Trash2 className="text-destructive" /></Button></div>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3"><Button size="sm" disabled={ocupado} onClick={()=>navegar(()=>void nuevoDia())}><Plus />Nuevo día</Button><Switch aria-label={plan.activo?"Desactivar plan":"Activar plan"} title={plan.activo?"Desactivar plan":"Activar plan"} checked={plan.activo} disabled={ocupado} style={{backgroundColor:plan.activo?"var(--success)":"var(--destructive)"}} onCheckedChange={v=>navegar(()=>void accion(v?"activar":"desactivar"))} /><Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={()=>navegar(()=>setDuplicandoPlan(plan))}><Copy /></Button><Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" title="Eliminar plan" disabled={ocupado} onClick={()=>navegar(()=>setBorrar(true))}><Trash2 className="text-destructive" /></Button></div>
           </div>
-          <details className="group/otros-planes"><summary className="w-fit cursor-pointer rounded-md px-1 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">Ver más planes</summary><div className="mt-2 space-y-3 rounded-lg border border-border/60 p-3"><div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">{visibles.map(p=><Button key={p.id} variant={p.id===plan.id?"secondary":"outline"} size="sm" aria-pressed={p.id===plan.id} onClick={()=>navegar(()=>setSeleccion(p.id))}>{p.activo&&<Check className="size-3.5" />}{p.nombre||"Sin nombre"}</Button>)}</div><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio,{conAnio:true})} · {plan.semanas} semanas · {plan.activo?"Activo":"Borrador"}</p><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" aria-label="Organizar rutinas" aria-pressed={organizando} onClick={()=>navegar(()=>setOrganizando(v=>!v))}><LibraryBig />{organizando?"Volver a la grilla":"Organizar rutinas"}</Button><Button variant="outline" size="sm" disabled={ocupado} onClick={()=>navegar(()=>setGuardandoModelo(true))}><BookmarkPlus />Guardar como modelo</Button></div></div></details>
+          <details className="group/otros-planes"><summary className="w-fit cursor-pointer rounded-md px-1 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">Ver más planes</summary><div className="mt-2 space-y-3 rounded-lg border border-border/60 p-3"><div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">{visibles.map(p=><Button key={p.id} variant={p.id===plan.id?"secondary":"outline"} size="sm" aria-pressed={p.id===plan.id} onClick={()=>navegar(()=>setSeleccion(p.id))}>{p.activo&&<Check className="size-3.5" />}{p.nombre||"Sin nombre"}</Button>)}</div></div></details>
         </div>:<>        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
           <div className="min-w-0 flex-1 basis-48"><p className="break-words text-lg font-medium tracking-tight">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
           {editable && <div className="flex flex-wrap items-center gap-1">
-            {unificado&&<Button variant="ghost" size="icon" aria-label="Organizar rutinas" title={organizando?"Volver a la grilla":"Organizar rutinas"} aria-pressed={organizando} onClick={()=>navegar(()=>setOrganizando(v=>!v))}><LibraryBig /></Button>}
             {plan.activo && <Button size="icon" variant="ghost" aria-label="Desactivar plan" title="Desactivar plan" disabled={ocupado} onClick={() => navegar(() => void accion("desactivar"))}><Power className="text-primary" /></Button>}
             {!plan.activo && <Button size="icon" variant="ghost" aria-label="Activar plan" title="Activar plan" disabled={ocupado} onClick={() => navegar(() => void accion("activar"))}><Power /></Button>}
             <Button variant="ghost" size="icon" aria-label="Guardar como modelo" title="Guardar como modelo" disabled={ocupado} onClick={() => navegar(() => setGuardandoModelo(true))}><BookmarkPlus /></Button>
@@ -108,10 +119,11 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
             <Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" disabled={ocupado} onClick={() => navegar(() => setBorrar(true))}><Trash2 className="text-destructive" /></Button>
           </div>}
         </div></>}
-        <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&editable&&organizando?<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable />:unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} renderRutina={(s,semana,cerrar)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
+        <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} renderRutina={(s,semana,cerrar)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
       </> : <p className="min-w-0 break-words rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{editable ? "Creá un plan, elegí su duración y agregá las sesiones." : "Tu profe todavía no activó un plan de entrenamiento."}</p>}
     </>}
     {children && <details className="rounded-xl border px-4 py-3"><summary className="cursor-pointer text-sm text-muted-foreground">Planes anteriores</summary><div className="mt-4">{children}</div></details>}
+    {diaCreado && plan && <RutinaPlanModal plan={plan} sesion={plan.sesiones.find(s=>s.id===diaCreado.id)??diaCreado} editable semanaInicial={semanaDelPlan(plan.inicio,hoyISO(),plan.semanas)??1} onCerrar={()=>setDiaCreado(null)} />}
     {guardandoModelo && plan && <GuardarModeloDialog plan={plan} onCerrar={() => setGuardandoModelo(false)} />}
     {editando && <EditarPlanDialog plan={editando} onCerrar={() => setEditando(null)} />}
     {duplicandoPlan && <DuplicarPlanDialog plan={duplicandoPlan} alumnoId={alumnoId} onCerrar={() => setDuplicandoPlan(null)} onDuplicado={(id, destino) => {
@@ -281,7 +293,7 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
   </div>;
 }
 
-type PropsEditorSesion = { sesion: SesionEntrenamiento; numeroDia: number; semana: number; semanasVisibles: number[]; totalSemanas: number; enModal?:boolean; onDuplicar: () => void };
+type PropsEditorSesion = { sesion: SesionEntrenamiento; numeroDia: number; semana: number; semanasVisibles: number[]; totalSemanas: number; enModal?:boolean; selectorSemana?:ReactNode; onDuplicar: () => void };
 
 function EditorSesion(props: PropsEditorSesion) {
   // Los formularios conservan su borrador durante las recargas de otras cards.
@@ -357,7 +369,7 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar, soloNombre=false }: {
   </Dialog>;
 }
 
-function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas, onDuplicar, enModal=false }: PropsEditorSesion) {
+function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas, onDuplicar, enModal=false, selectorSemana }: PropsEditorSesion) {
   const { api, modelo } = usePlanEditor();
   const [borrador, setBorrador] = useState(sesion);
   const [guardado, setGuardado] = useState(sesion);
@@ -390,7 +402,7 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
     guardando.current = true;
     setOcupado(true); setError("");
     try {
-      const cabecera = (s: SesionEntrenamiento) => ({ nombre: s.nombre, tipo: s.tipo, dia: s.dia, ...(s.dias ? {dias:s.dias} : {}), calentamiento: s.calentamiento, activacion: s.activacion, enfriamiento: s.enfriamiento, orden: s.orden, bloques: s.bloques });
+      const cabecera = (s: SesionEntrenamiento) => ({ nombre: s.nombre, tipo: s.tipo, dia: s.dia, ...(s.dias ? {dias:s.dias} : {}), calentamiento: s.calentamiento, activacion: s.activacion, enfriamiento: s.enfriamiento, orden: s.orden, bloques: s.bloques, ...(s.actividadesBloques?{actividadesBloques:s.actividadesBloques}:{}) });
       const c = cambio(cabecera(guardado), cabecera(borrador));
       // Validar el borrador entero antes de empezar a escribir.
       const operaciones: { ruta: string; datos: object }[] = [];
@@ -455,10 +467,11 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       avisarCambioMensual(); setConfirmar(false); setQuitar(null);
     } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
   }
-  return <Card className="gap-6 shadow-none ring-border/60"><CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle>{!enModal&&<div className="mt-2"><DiasSesion value={diasDeSesion(borrador)} onChange={(dias)=>setBorrador(b=>({...b,dias,dia:dias[0]??null}))} /></div>}</div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>
+  return <Card className={enModal?"gap-4 bg-transparent py-0 shadow-none ring-0":"gap-6 shadow-none ring-border/60"}>{enModal?<CardHeader className="px-0"><Input aria-label="Nombre del día" maxLength={60} value={borrador.nombre} onChange={e=>setBorrador(b=>({...b,nombre:e.target.value}))} className="border-transparent bg-transparent text-center text-lg font-medium shadow-none" /></CardHeader>:<CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle>{!enModal&&<div className="mt-2"><DiasSesion value={diasDeSesion(borrador)} onChange={(dias)=>setBorrador(b=>({...b,dias,dia:dias[0]??null}))} /></div>}</div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>}
     {editando && <EditarSesionDialog soloNombre={enModal} sesion={borrador} onCerrar={() => setEditando(false)} onGuardar={(actualizada) => { setBorrador(actualizada); setGuardado(actualizada); }} />}
-    <CardContent><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50">
-      <fieldset className="min-w-0 space-y-8">
+    <CardContent className={enModal?"px-0":undefined}><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50">
+      {selectorSemana}
+      {enModal?<EditorDia sesion={borrador} semana={semana} editable bloqueado={ocupado||sucio||Boolean(altaPendiente)} onSesion={setBorrador} onEjercicio={ejercicio} onAgregar={agregarEjercicio} onQuitar={setQuitar} />:<>      <fieldset className="min-w-0 space-y-8">
         <EntradaEnCalorEditor texto={borrador.calentamiento} ejercicios={borrador.activacion} onTexto={(calentamiento) => setBorrador((anterior) => ({ ...anterior, calentamiento }))} onEjercicios={(activacion) => setBorrador((anterior) => ({ ...anterior, activacion }))} />
         <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Entrenamiento</h3><div className="flex flex-wrap gap-2">
           {semana > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setBorrador((b) => ({ ...b, ejercicios: b.ejercicios.map((e) => ({ ...e, semanas: e.semanas.map((c) => c.semana === semana ? { ...c, prescripcion: c.prescripcion.trim() ? c.prescripcion : prescripcionEfectiva(e.semanas, semana - 1) } : c) })) }))}>Completar vacíos de S{semana} con S{semana - 1}</Button>}
@@ -466,10 +479,10 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
           <EditorEjerciciosPlan maxColumnas={enModal?4:undefined} ejercicios={borrador.ejercicios} bloques={borrador.bloques} tipo={borrador.tipo} semana={semana} semanasVisibles={semanasVisibles} ocupado={ocupado || Boolean(altaPendiente)} altaPendiente={Boolean(altaPendiente)} sucio={sucio} onCambiar={ejercicio} onCrearBloque={crearBloque} onQuitarBloque={(grupo) => setBorrador((anterior) => ({ ...anterior, bloques: anterior.bloques.filter((g) => g !== grupo) }))} onAgregar={agregarEjercicio} onQuitar={setQuitar} />
         </div>
         <label className="block space-y-2 text-sm font-medium">Vuelta a la calma<Textarea className="min-h-20 font-normal" maxLength={4000} value={borrador.enfriamiento} onChange={(e) => setBorrador({ ...borrador, enfriamiento: e.target.value })} placeholder="Estiramientos, movilidad suave…" /></label>
-      </fieldset>
+      </fieldset></>}
       {error && <p role="alert" className="text-sm text-destructive">{error} Los cambios sin guardar siguen en el formulario.</p>}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3"><p role="status" className="text-xs text-muted-foreground">{ocupado ? "Guardando…" : error ? "No se pudieron guardar los cambios" : sucio ? "Cambios pendientes…" : "Guardado automáticamente"}</p>{error && <Button type="submit" disabled={ocupado}>Reintentar guardado</Button>}</div>
-    </form>{!modelo && <div className="mt-6"><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} lectura /></div>}</CardContent>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p role="status" className={enModal&&!sucio&&!error?"sr-only":"text-xs text-muted-foreground"}>{ocupado ? "Guardando…" : error ? "No se pudieron guardar los cambios" : sucio ? "Cambios pendientes…" : "Guardado automáticamente"}</p>{error && <Button type="submit" disabled={ocupado}>Reintentar guardado</Button>}</div>
+    </form>{!modelo && <div className="mt-6"><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} lectura compacto={enModal} /></div>}</CardContent>
     <Dialog open={confirmar || Boolean(quitar)} onOpenChange={(v) => { if (!v && !ocupado) { setConfirmar(false); setQuitar(null); } }}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Eliminar {quitar ? "este ejercicio" : "esta sesión"}?</DialogTitle><DialogDescription>También se borran sus registros de peso. No se puede deshacer.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={ocupado} onClick={() => { setConfirmar(false); setQuitar(null); }}>Cancelar</Button><Button variant="destructive" disabled={ocupado} onClick={() => void eliminar()}>Eliminar</Button></DialogFooter></DialogContent></Dialog>
   </Card>;
 }
@@ -520,23 +533,13 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
 }
 
 export function RutinaPlanModal({plan,sesion,editable,semanaInicial,onCerrar}:{plan:Pick<PlanMensual,"sesiones"|"semanas">&{inicio?:string};sesion:SesionEntrenamiento;editable:boolean;semanaInicial:number;onCerrar:()=>void}) {
- const [semana,setSemana]=useState(semanaInicial),[duplicando,setDuplicando]=useState(false);
- const desde=Math.floor((semana-1)/4)*4+1,semanas=Array.from({length:Math.min(4,plan.semanas-desde+1)},(_,i)=>desde+i);
+ const [semana,setSemana]=useState(()=>plan.inicio?(semanaDelPlan(plan.inicio,hoyISO(),plan.semanas)??semanaInicial):semanaInicial);
  const numero=plan.sesiones.filter(s=>s.tipo===sesion.tipo).findIndex(s=>s.id===sesion.id)+1;
- const cerrar=()=>navegar(onCerrar);
- return <Dialog open onOpenChange={v=>!v&&cerrar()}><DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-5 overflow-y-auto sm:max-w-[1180px]">
-  <DialogHeader className="border-b pb-4"><DialogTitle>{sesion.tipo} · Día {numero}</DialogTitle><DialogDescription>{sesion.nombre} · Semanas {desde} a {semanas.at(-1)}{!editable&&" · Indicaciones de tu profesor"}</DialogDescription></DialogHeader>
-  <SemanasPlan total={plan.semanas} semana={semana} actual={plan.inicio?semanaDelPlan(plan.inicio,hoyISO(),plan.semanas):null} onSeleccionar={s=>navegar(()=>setSemana(s))} />
-  {editable?<FormularioSesion key={sesion.id} enModal sesion={sesion} numeroDia={numero} semana={semana} semanasVisibles={semanasDelPlan(plan.semanas)} totalSemanas={plan.semanas} onDuplicar={()=>setDuplicando(true)} />:<div className="space-y-6">
-   <EntradaEnCalorLectura texto={sesion.calentamiento} ejercicios={sesion.activacion} />
-   {bloquesDelPlan(sesion.ejercicios,sesion.bloques).map((grupo,i)=><section key={grupo} className="space-y-3"><h3 className="font-semibold">Bloque {i+1}</h3><div className="max-w-full overflow-x-auto rounded-xl border"><table className="w-full min-w-[560px] text-left text-sm"><thead className="bg-muted/40"><tr><th className="p-3">Ejercicio</th>{semanas.map(s=><th key={s} className={`p-3 ${s===semana?"text-primary":""}`}>Sem. {s}</th>)}<th className="p-3">Descanso</th></tr></thead><tbody>{sesion.ejercicios.filter(e=>e.grupo===grupo).map(e=><tr key={e.id} className="border-t"><th className="max-w-64 break-words p-3 font-medium">{e.nombre||"Sin nombre"}</th>{semanas.map(s=><td key={s} className={`p-3 ${s===semana?"bg-primary/5 text-primary":""}`}>{prescripcionEfectiva(e.semanas,s)||"—"}</td>)}<td className="p-3">{e.descanso||"—"}</td></tr>)}</tbody></table></div></section>)}
-   {!sesion.ejercicios.length&&<p className="text-sm text-muted-foreground">Esta sesión todavía no tiene ejercicios.</p>}
-   {sesion.tipo==="Fuerza"&&sesion.ejercicios.length>0&&<section className="space-y-3"><h3 className="font-semibold">Mis pesos · Semana {semana}</h3>{sesion.ejercicios.map(e=><div key={e.id+":"+semana} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"><span className="text-sm">{e.nombre}</span><PesoSemanal ejercicio={e} semana={semana} /></div>)}</section>}
-   {sesion.enfriamiento&&<section className="space-y-2"><h3 className="font-semibold">Vuelta a la calma</h3><p className="whitespace-pre-wrap text-sm text-muted-foreground">{sesion.enfriamiento}</p></section>}
-   <SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} />
-  </div>}
-  <DialogFooter className="border-t pt-4"><Button onClick={cerrar}>Listo</Button></DialogFooter>
-  {duplicando&&<DuplicarSesionDialog sesion={sesion} onCerrar={()=>setDuplicando(false)} onDuplicada={()=>{avisarCambioMensual();setDuplicando(false);}} />}
+ const cerrar=()=>{if(!hayBorradoresMensuales())onCerrar();};
+ return <Dialog open onOpenChange={v=>!v&&cerrar()}><DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-5 overflow-y-auto sm:max-w-[1080px]">
+  <DialogHeader className={editable?"sr-only":"border-b pb-3 text-center"}><DialogTitle>{sesion.nombre||`${sesion.tipo} – Día ${numero}`}</DialogTitle><DialogDescription className="sr-only">Día de entrenamiento</DialogDescription></DialogHeader>
+
+  {editable?<FormularioSesion key={sesion.id} enModal sesion={sesion} numeroDia={numero} semana={semana} semanasVisibles={[semana]} totalSemanas={plan.semanas} selectorSemana={<div role="group" aria-label="Semanas del día" className="mx-auto flex w-fit max-w-full overflow-x-auto justify-start gap-1 rounded-xl border p-1">{semanasDelPlan(plan.semanas).map(s=><Button key={s} size="sm" variant={s===semana?"default":"ghost"} aria-pressed={s===semana} onClick={()=>navegar(()=>setSemana(s))}>Semana {s}</Button>)}</div>} onDuplicar={()=>{}} />:<><div role="group" aria-label="Semanas del día" className="mx-auto flex max-w-full overflow-x-auto justify-start gap-1 rounded-xl border p-1">{semanasDelPlan(plan.semanas).map(s=><Button key={s} size="sm" variant={s===semana?"default":"ghost"} aria-pressed={s===semana} onClick={()=>navegar(()=>setSemana(s))}>Semana {s}</Button>)}</div><EditorDia sesion={sesion} semana={semana} editable={false} /><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} compacto /></>}
  </DialogContent></Dialog>;
 }
 

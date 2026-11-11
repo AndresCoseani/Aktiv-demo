@@ -123,7 +123,7 @@ export default function AlumnoDetallePage() {
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto sm:flex sm:h-9 sm:w-fit sm:group-data-horizontal/tabs:h-9">
           <TabsTrigger value="resumen" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">Resumen</TabsTrigger>
           <TabsTrigger value="ficha" className="h-9 min-w-0 px-2 text-xs sm:h-full sm:px-4 sm:text-sm">
-            Ficha médica
+            Ficha
             {avisoCertificado && (
               <span
                 aria-label={textoAviso}

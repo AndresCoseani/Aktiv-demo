@@ -1,6 +1,6 @@
 -- Diagnóstico de solo lectura. Ejecutar en SQL Editor del proyecto usado por la API.
 -- No crea ni altera tablas, y no lee datos de alumnos.
--- Resultado 1: detalle de planes. Resultado 2: resumen de TODAS las migraciones 19-51.
+-- Resultado 1: detalle de planes. Resultado 2: resumen de TODAS las migraciones 19-55.
 -- La 34 reemplaza datos del catálogo, no agrega estructura.
 -- Todo true = estas piezas están presentes; no equivale a probar el flujo completo.
 -- Si algo da false, revisar la migración indicada; no reejecutar todas a ciegas.
@@ -261,6 +261,13 @@ with comprobaciones(migracion, descripcion, pieza, ok) as (values
     coalesce(has_function_privilege('authenticated',to_regprocedure('public.asignar_dia_plan(uuid,jsonb)'),'EXECUTE'),false)
     and not coalesce(has_function_privilege('anon',to_regprocedure('public.asignar_dia_plan(uuid,jsonb)'),'EXECUTE'),true)
     and coalesce(has_function_privilege('authenticated',to_regprocedure('public.copiar_semana_plan(uuid,integer,integer)'),'EXECUTE'),false))
+  ,(55, 'Bloques por actividad', 'columna JSON y validador',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='sesiones' and column_name='actividadesBloques' and data_type='jsonb' and is_nullable='NO')
+    and to_regprocedure('public.actividades_bloques_validas(jsonb)') is not null)
+  ,(55, 'Bloques por actividad', 'copias conservan el tipo del bloque',
+    coalesce(pg_get_functiondef(to_regprocedure('public.duplicar_sesion(uuid,uuid,text,smallint)')) like '%actividadesBloques%',false)
+    and coalesce(pg_get_functiondef(to_regprocedure('public.duplicar_plan(uuid,uuid,uuid,text,date)')) like '%actividadesBloques%',false)
+    and coalesce(pg_get_functiondef(to_regprocedure('public.asignar_plan_modelo(uuid,uuid,uuid,text,date)')) like '%actividadesBloques%',false))
 )
 select migracion, descripcion,
   case when bool_and(ok) then 'OK' when bool_or(ok=false) then 'REVISAR' else 'MANUAL' end as estado,

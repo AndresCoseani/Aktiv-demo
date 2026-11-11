@@ -13,7 +13,7 @@ const contenido = (r: Seguimiento | null) => r && JSON.stringify([r.completado, 
 const mensaje = (e: unknown) => e instanceof Error ? e.message : "No se pudo guardar el seguimiento.";
 
 /** Montar con key sesión:semana para mantener los borradores separados. */
-export function SeguimientoSesion({ sesionId, semana, lectura = false }: { sesionId: string; semana: number; lectura?: boolean }) {
+export function SeguimientoSesion({ sesionId, semana, lectura = false, compacto = false }: { sesionId: string; semana: number; lectura?: boolean; compacto?:boolean }) {
   const [borrador, setBorrador] = useState<Seguimiento | null>(null);
   const [guardado, setGuardado] = useState<Seguimiento | null>(null);
   const [habilitado, setHabilitado] = useState(false);
@@ -58,6 +58,11 @@ export function SeguimientoSesion({ sesionId, semana, lectura = false }: { sesio
 
   function cambiar(datos: Partial<Seguimiento>) { setError(""); setBorrador((actual) => actual ? { ...actual, ...datos } : actual); }
   const reintentar = () => { setError(""); if (!borrador || lectura) setRevision((r) => r + 1); };
+  if (compacto) return <div className="flex justify-end" aria-label={`Seguimiento de semana ${semana}`}>
+    {borrador&&(lectura?borrador.completado&&<p className="flex items-center gap-2 text-sm text-[var(--success)]"><Check className="size-4" />Marcado como realizado</p>:habilitado&&<Button type="button" variant="ghost" aria-label="Marcar como realizado" aria-pressed={borrador.completado} className={borrador.completado?"text-[var(--success)]":"text-muted-foreground"} disabled={ocupado} onClick={()=>cambiar({completado:!borrador.completado})}><Check />{borrador.completado?"Marcado como realizado":<span className="sr-only">Marcar como realizado</span>}</Button>)}
+    {error&&<div role="alert" className="text-sm text-destructive">{error}<Button type="button" variant="ghost" onClick={reintentar}>Reintentar seguimiento</Button></div>}
+    {(sucio||ocupado)&&<span role="status" className="sr-only">Guardando seguimiento</span>}
+  </div>;
   return <section aria-label={`Seguimiento de semana ${semana}`} className="space-y-3 border-t border-border/60 pt-5">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-sm font-semibold">{lectura ? "Seguimiento del alumno" : "Tu entrenamiento"}</h3>
