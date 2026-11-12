@@ -51,7 +51,9 @@ describe("Actividades libres y planes simultáneos", () => {
     const modelo = uuid(), copia = uuid();
     const r = await A.post("/api/planes-modelo", { id: modelo, nombre: "Solo movilidad", tipo: "Movilidad suave", semanas: 4, diasIniciales: { tipo: "Movilidad suave", dias: 2 } });
     expect(r.status).toBe(201); expect(r.body.sesiones).toHaveLength(2);
-    expect((await A.post(`/api/planes-modelo/${modelo}/asignar`, { id: copia, alumnoId: alumno, nombre: "Movilidad", inicio: "2026-11-01" })).status).toBe(201);
+    const asignacion=await A.post(`/api/planes-modelo/${modelo}/asignar`, { id: copia, alumnoId: alumno, nombre: "Movilidad", inicio: "2026-11-01" });
+    if(asignacion.status!==201) console.log("ERROR AL ASIGNAR ACTIVIDAD PERSONALIZADA",asignacion.body);
+    expect(asignacion.status).toBe(201);
     const planes = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body;
     expect(planes.filter((p: { activo: boolean }) => p.activo)).toHaveLength(2);
     expect(planes.find((p: { id: string }) => p.id === copia)).toMatchObject({ activo: false, sesiones: [expect.objectContaining({ tipo: "Movilidad suave" }), expect.objectContaining({ tipo: "Movilidad suave" })] });
