@@ -1,4 +1,4 @@
-// UI con datos ficticios; la persistencia real y el aislamiento se prueban en los e2e.
+﻿// UI con datos ficticios; la persistencia real y el aislamiento se prueban en los e2e.
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { mkdir } from "node:fs/promises";
@@ -41,7 +41,7 @@ try {
  for(const ancho of [1440,390,320]) {
   reiniciar();rol="coach";const page=await pagina(ancho);await page.goto(base+"/alumnos/"+alumnoId);
   const grid=page.getByRole("region",{name:"Planificación unificada",exact:true});await grid.waitFor();
-  const barra=page.getByRole("group",{name:"Acciones del plan",exact:true});assert.equal(await barra.getByRole("button").count(),4);
+  const barra=page.getByRole("group",{name:"Acciones del plan",exact:true});assert.equal(await barra.getByRole("button").count(),5);
   for(const nombre of ["Organizar rutinas","Guardar como modelo","Crear rutina","Agregar actividad","Duplicar semana"])assert.equal(await page.getByRole("button",{name:nombre,exact:true}).count(),0);
   assert.equal(await page.getByRole("tab",{name:"Plan",exact:true}).count(),0);
   assert.equal(await grid.getByRole("button",{name:"Fuerza de Lunes",exact:true}).count(),1);
@@ -73,3 +73,4 @@ try {
  if(ancho<768){assert.equal(await p.getByRole("navigation",{name:"Principal",exact:true}).count(),0);await p.getByRole("button",{name:"Abrir menú de navegación",exact:true}).click();const menu=p.getByRole("dialog",{name:"Aktiv",exact:true});await menu.waitFor();assert.equal(await menu.getByRole("link").count(),7);assert.equal(await menu.getByRole("link",{name:"Alumnos",exact:true}).getAttribute("aria-current"),"page");await p.keyboard.press("Escape");await menu.waitFor({state:"hidden"});assert.equal(await p.getByRole("button",{name:"Abrir menú de navegación",exact:true}).evaluate(e=>e===document.activeElement),true);await p.getByRole("button",{name:"Abrir menú de navegación",exact:true}).click();await menu.getByRole("link",{name:"Alumnos",exact:true}).click();await p.waitForURL("**/alumnos");await menu.waitFor({state:"hidden"});await p.evaluate(()=>{window.scrollTo({top:700,left:200,behavior:"instant"});});assert.equal(await p.evaluate(()=>scrollX),0);assert.equal(await p.evaluate(()=>getComputedStyle(document.documentElement).overflowX),"clip");assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}else assert.equal(await p.getByRole("navigation",{name:"Principal",exact:true}).count(),1);await p.close();}
  assert.deepEqual(errores,[]);console.log("OK: diseño minimalista 320/390/1440, nuevo día y bloques, series/repeticiones persistidas, error/reintento, cierre protegido, actividades combinadas, descanso, lectura alumno y GYM previo.");
 } catch(e){for(const p of browser.contexts().flatMap(c=>c.pages()))await p.screenshot({path:join(salida,`fallo-${Date.now()}.png`),fullPage:true}).catch(()=>{});throw e;}finally{await browser.close();}
+
