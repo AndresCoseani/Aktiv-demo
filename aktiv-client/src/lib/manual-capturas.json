@@ -71,8 +71,8 @@
   },
   "alumno-nuevo": {
     "src": "/manual/alumno-nuevo.png",
-    "ancho": 495,
-    "alto": 505
+    "ancho": 496,
+    "alto": 506
   },
   "alumno-resumen": {
     "src": "/manual/alumno-resumen.png",
@@ -81,8 +81,8 @@
   },
   "alumno-acceso": {
     "src": "/manual/alumno-acceso.png",
-    "ancho": 494,
-    "alto": 369
+    "ancho": 484,
+    "alto": 362
   },
   "alumno-planes": {
     "src": "/manual/alumno-planes.png",
@@ -91,22 +91,22 @@
   },
   "plan-nuevo": {
     "src": "/manual/plan-nuevo.png",
-    "ancho": 496,
-    "alto": 770
+    "ancho": 490,
+    "alto": 761
   },
   "plan-duplicar": {
     "src": "/manual/plan-duplicar.png",
-    "ancho": 560,
-    "alto": 538
+    "ancho": 550,
+    "alto": 528
   },
   "plan-editar": {
     "src": "/manual/plan-editar.png",
-    "ancho": 489,
-    "alto": 468
+    "ancho": 482,
+    "alto": 462
   },
   "plan-eliminar": {
     "src": "/manual/plan-eliminar.png",
-    "ancho": 422,
+    "ancho": 423,
     "alto": 230
   },
   "plan-guardar-modelo": {
@@ -296,8 +296,8 @@
   },
   "alumno-eliminar": {
     "src": "/manual/alumno-eliminar.png",
-    "ancho": 494,
-    "alto": 257
+    "ancho": 489,
+    "alto": 255
   },
   "editor-vuelta-calma": {
     "src": "/manual/editor-vuelta-calma.png",
@@ -356,8 +356,8 @@
   },
   "planificacion-rutina": {
     "src": "/manual/planificacion-rutina.png",
-    "ancho": 1280,
-    "alto": 900
+    "ancho": 560,
+    "alto": 490
   },
   "planificacion-grilla": {
     "src": "/manual/planificacion-grilla.png",
@@ -396,22 +396,22 @@
   },
   "alumno-informacion": {
     "src": "/manual/alumno-informacion.png",
-    "ancho": 496,
-    "alto": 538
+    "ancho": 490,
+    "alto": 531
   },
   "planificacion-bloque": {
     "src": "/manual/planificacion-bloque.png",
-    "ancho": 429,
-    "alto": 257
+    "ancho": 423,
+    "alto": 254
   },
   "planificacion-running-detalle": {
     "src": "/manual/planificacion-running-detalle.png",
-    "ancho": 719,
-    "alto": 385
+    "ancho": 715,
+    "alto": 383
   },
   "planificacion-menu-movil": {
     "src": "/manual/planificacion-menu-movil.png",
-    "ancho": 352,
+    "ancho": 353,
     "alto": 900
   }
 }

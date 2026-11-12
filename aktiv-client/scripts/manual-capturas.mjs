@@ -75,7 +75,6 @@ async function foto(page, nombre, marcas = [], modal = false) {
   console.log(`Captura: ${nombre}`);
 }
 const boton = (p, n) => p.getByRole(["Activar plan","Desactivar plan"].includes(n)?"switch":"button", { name: n, exact: true });
-async function abrirRutinas(p){const resumen=p.getByText("Ver más planes",{exact:true});await resumen.waitFor();if(!await resumen.evaluate(e=>e.parentElement.open))await resumen.click();await boton(p,"Organizar rutinas").click();}
 async function cerrar(p) { const id=await p.getByRole("dialog").last().getAttribute("id"); const d=p.locator(`[id="${id}"]`); const cancelar = d.getByRole("button", { name: "Cancelar", exact: true }); if (await cancelar.count()) await cancelar.last().click(); else await d.getByRole("button", { name: "Close", exact: true }).click(); await d.waitFor({ state: "hidden" }); }
 async function grupo(nombre, hacer, rol) {
   if (process.argv[2] && process.argv[2] !== nombre) return;
@@ -106,12 +105,10 @@ try {
     await boton(p, "Nuevo alumno").click(); await foto(p, "alumno-nuevo", [], true); await cerrar(p);
     await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("button",{name:"Editar plan de entrenamiento",exact:true}), "Plan seleccionado"]]);
     await boton(p,"Información del alumno").click(); await foto(p,"alumno-informacion",[],true); await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p); await cerrar(p);
-    await abrirRutinas(p); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
+    await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Editar plan de entrenamiento"), "Editar nombre, inicio y duración"], [boton(p, "Duplicar plan de entrenamiento"), "Duplicar"], [boton(p, "Eliminar plan de entrenamiento"), "Eliminar"]]);
     await boton(p, "Nuevo plan").click(); await foto(p, "plan-nuevo", [], true); await cerrar(p);
-    for (const [accion, captura] of [["Duplicar plan de entrenamiento", "plan-duplicar"], ["Editar plan de entrenamiento", "plan-editar"], ["Eliminar plan de entrenamiento", "plan-eliminar"], ["Guardar como modelo", "plan-guardar-modelo"]]) { await boton(p, accion).click(); await foto(p, captura, [], true); await cerrar(p); }
-    await foto(p, "plan-activar", [[boton(p, "Desactivar plan"), "Ocultar sin borrar el plan"]]);
-    const editarDia = p.getByRole("button", { name: /Editar entrenamiento/ }).first(); await editarDia.click(); await foto(p, "dia-editar", [], true); await cerrar(p);
-    const duplicarDia = p.getByRole("button", { name: /Duplicar día de entrenamiento/ }).first(); await duplicarDia.click(); await foto(p, "dia-duplicar", [], true); await cerrar(p);
+    for (const [accion, captura] of [["Duplicar plan de entrenamiento", "plan-duplicar"], ["Editar plan de entrenamiento", "plan-editar"], ["Eliminar plan de entrenamiento", "plan-eliminar"]]) { await boton(p, accion).click(); await foto(p, captura, [], true); await cerrar(p); }
+    await foto(p, "plan-activar", [[boton(p, "Desactivar plan"), "Desactivar el plan sin borrarlo"]]);
     await p.getByRole("tab", { name: /^Ficha/ }).click(); await foto(p, "ficha-medica", [[p.locator("input[type=date]").first(), "Datos médicos del alumno"]]);
     await foto(p, "certificado-subir", [[boton(p, "Subir certificado médico"), "Elegir archivo del dispositivo"]]);
     await p.getByRole("tab", { name: "Marcas", exact: true }).click(); await foto(p, "marcas-lista", [[boton(p, "Nueva marca"), "Registrar un tiempo"]]); await boton(p, "Nueva marca").click(); await foto(p, "marca-nueva", [], true); await cerrar(p);
