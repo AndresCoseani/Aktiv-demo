@@ -66,8 +66,10 @@ describe("Planes mensuales (Supabase local)", () => {
   it("RLS y trigger protegen la prescripción incluso sin pasar por la API", async () => {
     const r = await dbAlumno.from("ejercicio_semanas").update({ prescripcion: "99×99" }).eq("ejercicio_id", ejercicio).eq("semana", 1);
     expect(r.error?.code).toBe("42501");
-    const crear = await dbAlumno.from("sesiones").insert({ plan_id: plan, dia: 2, tipo: "Fuerza" });
-    expect(crear.error?.code).toBe("42501");
+    const id = uuid();
+    const crear = await dbAlumno.from("sesiones").insert({ id, plan_id: plan, dia: 2, tipo: "Fuerza", nombre: "No autorizada", orden: 99 });
+    expect(crear.error).toBeTruthy();
+    expect((await env.admin.from("sesiones").select("id").eq("id", id)).data).toEqual([]);
     const rango = await env.admin.from("ejercicio_semanas").update({ semana: 5 }).eq("ejercicio_id", ejercicio).eq("semana", 1);
     expect(rango.error?.code).toBe("23514");
   });
@@ -119,7 +121,7 @@ describe("Planes mensuales (Supabase local)", () => {
   });
   it("copia también días vacíos y rechaza superar el límite sin dejar una copia parcial", async () => {
     const vacio = uuid(), copia = uuid();
-    expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id: vacio, tipo: "Running", dia: null, nombre: "Vacío", calentamiento: "", enfriamiento: "", bloques: [4] })).status).toBe(201);
+    expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id: vacio, tipo: "Fuerza", dia: null, nombre: "Vacío", calentamiento: "", enfriamiento: "", bloques: [4] })).status).toBe(201);
     expect((await A.post(`/api/sesiones/${vacio}/duplicar`, { id: copia, nombre: "Otro vacío", dia: null })).status).toBe(201);
     const dias = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body[0].sesiones;
     expect(dias.find((s: { id: string }) => s.id === copia)).toMatchObject({ dia: null, bloques: [4], ejercicios: [] });

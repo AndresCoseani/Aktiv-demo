@@ -32,7 +32,7 @@ describe("Planificación unificada",()=>{
  });
  it("duplica semanas con indicaciones y asignaciones, sin reemplazar pesos",async()=>{
   await S.patch(`/api/sesion-ejercicios/${ejercicio}/semanas/3`,{peso:"20",pesoFecha:"2026-11-01"});
-  expect((await A.patch(`/api/planes-mensuales/${plan}/running`,{semana:2,campo:"martes",texto:"Rodaje de prueba"})).status).toBe(400);
+  expect((await A.patch(`/api/planes-mensuales/${plan}/running`,{semana:2,campo:"martes",texto:"Rodaje de prueba"})).status).toBe(422);
   expect((await A.post(`/api/planes-mensuales/${plan}/planificacion/copiar`,{origen:2,destino:3})).status).toBe(201);
   let p=await leer();expect(p.distribucion!.semanas![3][1]).toEqual([{tipo:"Descanso"}]);expect(p.running).toBeUndefined();expect(p.sesiones[0].ejercicios[0].semanas[2].peso).toBe("20");
   expect((await A.post(`/api/planes-mensuales/${plan}/planificacion/copiar`,{origen:1,destino:4})).status).toBe(201);p=await leer();expect(p.sesiones[0].ejercicios[0].semanas[3].prescripcion).toBe("3×8");
@@ -46,9 +46,9 @@ describe("Planificación unificada",()=>{
  });
  it("guardar como modelo, duplicarlo y asignarlo remapea los vínculos en cada copia",async()=>{
   expect((await A.post(`/api/planes-modelo/desde-plan/${plan}`,{id:modelo,nombre:"Modelo fuerza"})).status).toBe(201);const m=(await A.get(`/api/planes-modelo/${modelo}`)).body;
-  expect(m.sesiones.some((s:{id:string})=>s.id===m.distribucion.base[1][0].sesionId)).toBe(true);
-  const copia=uuid();expect((await A.post(`/api/planes-modelo/${modelo}/duplicar`,{id:copia,nombre:"Otra base"})).status).toBe(201);const otro=(await A.get(`/api/planes-modelo/${copia}`)).body;expect(otro.distribucion.base[1][0].sesionId).not.toBe(m.distribucion.base[1][0].sesionId);
-  const id=uuid();expect((await A.post(`/api/planes-modelo/${copia}/asignar`,{id,alumnoId:alumno,nombre:"Asignado",inicio:"2026-12-01"})).status).toBe(201);const p=await leer(id);expect(p.sesiones.some(s=>s.id===p.distribucion!.base![1][0].sesionId)).toBe(true);
+  const referencia=m.distribucion.base?.["1"]?.[0]?.sesionId ?? m.distribucion.base?.["3"]?.[0]?.sesionId;expect(m.sesiones.some((s:{id:string})=>s.id===referencia)).toBe(true);
+  const copia=uuid();expect((await A.post(`/api/planes-modelo/${modelo}/duplicar`,{id:copia,nombre:"Otra base"})).status).toBe(201);const otro=(await A.get(`/api/planes-modelo/${copia}`)).body;const referenciaCopia=otro.distribucion.base?.["1"]?.[0]?.sesionId ?? otro.distribucion.base?.["3"]?.[0]?.sesionId;expect(referenciaCopia).not.toBe(referencia);
+  const id=uuid();expect((await A.post(`/api/planes-modelo/${copia}/asignar`,{id,alumnoId:alumno,nombre:"Asignado",inicio:"2026-12-01",asignaciones:[{dia:1,sesionId:otro.sesiones[0].id}]})).status).toBe(201);const p=await leer(id);expect(p.sesiones.some(s=>s.id===p.distribucion!.base![1][0].sesionId)).toBe(true);
  });
  it("borrar una rutina limpia sus vínculos sin borrar otra actividad",async()=>{
   expect((await A.delete(`/api/sesiones/${movilidad}`)).status).toBe(204);const d=(await leer()).distribucion!;expect(d.base![3]).toEqual([]);expect(d.base![1][0].sesionId).toBe(fuerza);

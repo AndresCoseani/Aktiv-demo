@@ -64,7 +64,7 @@ describe("Seguimiento de entrenamientos (Supabase local)", () => {
     expect((await S.patch(ruta(0), completado)).status).toBe(400);
     expect((await A.patch(`/api/planes-mensuales/${plan}`, { activo: false })).status).toBe(200);
     expect((await S.patch(ruta(), completado)).status).toBe(403);
-    expect((await A.patch(`/api/planes-mensuales/${plan}`, { activo: true })).status).toBe(200);
+    expect((await A.post(`/api/planes-mensuales/${plan}/activar`, {})).status).toBe(200);
   });
   it("no copia el seguimiento al duplicar y protege semanas completadas al acortar", async () => {
     expect((await S.patch(ruta(3), completado)).status).toBe(200);
