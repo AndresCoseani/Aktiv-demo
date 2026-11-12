@@ -178,8 +178,11 @@ try {
  await p.getByRole("tab",{name:"Carreras",exact:true}).click(); await boton(p,"Asignar a una carrera").click(); await foto(p,"carrera-asignar",[],true); await cerrar(p);
  await p.getByRole("button",{name:"Editar inscripción a "+carrera.nombre,exact:true}).click(); await foto(p,"carrera-inscripcion-editar",[],true); await cerrar(p);
  carrera.fecha="2026-11-01"; await p.reload(); await p.getByRole("tab",{name:"Carreras",exact:true}).click(); await boton(p,"Anotar resultado").click(); await foto(p,"carrera-resultado",[],true); await cerrar(p);
- await boton(p,"Eliminar alumno").click(); await foto(p,"alumno-eliminar",[],true); await cerrar(p);
+ await boton(p,"Información del alumno").click(); await boton(p,"Eliminar alumno").click(); await foto(p,"alumno-eliminar",[],true); await cerrar(p); await cerrar(p);
  });
+  await grupo("informacion",async p=>{
+    await p.goto(base+"/alumnos/"+alumnoId);await boton(p,"Información del alumno").click();await foto(p,"alumno-informacion",[],true);await boton(p,"Eliminar alumno").click();await foto(p,"alumno-eliminar",[],true);await cerrar(p);await cerrar(p);
+  });
   await grupo("unificada",async p=>{
     plan.sesiones=[sesion(30,"Fuerza",null),sesion(32,"Fuerza",null),sesion(40,"Running",null)];
     plan.distribucion={base:{1:[{tipo:"Running"}],2:[{tipo:"Fuerza",sesionId:id(30)}],3:[{tipo:"Running"}],4:[{tipo:"Fuerza",sesionId:id(32)}],5:[{tipo:"Descanso"}],6:[{tipo:"Running"}],7:[{tipo:"Running"}]}};

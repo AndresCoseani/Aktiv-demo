@@ -68,7 +68,7 @@ export const guias: GuiaManual[] = [
   g("eliminar-alumno", "Alumnos", "Desactivar o eliminar un alumno", "Pausar conservando registros o quitar una ficha definitivamente.", "/alumnos", [
     p("Buscá y verificá la persona", "Entrá en Alumnos y abrí su ficha. Revisá nombre y email antes de actuar.", "alumno-resumen"),
     p("Si es una pausa, usá Estado", "Cambiá el switch junto al nivel de activo (verde) a inactivo (rojo). Se bloquea el acceso a la aplicación y se conservan la información, contraseña y planes. Reactivalo desde el mismo lugar para devolverle el acceso.", "alumno-resumen"),
-    p("Si es definitivo, bajá al final de la ficha", "Pulsá Eliminar alumno. Se abre una confirmación con el nombre de la persona. Leela antes de continuar; no es el tacho de un ejercicio o un plan.", "alumno-eliminar"),
+    p("Si es definitivo, abrí Información del alumno", "Pulsá la i junto al nombre y luego Eliminar alumno dentro de ese modal. Se abre una confirmación con el nombre de la persona. Leela antes de continuar; no es el tacho de un ejercicio o un plan.", "alumno-eliminar"),
     p("Confirmá o cancelá", "Cancelar vuelve sin borrar. Eliminar quita la ficha y los datos asociados indicados por la app, incluida la cuenta vinculada cuando corresponda. Esperá el resultado y revisá cualquier error antes de reintentar.", "alumno-eliminar"),
   ], "No se puede deshacer la eliminación desde la app. Para retirar una rutina de la vista del alumno, usá Desactivar plan en lugar de eliminar a la persona."),
 

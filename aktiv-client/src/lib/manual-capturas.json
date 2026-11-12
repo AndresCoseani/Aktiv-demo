@@ -296,8 +296,8 @@
   },
   "alumno-eliminar": {
     "src": "/manual/alumno-eliminar.png",
-    "ancho": 490,
-    "alto": 256
+    "ancho": 494,
+    "alto": 257
   },
   "editor-vuelta-calma": {
     "src": "/manual/editor-vuelta-calma.png",
@@ -397,7 +397,7 @@
   "alumno-informacion": {
     "src": "/manual/alumno-informacion.png",
     "ancho": 496,
-    "alto": 465
+    "alto": 538
   },
   "planificacion-bloque": {
     "src": "/manual/planificacion-bloque.png",

@@ -146,6 +146,9 @@
   html {
     @apply font-sans;
     scroll-behavior: smooth;
+    /* La página se desplaza verticalmente; las tablas de escritorio conservan su scroll local. */
+    overflow-x: clip;
+    overscroll-behavior-x: none;
   }
   body {
     @apply bg-background text-foreground;
