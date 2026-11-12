@@ -491,7 +491,7 @@ async function main() {
 
   // ---------- planes mensuales
   titulo("Planes mensuales: RLS, semanas, activación y cascada");
-  const mes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Mes de prueba", inicio: "2026-11-02", activo: true }).select().single();
+  const mes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Mes de prueba", tipo: "Fuerza", inicio: "2026-11-02", activo: true }).select().single();
   if (mes.error) throw mes.error;
   const sesionMes = await cA.from("sesiones").insert({ plan_id: mes.data.id, dia: 1, tipo: "Fuerza", nombre: "A" }).select().single();
   if (sesionMes.error) throw sesionMes.error;
@@ -518,10 +518,10 @@ async function main() {
   chequear("el alumno no borra el ejercicio mensual", vacio(await cS1.from("sesion_ejercicios").delete().eq("id", ejMes.data.id).select()));
   chequear("el día de sesión debe estar entre 1 y 7", Boolean((await cA.from("sesiones").insert({ plan_id: mes.data.id, dia: 0, tipo: "Running" })).error));
   chequear("no existe semana 5", Boolean((await cA.from("ejercicio_semanas").update({ semana: 5 }).eq("ejercicio_id", ejMes.data.id).eq("semana", 1)).error));
-  const otroMes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Siguiente", inicio: "2026-12-01", activo: true }).select().single();
+  const otroMes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Siguiente", tipo: "Running", inicio: "2026-12-01", activo: true }).select().single();
   if (otroMes.error) throw otroMes.error;
   const activosMes = await cA.from("planes_mensuales").select("id").eq("alumno_id", A1.id).eq("activo", true);
-  chequear("varios planes activos conservan ambos y su propietario", activosMes.data?.length === 2 && activosMes.data.some((p) => p.id === mes.data.id) && activosMes.data.some((p) => p.id === otroMes.data.id));
+  chequear("un plan activo de Fuerza y otro de Running conviven", activosMes.data?.length === 2 && activosMes.data.some((p) => p.id === mes.data.id) && activosMes.data.some((p) => p.id === otroMes.data.id));
   await cA.from("planes_mensuales").delete().eq("id", mes.data.id);
   chequear("borrar el mes borra sus celdas semanales", vacio(await admin.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejMes.data.id)));
 
