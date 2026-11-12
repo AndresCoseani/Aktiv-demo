@@ -190,7 +190,7 @@ try {
     await p.goto(base+"/alumnos/"+alumnoId);const grilla=p.getByRole("region",{name:"Planificación unificada",exact:true});await grilla.waitFor();
     await foto(p,"planificacion-ficha",[[p.getByRole("heading",{name:alumno.nombre,exact:true}),"La planificación abre en Resumen"]]);
     await foto(p,"planificacion-actividades",[[grilla.getByRole("button",{name:"Fuerza de Martes",exact:true}),"Elegí la actividad para cada día"]]);
-    await foto(p,"planificacion-rutina",[[grilla.getByLabel("Rutina de Fuerza para Martes",{exact:true}),"Vinculá Fuerza · Día 1 o Día 2"]]);
+    await grilla.getByRole("button",{name:"Buscar un plan para Martes",exact:true}).click();await p.getByRole("option",{name:/Fuerza inicial/}).click();await p.getByRole("radio").first().check();await foto(p,"planificacion-rutina",[],true);await cerrar(p);
     await foto(p,"planificacion-grilla",[[grilla.getByRole("button",{name:"Abrir Running, Lunes, semana 1",exact:true}),"Texto de Running para esta semana"]]);
     await grilla.getByRole("button",{name:"Abrir Running, Lunes, semana 1",exact:true}).click();await foto(p,"planificacion-running-detalle",[],true);await cerrar(p);
     await foto(p,"planificacion-crear",[[boton(p,"Crear día"),"Creá un día y editá sus bloques en el modal"]]);
