@@ -82,11 +82,12 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
     if (!plan || ocupado) return;
     setOcupado(true);
     try {
-      const numero=plan.sesiones.filter(s=>["Fuerza","GYM"].includes(s.tipo)).length+1;
-      const dto=altaSesionApi.parse({id:nuevoId(),tipo:"Fuerza",nombre:`Fuerza - Día ${numero}`,dia:null,calentamiento:"",enfriamiento:""});
+      const tipo=plan.tipo;
+      const numero=plan.sesiones.filter(s=>s.tipo===tipo).length+1;
+      const dto=altaSesionApi.parse({id:nuevoId(),tipo,nombre:`${tipo} - Día ${numero}`,dia:null,calentamiento:"",enfriamiento:""});
       await api.post(`/planes-mensuales/${plan.id}/sesiones`,dto);
       setDiaCreado({...dto,orden:plan.sesiones.length,ejercicios:[]});
-      avisarCambioMensual();
+      avisarCambioMensual(); toast.success(`${tipo} - Día ${numero} creado`);
     } catch(e) { toast.error(mensaje(e)); } finally {setOcupado(false);}
   }
   async function accion(tipo: "activar" | "desactivar" | "borrar", reemplazar=false) {
