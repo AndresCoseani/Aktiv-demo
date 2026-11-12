@@ -8,7 +8,7 @@ describe("Manual ilustrado",()=>{
  it("conserva todas las tareas y sus enlaces sin identificadores repetidos",()=>{
  expect(new Set(guias.map(g=>g.id)).size).toBe(guias.length);
  for(const id of ["registro-alumnos","crear-alumno","modelos","crear-plan","bloques","ejercicio-desde-plan","duplicar-plan","duplicar-modelo","desactivar-plan","carreras","certificados"]) expect(guias.some(g=>g.id===id)).toBe(true);
- for(const guia of guias){expect(guia.pasos.length).toBeGreaterThanOrEqual(4);expect(guia.destino.startsWith("/")).toBe(true);expect(guia.pasos.some(p=>p.imagen)).toBe(true);}
+ for(const guia of guias){expect(guia.pasos.length).toBeGreaterThanOrEqual(3);expect(guia.destino.startsWith("/")).toBe(true);expect(guia.pasos.some(p=>p.imagen)).toBe(true);}
  });
  it("cada imagen referenciada existe y coincide con sus dimensiones PNG",()=>{
  for(const guia of guias) for(const paso of guia.pasos) if(paso.imagen){

@@ -26,7 +26,7 @@ describe("Seguimiento de entrenamientos (Supabase local)", () => {
     expect((await dbAlumno.auth.signInWithPassword({ email: cuenta.email, password: PASS })).error).toBeNull();
     expect((await dbCoach.auth.signInWithPassword({ email: profe.email, password: PASS })).error).toBeNull();
     const inicio = new Date(); inicio.setUTCDate(inicio.getUTCDate() - 21);
-    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: plan, nombre: "Seguimiento", inicio: inicio.toISOString().slice(0, 10), semanas: 6, activo: true })).status).toBe(201);
+    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: plan, nombre: "Seguimiento", tipo: "Fuerza", inicio: inicio.toISOString().slice(0, 10), semanas: 6, activo: true })).status).toBe(201);
     for (const id of [sesion, segunda]) expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id, dia: 1, tipo: "Fuerza", nombre: "Entrenamiento", calentamiento: "", enfriamiento: "" })).status).toBe(201);
   });
   afterAll(async () => { await env.limpiar(); if (app) await app.close(); });
