@@ -50,7 +50,6 @@ const planMensualBaseSchema = z.object({
 });
 export const planMensualSchema = planMensualBaseSchema.superRefine((plan, ctx) => {
   if (plan.sesiones.some((s) => s.tipo !== plan.tipo)) ctx.addIssue({ code: "custom", message: "Un plan solo puede contener una actividad" });
-  if (plan.tipo !== "Running" && plan.running && Object.keys(plan.running).length) ctx.addIssue({ code: "custom", message: "Los datos de running solo pertenecen a planes de Running" });
 });
 export const planesMensualesRespuesta = z.array(planMensualSchema);
 const noVacio = <S extends z.ZodRawShape>(shape: S) => z.object(shape).partial().strict()
@@ -62,6 +61,7 @@ export function actividadesIniciales(dias: z.infer<typeof diasInicialesSchema>) 
 export const altaMensualApi = planMensualBaseSchema.pick({ id: true, nombre: true, inicio: true, activo: true, semanas: true })
   .extend({ tipo: actividadPlanSchema, diasIniciales: diasInicialesSchema.optional() }).strict().superRefine((plan, ctx) => {
     if (plan.diasIniciales && plan.tipo !== plan.diasIniciales.tipo) ctx.addIssue({ code: "custom", path: ["diasIniciales", "tipo"], message: "Las sesiones deben ser del tipo del plan" });
+    if (plan.tipo === "Running") ctx.addIssue({ code: "custom", path: ["tipo"], message: "Running se configura como actividad de la semana, no como tipo de plan." });
   });
 // No heredar el default en un PATCH: no mandar duración nunca debe cambiarla.
 export const parcheMensualApi = noVacio({ nombre: textoOpcional(120), inicio, semanas: cantidadSemanasSchema, activo: z.literal(false) });
@@ -99,3 +99,4 @@ export function semanaDelPlan(inicioPlan: string, fecha = hoyISO(), cantidadSema
 
 /** Compatibilidad con sesiones anteriores a la asignación múltiple. */
 export function diasDeSesion(s: { dia: number | null; dias?: number[] }): number[] { return s.dias ?? (s.dia === null ? [] : [s.dia]); }
+
