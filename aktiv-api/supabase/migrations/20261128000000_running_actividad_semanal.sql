@@ -60,7 +60,7 @@ grant execute on function public.copiar_semana_plan(uuid,integer,integer) to aut
 -- actividades Running y sus textos semanales sí acompañan la copia.
 create or replace function public.distribucion_running_modelo(d jsonb,p_semanas integer) returns jsonb
 language plpgsql immutable set search_path='' as $$
-declare dia record; semana record; running_dia jsonb; base jsonb:='{}'; semanas jsonb:='{}'; tiene_base boolean;
+declare dia record; semana_item record; running_dia jsonb; base jsonb:='{}'; semanas jsonb:='{}'; tiene_base boolean;
 begin
  for dia in select * from jsonb_each(coalesce(d->'base','{}')) loop
   select coalesce(jsonb_agg(a),'[]'::jsonb) into running_dia
@@ -68,9 +68,9 @@ begin
    where a->>'tipo'='Running' and not (a ? 'sesionId');
   if jsonb_array_length(running_dia)>0 then base:=base||jsonb_build_object(dia.key,running_dia); end if;
  end loop;
- for semana in select * from jsonb_each(coalesce(d->'semanas','{}')) w
+ for semana_item in select * from jsonb_each(coalesce(d->'semanas','{}')) w
    where w.key~'^[1-9][0-9]*$' and w.key::integer<=p_semanas loop
-  for dia in select * from jsonb_each(semana.value) loop
+  for dia in select * from jsonb_each(semana_item.value) loop
    select coalesce(jsonb_agg(a),'[]'::jsonb) into running_dia
     from jsonb_array_elements(dia.value) a
     where a->>'tipo'='Running' and not (a ? 'sesionId');
@@ -78,7 +78,7 @@ begin
    -- Una excepción explícita reemplaza la actividad base; mantener [] permite
    -- que un modelo quite Running solo durante esa semana.
    if tiene_base or jsonb_array_length(running_dia)>0 then
-    semanas:=jsonb_set(semanas,array[semana.key,dia.key],running_dia,true);
+    semanas:=jsonb_set(semanas,array[semana_item.key,dia.key],running_dia,true);
    end if;
   end loop;
  end loop;
@@ -90,7 +90,7 @@ grant execute on function public.distribucion_running_modelo(jsonb,integer) to a
 create or replace function public.asignar_plan_modelo_duracion(p_modelo uuid,p_id uuid,p_alumno uuid,p_nombre text,p_inicio date,p_semanas integer,p_asignaciones jsonb default '[]'::jsonb) returns uuid
 language plpgsql security invoker set search_path='' as $$
 declare resultado uuid; t text; m public.planes_modelo%rowtype; asignacion jsonb; fuente jsonb; copia uuid;
-  base jsonb:='{}'; distribucion_run jsonb; semanas_run jsonb; semana record; dia record;
+  base jsonb:='{}'; distribucion_run jsonb; semanas_run jsonb; semana_item record; dia record;
   rutina_base jsonb; running_recortado jsonb;
 begin
  if p_semanas is null or p_semanas not between 1 and 104 then raise exception 'Duración inválida' using errcode='23514'; end if;
@@ -114,12 +114,12 @@ begin
   base:=jsonb_set(base,array[asignacion->>'dia'],coalesce(base->(asignacion->>'dia'),'[]'::jsonb)||jsonb_build_array(jsonb_build_object('tipo',t,'sesionId',copia)),true);
  end loop;
  semanas_run:=coalesce(distribucion_run->'semanas','{}'::jsonb);
- for semana in select * from jsonb_each(semanas_run) loop
-  for dia in select * from jsonb_each(semana.value) loop
+ for semana_item in select * from jsonb_each(semanas_run) loop
+  for dia in select * from jsonb_each(semana_item.value) loop
    select coalesce(jsonb_agg(a),'[]'::jsonb) into rutina_base
     from jsonb_array_elements(coalesce(base->dia.key,'[]'::jsonb)) a
     where not (a->>'tipo'='Running' and not (a ? 'sesionId'));
-   semanas_run:=jsonb_set(semanas_run,array[semana.key,dia.key],rutina_base||dia.value,true);
+   semanas_run:=jsonb_set(semanas_run,array[semana_item.key,dia.key],rutina_base||dia.value,true);
   end loop;
  end loop;
  select coalesce(jsonb_object_agg(k,v),'{}'::jsonb) into running_recortado
