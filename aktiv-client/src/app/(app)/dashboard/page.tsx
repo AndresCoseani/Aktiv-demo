@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { SolicitudesAlta } from "@/components/solicitudes-alta";
 import { useMemo } from "react";
 import {
   ArrowRight,
@@ -73,6 +74,8 @@ export default function DashboardPage() {
           Hola, {session.nombre.split(" ")[0]}!
         </h1>
       </header>
+
+      <SolicitudesAlta />
 
       <section
         aria-label="Métricas"

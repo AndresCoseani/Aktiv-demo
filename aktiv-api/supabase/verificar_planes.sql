@@ -1,6 +1,6 @@
 -- Diagnóstico de solo lectura. Ejecutar en SQL Editor del proyecto usado por la API.
 -- No crea ni altera tablas, y no lee datos de alumnos.
--- Resultado 1: detalle de planes. Resultado 2: resumen de TODAS las migraciones 19-43.
+-- Resultado 1: detalle de planes. Resultado 2: resumen de TODAS las migraciones 19-55.
 -- La 34 reemplaza datos del catálogo, no agrega estructura.
 -- Todo true = estas piezas están presentes; no equivale a probar el flujo completo.
 -- Si algo da false, revisar la migración indicada; no reejecutar todas a ciegas.
@@ -236,6 +236,38 @@ with comprobaciones(migracion, descripcion, pieza, ok) as (values
     exists(select 1 from pg_attrdef d join pg_attribute a on a.attrelid=d.adrelid and a.attnum=d.adnum
       where d.adrelid=to_regclass('public.alumnos') and a.attname='alta_en'
         and pg_get_expr(d.adbin,d.adrelid) like '%America/Argentina/Buenos_Aires%'))
+  ,(51, 'Grilla semanal de Running', 'columnas de planes y modelos',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_mensuales' and column_name='running') and
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_modelo' and column_name='running'))
+  ,(51, 'Grilla semanal de Running', 'guardado atómico y permisos',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.guardar_running(uuid,jsonb,boolean)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.guardar_running(uuid,jsonb,boolean)'),'EXECUTE'),true))
+  ,(51, 'Grilla semanal de Running', 'validadores de planes y modelos',
+    (select count(*)=2 from pg_trigger where tgname in ('validar_running_plan','validar_running_modelo') and tgenabled in ('O','A') and not tgisinternal))
+  ,(52, 'Sesiones en varios días', 'columna y sincronización',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='sesiones' and column_name='dias')
+    and exists(select 1 from pg_trigger where tgrelid=to_regclass('public.sesiones') and tgname='sincronizar_dias_sesion' and tgenabled in ('O','A') and not tgisinternal))
+  ,(52, 'Sesiones en varios días', 'duplicación atómica privada',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.duplicar_sesion_dias(uuid,uuid,text,smallint,smallint[])'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.duplicar_sesion_dias(uuid,uuid,text,smallint,smallint[])'),'EXECUTE'),true))
+  ,(53, 'Días de Running, GYM y Descanso', 'validador y guardado de tipos',
+    coalesce(pg_get_functiondef(to_regprocedure('public.validar_running()')) like '%lunes_tipo%',false)
+    and coalesce(pg_get_functiondef(to_regprocedure('public.guardar_running(uuid,jsonb,boolean)')) like '%lunes_tipo%',false))
+  ,(54, 'Planificación unificada', 'columnas y validación de vínculos',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_mensuales' and column_name='distribucion')
+    and exists(select 1 from information_schema.columns where table_schema='public' and table_name='planes_modelo' and column_name='distribucion')
+    and (select count(*)=2 from pg_trigger where tgname in ('validar_distribucion_plan','validar_distribucion_modelo') and tgenabled in ('O','A') and not tgisinternal))
+  ,(54, 'Planificación unificada', 'asignación y copia privadas',
+    coalesce(has_function_privilege('authenticated',to_regprocedure('public.asignar_dia_plan(uuid,jsonb)'),'EXECUTE'),false)
+    and not coalesce(has_function_privilege('anon',to_regprocedure('public.asignar_dia_plan(uuid,jsonb)'),'EXECUTE'),true)
+    and coalesce(has_function_privilege('authenticated',to_regprocedure('public.copiar_semana_plan(uuid,integer,integer)'),'EXECUTE'),false))
+  ,(55, 'Bloques por actividad', 'columna JSON y validador',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='sesiones' and column_name='actividadesBloques' and data_type='jsonb' and is_nullable='NO')
+    and to_regprocedure('public.actividades_bloques_validas(jsonb)') is not null)
+  ,(55, 'Bloques por actividad', 'copias conservan el tipo del bloque',
+    coalesce(pg_get_functiondef(to_regprocedure('public.duplicar_sesion(uuid,uuid,text,smallint)')) like '%actividadesBloques%',false)
+    and coalesce(pg_get_functiondef(to_regprocedure('public.duplicar_plan(uuid,uuid,uuid,text,date)')) like '%actividadesBloques%',false)
+    and coalesce(pg_get_functiondef(to_regprocedure('public.asignar_plan_modelo(uuid,uuid,uuid,text,date)')) like '%actividadesBloques%',false))
 )
 select migracion, descripcion,
   case when bool_and(ok) then 'OK' when bool_or(ok=false) then 'REVISAR' else 'MANUAL' end as estado,

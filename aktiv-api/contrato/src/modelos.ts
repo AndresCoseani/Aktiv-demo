@@ -1,9 +1,11 @@
+import { distribucionSchema } from "./planificacion";
+import { runningSchema } from "./running";
 import { z } from "zod";
 import { actividadPlanSchema, cantidadSemanasSchema, diasInicialesSchema, duplicarPlanApi, sesionEntrenamientoSchema } from "./mensual";
 
 const nombre = z.string().trim().min(1, "Escribí un nombre").max(120);
 export const planModeloSchema = z.object({
-  id: z.uuid(), nombre, semanas: cantidadSemanasSchema,
+  id: z.uuid(), nombre, semanas: cantidadSemanasSchema, running: runningSchema.optional(), distribucion: distribucionSchema.optional(),
   sesiones: z.array(sesionEntrenamientoSchema).max(28), revision: z.number().int().nonnegative(),
 }).superRefine((modelo, ctx) => {
   const ids = new Set<string>();

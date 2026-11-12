@@ -103,7 +103,7 @@ export default function MiPlanPage() {
 
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-        <PlanMensualPanel alumnoId={alumno.id}>
+        <PlanMensualPanel alumnoId={alumno.id} unificado>
           {activos.length === 0 ? (
             <p className="py-2 text-sm text-muted-foreground">No hay planes anteriores registrados.</p>
           ) : (

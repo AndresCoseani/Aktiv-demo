@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diasInicialesSchema, actividadesIniciales, prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, duplicarSesionApi, duplicarPlanApi, type CeldaSemanal } from "./mensual";
+import { actividadesBloquesSchema, diasDeSesion, diasSesionSchema, diasInicialesSchema, actividadesIniciales, prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, duplicarSesionApi, duplicarPlanApi, type CeldaSemanal } from "./mensual";
 const celdas = ["4×8", "", "5×8", ""].map((prescripcion, i): CeldaSemanal => ({ semana: i + 1, prescripcion, peso: String(i + 10), pesoFecha: null }));
 describe("plan mensual", () => {
   it("copia planes con destino y fecha válidos sin permitir activar ni sobrescribir contenido", () => {
@@ -89,4 +89,17 @@ describe("plan mensual", () => {
     expect(diasInicialesSchema.parse([{ tipo: " Movilidad   suave ", dias: 2 }])).toEqual([{ tipo: "Movilidad suave", dias: 2 }]);
     for (const dato of [[], [{ tipo: "A", dias: 1 }, { tipo: "a", dias: 1 }], Array.from({ length: 5 }, (_, i) => ({ tipo: String(i), dias: 7 }))]) expect(diasInicialesSchema.safeParse(dato).success).toBe(false);
   });
+});
+
+describe("asignación múltiple de días",()=>{
+ it("conserva sesiones anteriores y permite quitar todos los días",()=>{expect(diasDeSesion({dia:3})).toEqual([3]);expect(diasDeSesion({dia:1,dias:[]})).toEqual([]);expect(diasDeSesion({dia:1,dias:[1,3,5]})).toEqual([1,3,5]);});
+ it("rechaza días inválidos o repetidos",()=>{for(const d of [[0],[8],[1,1],[1.5],[null]])expect(diasSesionSchema.safeParse(d).success).toBe(false);expect(parcheSesionApi.parse({dias:[1,3,5],dia:1}).dias).toEqual([1,3,5]);});
+});
+
+describe("actividades de los bloques",()=>{
+ it("acepta grupos 1 a 20 y conserva el PATCH anterior sin valores implícitos",()=>{
+  expect(actividadesBloquesSchema.parse({1:"Movilidad",2:"Activación",20:"Fuerza"})).toEqual({1:"Movilidad",2:"Activación",20:"Fuerza"});
+  for(const valor of [{0:"Fuerza"},{21:"Fuerza"},{"01":"Fuerza"},{1:"Otra"},{1:null},[]])expect(actividadesBloquesSchema.safeParse(valor).success).toBe(false);
+  expect(parcheSesionApi.parse({nombre:"Anterior"})).toEqual({nombre:"Anterior"});
+ });
 });

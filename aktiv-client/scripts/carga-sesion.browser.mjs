@@ -14,6 +14,7 @@ try {
       const path = new URL(route.request().url()).pathname;
       let body, status = 200;
       if (path === "/api/auth/me") body = { session };
+      else if (path === "/api/auth/solicitudes-alta") body = [];
       else if (path === "/api/datos") {
         datos++;
         await new Promise((r) => setTimeout(r, 200));

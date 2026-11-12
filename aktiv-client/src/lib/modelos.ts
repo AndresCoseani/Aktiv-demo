@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { planModeloSchema, resumenModeloSchema, type PlanModelo, type ResumenModelo, type SesionEntrenamiento } from "@aktiv/contrato";
+import { planModeloSchema, resumenModeloSchema, type Distribucion, type Running, type PlanModelo, type ResumenModelo, type SesionEntrenamiento } from "@aktiv/contrato";
 import { api } from "./api";
-import { EVENTO_MENSUAL } from "./mensual";
+import { EVENTO_DISTRIBUCION, EVENTO_MENSUAL, EVENTO_RUNNING } from "./mensual";
 import { useStore } from "./store";
 
 export function useModelos(id: string | null) {
@@ -10,8 +10,10 @@ export function useModelos(id: string | null) {
   const [revision,setRevision]=useState(0);
   const confirmaciones=useRef(new Map<string,{version:number;sesion:SesionEntrenamiento}>());
   const version=useRef(0);
+  const distribucionConfirmada=useRef(new Map<string,{version:number;distribucion:Distribucion}>());
+  const runningConfirmado=useRef(new Map<string,{version:number;running:Running}>());
   const [datos,setDatos]=useState<{usuario:string;lista:ResumenModelo[];modelo:PlanModelo|null;error:string|null}>({usuario:"",lista:[],modelo:null,error:null});
-  useEffect(()=>{confirmaciones.current.clear();},[id,session?.userId]);
+  useEffect(()=>{confirmaciones.current.clear();runningConfirmado.current.clear();distribucionConfirmada.current.clear();},[id,session?.userId]);
   useEffect(()=>{
     const actualizar=(evento:Event)=>{
       const sesion=evento instanceof CustomEvent?(evento.detail as {sesion?:SesionEntrenamiento})?.sesion:undefined;
@@ -24,8 +26,12 @@ export function useModelos(id: string | null) {
         return {...d,modelo,lista:d.lista.map((p)=>p.id===modelo.id?{...p,tipos:[...new Set(modelo.sesiones.map((s)=>s.tipo))]}:p)};
       });
     };
+    const alGuardarRunning=(e:Event)=>{const {planId,running}=(e as CustomEvent<{planId:string;running:Running}>).detail;runningConfirmado.current.set(planId,{version:++version.current,running});setDatos(d=>d.modelo?.id===planId?{...d,modelo:{...d.modelo,running},lista:d.lista.map(p=>p.id===planId?{...p,tipos:[...new Set([...p.tipos,"Running"])]}:p)}:d);};
+    const alAsignar=(e:Event)=>{const {planId,distribucion}=(e as CustomEvent<{planId:string;distribucion:Distribucion}>).detail;distribucionConfirmada.current.set(planId,{version:++version.current,distribucion});setDatos(d=>d.modelo?.id===planId?{...d,modelo:{...d.modelo,distribucion}}:d);};
+    window.addEventListener(EVENTO_DISTRIBUCION,alAsignar);
+    window.addEventListener(EVENTO_RUNNING,alGuardarRunning);
     window.addEventListener(EVENTO_MENSUAL,actualizar);
-    return ()=>window.removeEventListener(EVENTO_MENSUAL,actualizar);
+    return ()=>{window.removeEventListener(EVENTO_DISTRIBUCION,alAsignar);window.removeEventListener(EVENTO_MENSUAL,actualizar);window.removeEventListener(EVENTO_RUNNING,alGuardarRunning);};
   },[]);
   useEffect(()=>{
     if(!session?.userId || session.role!=="coach")return;
@@ -33,6 +39,8 @@ export function useModelos(id: string | null) {
     const alLeer=version.current;
     Promise.all([api.get<unknown>("/planes-modelo"),id?api.get<unknown>(`/planes-modelo/${id}`):Promise.resolve(null)]).then(([lista,modelo])=>{
       const modeloValidado=modelo?planModeloSchema.parse(modelo):null;
+      if(modeloValidado&&(distribucionConfirmada.current.get(modeloValidado.id)?.version??-1)>alLeer)modeloValidado.distribucion=distribucionConfirmada.current.get(modeloValidado.id)!.distribucion;
+      if(modeloValidado&&(runningConfirmado.current.get(modeloValidado.id)?.version??-1)>alLeer)modeloValidado.running=runningConfirmado.current.get(modeloValidado.id)!.running;
       if(modeloValidado)modeloValidado.sesiones=modeloValidado.sesiones.map((s)=>{
         const confirmada=confirmaciones.current.get(s.id);return confirmada&&confirmada.version>alLeer?confirmada.sesion:s;
       });

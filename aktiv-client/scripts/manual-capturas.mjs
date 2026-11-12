@@ -69,13 +69,14 @@ async function foto(page, nombre, marcas = [], modal = false) {
   let clip;
   if (modal) { const b = await page.getByRole("dialog").boundingBox(); clip = { x: Math.max(0, Math.floor(b.x - 24)), y: Math.max(0, Math.floor(b.y - 40)), width: Math.min(1280 - Math.max(0, Math.floor(b.x - 24)), Math.ceil(b.width + 48)), height: Math.min(900 - Math.max(0, Math.floor(b.y - 40)), Math.ceil(b.height + 64)) }; }
   await page.screenshot({ path: join(salida, `${nombre}.png`), ...(clip ? { clip } : {}) });
-  capturas[nombre] = { src: `/manual/${nombre}.png`, ancho: clip?.width ?? 1280, alto: clip?.height ?? 900 };
+  capturas[nombre] = { src: `/manual/${nombre}.png`, ancho: clip?.width ?? page.viewportSize().width, alto: clip?.height ?? page.viewportSize().height };
   await writeFile(archivo, JSON.stringify(capturas, null, 2) + "\n");
   await page.evaluate(() => document.querySelectorAll("[data-manual-marca]").forEach(n => n.remove()));
   console.log(`Captura: ${nombre}`);
 }
-const boton = (p, n) => p.getByRole("button", { name: n, exact: true });
-async function cerrar(p) { const d = p.getByRole("dialog"); const cancelar = d.getByRole("button", { name: "Cancelar", exact: true }); if (await cancelar.count()) await cancelar.last().click(); else await d.getByRole("button", { name: "Close", exact: true }).click(); await d.waitFor({ state: "hidden" }); }
+const boton = (p, n) => p.getByRole(["Activar plan","Desactivar plan"].includes(n)?"switch":"button", { name: n, exact: true });
+async function abrirRutinas(p){const resumen=p.getByText("Ver más planes",{exact:true});await resumen.waitFor();if(!await resumen.evaluate(e=>e.parentElement.open))await resumen.click();await boton(p,"Organizar rutinas").click();}
+async function cerrar(p) { const id=await p.getByRole("dialog").last().getAttribute("id"); const d=p.locator(`[id="${id}"]`); const cancelar = d.getByRole("button", { name: "Cancelar", exact: true }); if (await cancelar.count()) await cancelar.last().click(); else await d.getByRole("button", { name: "Close", exact: true }).click(); await d.waitFor({ state: "hidden" }); }
 async function grupo(nombre, hacer, rol) {
   if (process.argv[2] && process.argv[2] !== nombre) return;
   const { page, ctx } = await pagina(rol);
@@ -92,7 +93,7 @@ try {
     await boton(p, "Nuevo plan").click(); await foto(p, "modelo-nuevo", [[p.getByRole("dialog"), "Completá el formulario"]], true); await cerrar(p);
     for (const [accion, captura] of [["Duplicar", "modelo-duplicar"], ["Editar", "modelo-editar"], ["Eliminar", "modelo-eliminar"]]) { await boton(p, `${accion} ${modelo.nombre}`).click(); await foto(p, captura, [], true); await cerrar(p); }
     await boton(p, "Asignar").click(); await foto(p, "modelo-asignar", [[p.getByRole("combobox").first(), "1 · Buscar alumno"]], true); await cerrar(p);
-    await p.goto(`${base}/planes?modelo=${modeloId}`); await boton(p, "Crear bloque").waitFor(); await foto(p, "modelo-editor", [[boton(p, "Asignar a alumno"), "Asignar una copia al alumno"]]);
+    await p.goto(`${base}/planes?modelo=${modeloId}`); await boton(p,"Editor de rutinas").click(); await boton(p, "Crear bloque").waitFor(); await foto(p, "modelo-editor", [[boton(p, "Asignar a alumno"), "Asignar una copia al alumno"]]);
     await foto(p, "editor-movilidad", [[boton(p, "Agregar ejercicio de movilidad"), "1 · Agregar movilidad"], [boton(p, "Agregar ejercicio de activación"), "2 · Agregar activación"]]);
     await foto(p, "editor-bloques", [[boton(p, "Crear bloque"), "1 · Nuevo bloque"], [p.getByRole("region", { name: "Bloque 1", exact: true }).getByRole("button", { name: "Agregar ejercicio", exact: true }), "2 · Agregar al bloque"]]);
     const entrada = p.getByRole("region", { name: "Bloque 1", exact: true }).getByRole("combobox", { name: "Ejercicio", exact: true }).first();
@@ -101,11 +102,11 @@ try {
     await foto(p, "editor-vuelta-calma", [[p.getByRole("textbox").last(), "Indicaciones finales"]]);
   });
   await grupo("alumnos", async p => {
-    await p.goto(`${base}/alumnos`); await boton(p, "Nuevo alumno").waitFor(); await foto(p, "alumnos-lista", [[boton(p, "Nuevo alumno"), "1 · Alta manual"], [boton(p, "Aprobar todos"), "2 · Aprobar las solicitudes"]]);
+    await p.goto(`${base}/alumnos`); await boton(p, "Nuevo alumno").waitFor(); await foto(p, "alumnos-lista", [[boton(p, "Nuevo alumno"), "1 · Alta manual"]]);
     await boton(p, "Nuevo alumno").click(); await foto(p, "alumno-nuevo", [], true); await cerrar(p);
-    await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("tab", { name: "Plan", exact: true }), "Abrir sus planes"]]);
-    await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p);
-    await p.getByRole("tab", { name: "Plan", exact: true }).click(); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
+    await p.goto(`${base}/alumnos/${alumnoId}`); await p.getByRole("heading", { name: alumno.nombre, exact: true }).waitFor(); await foto(p, "alumno-resumen", [[p.getByRole("button",{name:"Editar plan de entrenamiento",exact:true}), "Plan seleccionado"]]);
+    await boton(p,"Información del alumno").click(); await foto(p,"alumno-informacion",[],true); await boton(p, "Restablecer acceso").click(); await foto(p, "alumno-acceso", [], true); await cerrar(p); await cerrar(p);
+    await abrirRutinas(p); await boton(p, "Nuevo plan").waitFor(); await foto(p, "alumno-planes", [[boton(p, "Nuevo plan"), "1 · Crear plan"], [boton(p, "Duplicar plan de entrenamiento"), "2 · Duplicar"], [boton(p, "Editar plan de entrenamiento"), "3 · Editar"], [boton(p, "Eliminar plan de entrenamiento"), "4 · Eliminar"]]);
     await boton(p, "Nuevo plan").click(); await foto(p, "plan-nuevo", [], true); await cerrar(p);
     for (const [accion, captura] of [["Duplicar plan de entrenamiento", "plan-duplicar"], ["Editar plan de entrenamiento", "plan-editar"], ["Eliminar plan de entrenamiento", "plan-eliminar"], ["Guardar como modelo", "plan-guardar-modelo"]]) { await boton(p, accion).click(); await foto(p, captura, [], true); await cerrar(p); }
     await foto(p, "plan-activar", [[boton(p, "Desactivar plan"), "Ocultar sin borrar el plan"]]);
@@ -142,10 +143,32 @@ try {
     await p.getByRole("menuitem", { name: "Cambiar contraseña", exact: true }).click(); await foto(p, "clave-cambiar", [], true); await cerrar(p);
     await p.goto(`${base}/certificados`); await foto(p, "certificados-lista");
   });
+  await grupo("dias", async p=>{
+    await p.goto(base+"/alumnos/"+alumnoId);await abrirRutinas(p);await boton(p,"Asignar días de la semana").click();await p.getByRole("checkbox",{name:"Miércoles",exact:true}).check();await foto(p,"dias-asignar",[[p.getByRole("checkbox",{name:"Lunes",exact:true}),"Marcá todos los días de esta rutina"]]);
+    await boton(p,"Listo").click();await boton(p,"Editar entrenamiento").click();await foto(p,"dia-editar",[],true);await cerrar(p);await boton(p,"Duplicar día de entrenamiento").click();await foto(p,"dia-duplicar",[],true);
+  });
+  await grupo("solicitudes", async p => {
+    await p.goto(base+"/dashboard");await boton(p,"Aprobar todos").waitFor();await foto(p,"dashboard");await foto(p,"dashboard-solicitudes",[[boton(p,"Copiar enlace de registro"),"Compartí el registro"],[boton(p,"Aprobar todos"),"Aprobá las solicitudes"]]);
+    await p.goto(base+"/alumnos");await boton(p,"Nuevo alumno").waitFor();await foto(p,"alumnos-lista",[[boton(p,"Nuevo alumno"),"1 · Alta manual"]]);
+  });
   await grupo("alumno", async p => {
     await p.goto(`${base}/mi-plan`); await p.getByRole("heading", { name: "Plan de entrenamiento", exact: true }).waitFor(); await foto(p, "alumno-mi-plan");
     await p.goto(`${base}/agenda`); await foto(p, "alumno-asistencia");
   }, "alumno");
+  await grupo("running-tipos",async p=>{
+    plan.running={"1":{lunes:"GYM",martes:"Rodaje suave",miercoles:"GYM",viernes:"Descanso",sabado:"Técnica",domingo:"Fondo suave"}};
+    await p.goto(base+"/alumnos/"+alumnoId);await abrirRutinas(p);await boton(p,"Running").click();
+    await foto(p,"running-tipo-dia",[[p.getByLabel("Actividad de Lunes, semana 1",{exact:true}),"Elegí Running, GYM o Descanso"]]);
+  });
+  await grupo("running", async p=>{
+    plan.running={"1":{lunes:"Gimnasio",martes:"10 min suaves + 4 × 200 m + afloje",miercoles:"Descanso",jueves:"Rodaje suave",viernes:"Descanso",sabado:"Técnica y progresivos",domingo:"Fondo suave",volumen:"25,5",sugerencias:"Datos ficticios para explicar la carga."},"2":{martes:"Rodaje progresivo",volumen:"28"}};
+    await p.goto(base+"/alumnos/"+alumnoId);await abrirRutinas(p);await boton(p,"Running").click();
+    await foto(p,"running-grilla",[[p.getByRole("textbox",{name:"Martes, semana 1",exact:true}),"Escribí la sesión completa"]]);
+    await foto(p,"running-volumen",[[p.getByRole("textbox",{name:"Volumen semanal, semana 1",exact:true}),"Kilómetros de la semana"],[p.getByRole("textbox",{name:"Sugerencias, semana 1",exact:true}),"Indicaciones generales"]]);
+    await boton(p,"Copiar semana").click();await foto(p,"running-copiar",[],true);await cerrar(p);
+    await p.setViewportSize({width:390,height:900});await foto(p,"running-movil",[[p.getByRole("textbox",{name:"Martes, semana 1",exact:true}),"Día y semana seleccionados"]]);
+    const alumnoDemo=await pagina("alumno");await alumnoDemo.page.goto(base+"/mi-plan");await boton(alumnoDemo.page,"Vista diaria").click();await foto(alumnoDemo.page,"running-alumno",[[alumnoDemo.page.getByRole("region",{name:"Planilla de Running",exact:true}),"Lectura del alumno"]]);await alumnoDemo.ctx.close();
+  });
   await grupo("extras", async p => {
  await p.goto(base+"/planes"); await boton(p,"Nuevo plan").click(); await boton(p,"Agregar actividad").click(); await p.getByRole("textbox",{name:"Nombre de la actividad"}).fill("Recuperación"); await foto(p,"actividad-crear",[[boton(p,"Crear actividad"),"Crear una actividad propia"]],true); await cerrar(p);
  await p.goto(base+"/alumnos/"+alumnoId); await p.getByRole("tab",{name:/^Ficha/}).click(); await foto(p,"ficha-contacto",[[p.locator("#contacto-nombre"),"Contacto de emergencia"]]);
@@ -155,6 +178,24 @@ try {
  await p.getByRole("tab",{name:"Carreras",exact:true}).click(); await boton(p,"Asignar a una carrera").click(); await foto(p,"carrera-asignar",[],true); await cerrar(p);
  await p.getByRole("button",{name:"Editar inscripción a "+carrera.nombre,exact:true}).click(); await foto(p,"carrera-inscripcion-editar",[],true); await cerrar(p);
  carrera.fecha="2026-11-01"; await p.reload(); await p.getByRole("tab",{name:"Carreras",exact:true}).click(); await boton(p,"Anotar resultado").click(); await foto(p,"carrera-resultado",[],true); await cerrar(p);
- await boton(p,"Eliminar alumno").click(); await foto(p,"alumno-eliminar",[],true); await cerrar(p);
+ await boton(p,"Información del alumno").click(); await boton(p,"Eliminar alumno").click(); await foto(p,"alumno-eliminar",[],true); await cerrar(p); await cerrar(p);
  });
+  await grupo("informacion",async p=>{
+    await p.goto(base+"/alumnos/"+alumnoId);await boton(p,"Información del alumno").click();await foto(p,"alumno-informacion",[],true);await boton(p,"Eliminar alumno").click();await foto(p,"alumno-eliminar",[],true);await cerrar(p);await cerrar(p);
+  });
+  await grupo("unificada",async p=>{
+    plan.sesiones=[sesion(30,"Fuerza",null),sesion(32,"Fuerza",null),sesion(40,"Running",null)];
+    plan.distribucion={base:{1:[{tipo:"Running"}],2:[{tipo:"Fuerza",sesionId:id(30)}],3:[{tipo:"Running"}],4:[{tipo:"Fuerza",sesionId:id(32)}],5:[{tipo:"Descanso"}],6:[{tipo:"Running"}],7:[{tipo:"Running"}]}};
+    plan.running={"1":{lunes:"Rodaje suave de ejemplo",miercoles:"Entrada suave + pasadas + afloje",sabado:"Técnica y progresivos",domingo:"Fondo suave",volumen:"25,5",sugerencias:"Indicaciones ficticias para explicar la planificación."},"2":{lunes:"Rodaje progresivo"}};
+    await p.goto(base+"/alumnos/"+alumnoId);const grilla=p.getByRole("region",{name:"Planificación unificada",exact:true});await grilla.waitFor();
+    await foto(p,"planificacion-ficha",[[p.getByRole("heading",{name:alumno.nombre,exact:true}),"La planificación abre en Resumen"]]);
+    await foto(p,"planificacion-actividades",[[grilla.getByRole("button",{name:"Fuerza de Martes",exact:true}),"Elegí la actividad para cada día"]]);
+    await grilla.getByRole("button",{name:"Buscar un plan para Martes",exact:true}).click();await p.getByRole("option",{name:/Fuerza inicial/}).click();await p.getByRole("radio").first().check();await foto(p,"planificacion-rutina",[],true);await cerrar(p);
+    await foto(p,"planificacion-grilla",[[grilla.getByRole("button",{name:"Abrir Running, Lunes, semana 1",exact:true}),"Texto de Running para esta semana"]]);
+    await grilla.getByRole("button",{name:"Abrir Running, Lunes, semana 1",exact:true}).click();await foto(p,"planificacion-running-detalle",[],true);await cerrar(p);
+    await foto(p,"planificacion-crear",[[boton(p,"Crear día"),"Creá un día y editá sus bloques en el modal"]]);
+    await grilla.getByRole("button",{name:"Abrir Fuerza - Día 1, Martes, semana 1",exact:true}).click();await p.getByRole("dialog").getByLabel("Series de Sentadilla, semana 1",{exact:true}).waitFor();await foto(p,"planificacion-modal-profe",[[boton(p,"Nuevo bloque"),"Agregá bloques por actividad"]],true);await boton(p,"Nuevo bloque").click();await foto(p,"planificacion-bloque",[],true);await cerrar(p);await cerrar(p);
+    await p.setViewportSize({width:390,height:900});await p.getByRole("button",{name:"Abrir menú de navegación",exact:true}).click();await foto(p,"planificacion-menu-movil",[],true);await cerrar(p);await foto(p,"planificacion-movil",[[grilla.getByLabel("Semana de planificación",{exact:true}),"Una semana a la vez"]]);
+    const demo=await pagina("alumno");await demo.page.goto(base+"/mi-plan");await demo.page.getByRole("button",{name:"Abrir Fuerza - Día 1, Martes, semana 1",exact:true}).click();await foto(demo.page,"planificacion-modal-alumno",[],true);await demo.ctx.close();
+  });
 } finally { await browser.close(); }

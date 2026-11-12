@@ -1,4 +1,6 @@
 "use client";
+import { textoRunningPlanificado } from "@aktiv/contrato";
+import { actividadesDelDia } from "@aktiv/contrato";
 
 import { ArrowUpRight, CalendarDays, ClipboardList, Medal, StickyNote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,8 +24,9 @@ export function AlumnoResumen({ alumno, mensual, onAbrir }: {
   const mes = meses[0];
   const sesionesHoy = meses.flatMap((plan) => {
     const semana = semanaDelPlan(plan.inicio, hoyISO(), plan.semanas);
-    return semana ? plan.sesiones.filter((s) => s.dia === diaDeHoy() + 1).map((sesion) => ({ sesion, plan, semana })) : [];
+    return semana ? plan.sesiones.filter((s) => actividadesDelDia(plan,diaDeHoy()+1,semana).some(a=>a.sesionId===s.id)).map((sesion) => ({ sesion, plan, semana })) : [];
   });
+  const runningHoy=meses.flatMap(plan=>{const semana=semanaDelPlan(plan.inicio,hoyISO(),plan.semanas);const texto=semana?textoRunningPlanificado(plan,diaDeHoy()+1,semana):null;return texto?.trim()?[{plan,semana,texto}]:[];});
   const hoy = alumno.semana[diaDeHoy()];
   const tipos = [hoy?.correr && "Running", hoy?.fuerza && "Fuerza"].filter(Boolean);
   const planes = alumno.planes.filter((p) => p.activo && tipos.includes(p.tipo));
@@ -77,9 +80,9 @@ export function AlumnoResumen({ alumno, mensual, onAbrir }: {
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-2 px-4">
           {mensual.error ? <p className="text-sm text-muted-foreground">No se pudo consultar el plan.</p> : mensual.cargando ? <p className="text-sm text-muted-foreground">Cargando…</p> : mes ? (
-            sesionesHoy.length ? sesionesHoy.map(({sesion: s, plan, semana}) => (
+            (sesionesHoy.length||runningHoy.length) ? <>{runningHoy.map(({plan,semana,texto})=><div key={"running:"+plan.id} className="min-w-0"><p className="text-sm font-medium">Running</p><p className="text-xs text-muted-foreground">{plan.nombre} · Semana {semana}</p><p className="line-clamp-3 whitespace-pre-wrap break-words text-sm">{texto}</p></div>)}{sesionesHoy.map(({sesion: s, plan, semana}) => (
               <div key={s.id} className="min-w-0"><p className="truncate text-sm font-medium">{s.nombre || s.tipo}</p><p className="text-xs text-muted-foreground">{plan.nombre} · Semana {semana}</p><p className="line-clamp-2 text-xs text-muted-foreground">{s.ejercicios.slice(0, 2).map((e) => `${e.nombre || "Ejercicio"}: ${prescripcionEfectiva(e.semanas, semana) || "Sin indicación"}`).join(" · ") || "Sin ejercicios cargados"}</p></div>
-            )) : <p className="text-sm text-muted-foreground">Hoy no tiene sesiones asignadas. Consultá los planes para ver los días sin asignar o fuera de fecha.</p>
+            ))}</> : <p className="text-sm text-muted-foreground">Hoy no tiene sesiones asignadas. Consultá los planes para ver los días sin asignar o fuera de fecha.</p>
           ) : planes.length ? planes.map((plan) => (
             <div key={plan.id} className="min-w-0">
               <p className="truncate text-sm font-medium" title={plan.nombre}>{plan.nombre || `Plan de ${plan.tipo.toLowerCase()}`}</p>
