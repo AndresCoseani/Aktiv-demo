@@ -9,7 +9,6 @@ export const planModeloSchema = z.object({
   sesiones: z.array(sesionEntrenamientoSchema).max(28), revision: z.number().int().nonnegative(),
 }).superRefine((modelo, ctx) => {
   if (modelo.sesiones.some((s) => s.tipo !== modelo.tipo)) ctx.addIssue({ code: "custom", message: "Un modelo solo puede contener una actividad" });
-  if (modelo.tipo !== "Running" && modelo.running && Object.keys(modelo.running).length) ctx.addIssue({ code: "custom", message: "Los datos de running solo pertenecen a modelos de Running" });
   const ids = new Set<string>();
   for (const s of modelo.sesiones) {
     for (const id of [s.id, ...s.ejercicios.map((e) => e.id), ...s.activacion.map((e) => e.id)]) {
@@ -25,6 +24,7 @@ export const planModeloSchema = z.object({
 export const nombreModeloApi = z.object({ id: z.uuid(), nombre }).strict();
 export const crearModeloApi = nombreModeloApi.extend({ tipo: actividadPlanSchema, semanas: cantidadSemanasSchema, diasIniciales: diasInicialesSchema }).strict().superRefine((modelo, ctx) => {
   if (modelo.tipo !== modelo.diasIniciales.tipo) ctx.addIssue({ code: "custom", path: ["diasIniciales", "tipo"], message: "Las sesiones deben ser del tipo del modelo" });
+  if (modelo.tipo === "Running") ctx.addIssue({ code: "custom", path: ["tipo"], message: "Running se configura como actividad de la semana, no como tipo de modelo." });
 });
 export const editarModeloApi = z.object({ nombre: nombre.optional(), semanas: cantidadSemanasSchema.optional() }).strict().refine((v) => Object.keys(v).length > 0, "No hay cambios");
 export const asignacionModeloSchema = z.object({ dia: z.number().int().min(1).max(7), sesionId: z.uuid() }).strict();
@@ -38,3 +38,4 @@ export type PlanModelo = z.infer<typeof planModeloSchema>;
 export const resumenModeloSchema = z.object({ id: z.uuid(), nombre, tipo: actividadPlanSchema, semanas: cantidadSemanasSchema, dias: z.number().int().nonnegative() });
 export type ResumenModelo = z.infer<typeof resumenModeloSchema>;
 export type OperacionModelo = z.infer<typeof operacionModeloApi>;
+
