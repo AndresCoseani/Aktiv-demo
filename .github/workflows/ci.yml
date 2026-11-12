@@ -199,9 +199,9 @@ jobs:
               exit 1
             fi
           done
-          # La edición desde Resumen se verifica en planificacion.browser.mjs.
-          # Estos recorridos conservan biblioteca, calendario, copias y carga de datos.
-          for modo in --calendario --duplicar-plan --carga --carreras --modelos; do
+          # La grilla unificada se prueba en planificacion.browser.mjs y los modelos en los e2e de API.
+          # Se mantienen aquí duplicación de planes, carga/error y carreras.
+          for modo in --duplicar-plan --carga --carreras; do
             echo "::group::Planes: ${modo:-principal}"
             if node scripts/mensual.browser.mjs $modo; then
               echo "::endgroup::"

@@ -8,7 +8,7 @@ const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).h
 const baseUrl = process.env.MENSUAL_URL ?? "http://localhost:3101";
 const destino = process.env.MENSUAL_ARTIFACTS ?? join(process.env.TEMP, "aktiv-mensual-capturas");
 await mkdir(destino, { recursive: true });
-async function recargar(page) { const diaria=await page.getByRole("button",{name:"Ver grilla semanal",exact:true}).count()>0;await page.reload();if(diaria)await page.getByRole("button",{name:"Vista diaria",exact:true}).click(); }
+async function recargar(page) { await page.reload(); }
 const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge", headless: true });
 const alumnoId = "a0000000-0000-4000-8000-000000000001";
 const otroAlumnoId = "a0000000-0000-4000-8000-000000000098";
@@ -16,7 +16,7 @@ const usuario = "a0000000-0000-4000-8000-000000000002";
 const planId = "a0000000-0000-4000-8000-000000000003";
 const sesionId = "a0000000-0000-4000-8000-000000000004";
 const ejercicioId = "a0000000-0000-4000-8000-000000000005";
-const planes = [{ id: planId, nombre: "Base 10K · Seis semanas", inicio: "2026-11-02", semanas: 6, activo: true, orden: 0, sesiones: [{
+const planes = [{ id: planId, nombre: "Base 10K · Seis semanas", tipo: "Fuerza", inicio: "2026-11-02", semanas: 6, activo: true, orden: 0, sesiones: [{
   id: sesionId, dia: 1, nombre: "Fuerza A", tipo: "Fuerza", bloques: [1], calentamiento: "1. Activación con rolo\n2. Movilidad de cadera", enfriamiento: "Estiramientos suaves", orden: 0,
   ejercicios: [{ id: ejercicioId, nombre: "Zumo", grupo: 1, orden: 0, descanso: "60 s", semanas: ["4×8", "", "5×8", "", "6×6", ""].map((prescripcion, i) => ({ semana: i + 1, prescripcion, peso: null, pesoFecha: null })) }],
 }] }];
@@ -301,7 +301,7 @@ try {
     assert.equal(await page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Vista del plan anterior", { exact: true }).count(), 0);
     assert.equal(await page.getByText("Día de descanso", { exact: true }).count(), 0);
-    await page.getByRole("heading",{name:"Actividades de la semana",exact:true}).waitFor();
+    await page.getByRole("region",{name:"Planificación unificada",exact:true}).waitFor();
     errorLectura = true;
     await recargar(page);
     await page.getByText("Fallo controlado de lectura", { exact: true }).waitFor();
@@ -309,13 +309,13 @@ try {
     assert.equal(await page.getByText("Vista del plan anterior", { exact: true }).count(), 0);
     errorLectura = false;
     await page.getByRole("button", { name: "Reintentar", exact: true }).click();
-    await page.getByRole("heading",{name:"Actividades de la semana",exact:true}).waitFor();
+    await page.getByRole("region",{name:"Planificación unificada",exact:true}).waitFor();
     await ctx.close();
     const estudiante = await pagina("alumno", 390);
     await estudiante.page.goto(`${baseUrl}/mi-plan`);
     await estudiante.page.getByText("Cargando planes…", { exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
-    await estudiante.page.getByRole("button",{name:"Vista diaria",exact:true}).click();
+    await estudiante.page.getByRole("region",{name:"Planificación unificada",exact:true}).waitFor();
     await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("Mi semana", { exact: true }).count(), 0);
     await estudiante.ctx.close();
