@@ -35,12 +35,12 @@ describe("plan mensual", () => {
     expect(parcheSesionApi.safeParse({ bloques: [1, 1] }).success).toBe(false);
     expect(parcheSesionApi.safeParse({ bloques: [21] }).success).toBe(false);
   });
-  it("valida los días iniciales de ambos tipos o de uno solo", () => {
-    const base = { id: "a0000000-0000-4000-8000-000000000001", nombre: "Base", inicio: "2026-11-02", activo: true, semanas: 6 };
-    for (const diasIniciales of [{ fuerza: 3, running: 3 }, { fuerza: 0, running: 2 }, { fuerza: 2, running: 0 }]) {
-      expect(altaMensualApi.parse({ ...base, diasIniciales }).diasIniciales).toEqual(diasIniciales);
-    }
-    for (const diasIniciales of [{ fuerza: 0, running: 0 }, { fuerza: 8, running: 1 }, { fuerza: 1.5, running: 2 }, { fuerza: -1, running: 2 }]) {
+  it("solo permite un tipo de entrenamiento por plan", () => {
+    const base = { id: "a0000000-0000-4000-8000-000000000001", nombre: "Base", tipo: "Fuerza", inicio: "2026-11-02", activo: false, semanas: 6 };
+    expect(altaMensualApi.parse({ ...base, diasIniciales: { tipo: "Fuerza", dias: 3 } }).tipo).toBe("Fuerza");
+    expect(altaMensualApi.safeParse({ ...base, tipo: "Running", diasIniciales: { tipo: "Running", dias: 3 } }).success).toBe(true);
+    expect(altaMensualApi.safeParse({ ...base, diasIniciales: { tipo: "Running", dias: 3 }, tipo: "Fuerza" }).success).toBe(false);
+    for (const diasIniciales of [{ tipo: "Fuerza", dias: 0 }, { tipo: "Fuerza", dias: 8 }, { tipo: "Fuerza", dias: 1.5 }]) {
       expect(altaMensualApi.safeParse({ ...base, diasIniciales }).success).toBe(false);
     }
   });
@@ -64,11 +64,12 @@ describe("plan mensual", () => {
     expect(semanaDelPlan("2026-11-02", "2026-12-14", 8)).toBe(7);
     expect(semanaDelPlan("2026-11-02", "2027-01-24", 12)).toBe(12);
   });
-  it("no inyecta cuatro semanas en un parche de nombre o activación", () => {
+  it("no permite activar por PATCH; la activación requiere el flujo de confirmación", () => {
     expect(parcheMensualApi.parse({ nombre: "Base 10K" })).toEqual({ nombre: "Base 10K" });
-    expect(parcheMensualApi.parse({ activo: true })).toEqual({ activo: true });
+    expect(parcheMensualApi.parse({ activo: false })).toEqual({ activo: false });
+    expect(parcheMensualApi.safeParse({ activo: true }).success).toBe(false);
     expect(parcheMensualApi.safeParse({ semanas: 0 }).success).toBe(false);
-    expect(altaMensualApi.parse({ id: "a0000000-0000-4000-8000-000000000001", nombre: "Base", inicio: "2026-11-02", activo: true, semanas: 6 }).semanas).toBe(6);
+    expect(altaMensualApi.parse({ id: "a0000000-0000-4000-8000-000000000001", nombre: "Base", tipo: "Fuerza", inicio: "2026-11-02", activo: false, semanas: 6 }).semanas).toBe(6);
   });
   it("el alumno no puede mandar prescripciones ni parches vacíos", () => {
     expect(parcheCeldaAlumnoApi.safeParse({ prescripcion: "9×9" }).success).toBe(false);
@@ -84,10 +85,10 @@ describe("plan mensual", () => {
     expect(altaSesionApi.safeParse({ ...base, tipo: " " }).success).toBe(false);
     expect(altaSesionApi.safeParse({ ...base, tipo: "x".repeat(81) }).success).toBe(false);
   });
-  it("admite actividades libres, conserva formato anterior y rechaza duplicados o exceso", () => {
-    expect(actividadesIniciales(diasInicialesSchema.parse({ fuerza: 1, running: 0 }))).toEqual([{ tipo: "Fuerza", dias: 1 }]);
-    expect(diasInicialesSchema.parse([{ tipo: " Movilidad   suave ", dias: 2 }])).toEqual([{ tipo: "Movilidad suave", dias: 2 }]);
-    for (const dato of [[], [{ tipo: "A", dias: 1 }, { tipo: "a", dias: 1 }], Array.from({ length: 5 }, (_, i) => ({ tipo: String(i), dias: 7 }))]) expect(diasInicialesSchema.safeParse(dato).success).toBe(false);
+  it("admite una actividad libre por plan y normaliza su nombre", () => {
+    expect(actividadesIniciales(diasInicialesSchema.parse({ tipo: " Fuerza ", dias: 1 }))).toEqual([{ tipo: "Fuerza", dias: 1 }]);
+    expect(diasInicialesSchema.parse({ tipo: " Movilidad   suave ", dias: 2 })).toEqual({ tipo: "Movilidad suave", dias: 2 });
+    for (const dato of [{ tipo: " ", dias: 1 }, { tipo: "A", dias: 0 }, { tipo: "A", dias: 8 }]) expect(diasInicialesSchema.safeParse(dato).success).toBe(false);
   });
 });
 

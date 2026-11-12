@@ -9,12 +9,11 @@ import { Switch } from "./ui/switch";
 import { RunningDetalle } from "./running-detalle";
 import { AsignarDiaDesdeModelo } from "./asignar-dia-modelo";
 import { CeldaRunning } from "./running-semanal";
-import { useActividadesPlan } from "./actividades-plan";
 import { usePlanEditor } from "./plan-editor-context";
 import { avisarCambioDistribucion, avisarCambioRunning, hayBorradoresMensuales, registrarBorradorMensual } from "@/lib/mensual";
 import { diaDeHoy, formatFecha, hoyISO } from "@/lib/format";
 
-type Plan = Pick<PlanMensual,"id"|"semanas"|"sesiones"|"running"|"distribucion"> & {inicio?:string;nombre?:string};
+type Plan = Pick<PlanMensual,"id"|"tipo"|"semanas"|"sesiones"|"running"|"distribucion"> & {inicio?:string;nombre?:string};
 type Props = {plan:Plan;editable:boolean;renderRutina:(s:SesionEntrenamiento,semana:number,cerrar:()=>void)=>ReactNode};
 const textoError=(e:unknown)=>e instanceof Error?e.message:"No se pudo guardar. Reintentá.";
 const tipoVisual=(tipo:string)=>tipo.trim().toLocaleLowerCase("es")==="gym"?"Fuerza":tipo;
@@ -24,7 +23,7 @@ const nombreRutina=(p:Plan,s:SesionEntrenamiento)=>`${tipoVisual(s.tipo)} - Día
 const nombreVisible=(nombre:string)=>nombre.replace(/(Fuerza|GYM)\s*[·–—]\s*(Día\s*\d+)/gi,"Fuerza - $2");
 const selector="w-full min-w-0 rounded-lg border border-input bg-background px-2 py-2 text-center text-sm focus-visible:outline-2 focus-visible:outline-ring";
 
-const Asignador=memo(function Asignador({valor,sesiones,label,onGuardar,onCambiar,onPendiente,soloRutina=false,mostrarRutina=true,disabled=false,hoy=false,planId,planSemanas}:{valor:ActividadDia[];tipos:string[];sesiones:SesionEntrenamiento[];label:string;onGuardar:(a:ActividadDia[])=>Promise<void>;onCambiar:(a:ActividadDia[])=>void;onPendiente:(id:string,v:boolean)=>void;soloRutina?:boolean;mostrarRutina?:boolean;disabled?:boolean;hoy?:boolean;planId:string;planSemanas:number}) {
+const Asignador=memo(function Asignador({valor,tipos,sesiones,label,onGuardar,onCambiar,onPendiente,soloRutina=false,mostrarRutina=true,disabled=false,hoy=false,planId,planSemanas}:{valor:ActividadDia[];tipos:string[];sesiones:SesionEntrenamiento[];label:string;onGuardar:(a:ActividadDia[])=>Promise<void>;onCambiar:(a:ActividadDia[])=>void;onPendiente:(id:string,v:boolean)=>void;soloRutina?:boolean;mostrarRutina?:boolean;disabled?:boolean;hoy?:boolean;planId:string;planSemanas:number}) {
  const [lista,setLista]=useState(valor),[guardada,setGuardada]=useState(JSON.stringify(valor)),[ocupado,setOcupado]=useState(false),[error,setError]=useState("");
  const serial=JSON.stringify(valor),sucio=JSON.stringify(lista)!==guardada;
  if(!sucio&&!ocupado&&serial!==guardada){setLista(JSON.parse(serial));setGuardada(serial);}
@@ -42,18 +41,18 @@ const Asignador=memo(function Asignador({valor,sesiones,label,onGuardar,onCambia
  return <div className={soloRutina?"flex shrink-0 items-center":"min-w-0 space-y-1"}>
   {!soloRutina&&<><div className="flex min-w-0 flex-col items-center justify-between gap-1 sm:flex-row"><span className={hoy?"text-[10px] font-semibold text-primary sm:text-xs":"text-[10px] font-medium text-muted-foreground sm:text-xs"}>{label.includes(",")?"Entrenamiento":label.slice(0,3)}</span><Switch size="sm" className="after:inset-x-0" aria-label={`Entrena el ${label}`} checked={!descansa} disabled={disabled} onCheckedChange={entrena=>{if(entrena)actualizar(anteriores.current.filter(a=>sesiones.some(s=>s.id===a.sesionId)||!a.sesionId));else{anteriores.current=lista.filter(a=>a.tipo!=="Descanso");actualizar([{tipo:"Descanso"}]);}}} /></div>
    <div role="group" aria-label={`Actividades de ${label}`} className="flex min-h-16 flex-col items-center justify-center gap-1">
-    {descansa?<div role="status" aria-label={`Descanso de ${label}`} className="flex h-16 w-full max-w-10 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground"><BedDouble aria-hidden="true" className="size-5 sm:size-6" /><span className="sr-only">Descanso</span></div>:[...new Set(["Fuerza","Running",...lista.map(a=>a.tipo)].map(tipoVisual))].filter(t=>t!=="Descanso").map(tipo=>{const activo=lista.some(a=>tipoVisual(a.tipo)===tipo),Icono=icono(tipo);return <Button key={tipo} type="button" variant="ghost" aria-label={`${tipo} de ${label}`} title={tipo} aria-pressed={activo} disabled={disabled||(!activo&&lista.length>=8)} className={`h-7 w-full max-w-10 shrink-0 sm:h-8 rounded-lg border p-0 transition-colors ${activo?"border-primary/35 bg-primary/10 text-primary":"border-border/70 bg-muted/25 text-muted-foreground/60 hover:bg-muted/50 hover:text-foreground"}`} onClick={()=>actualizar(activo?lista.filter(a=>tipoVisual(a.tipo)!==tipo):[...lista.filter(a=>a.tipo!=="Descanso"),{tipo}])}><Icono aria-hidden="true" className="size-5 sm:size-6" /></Button>;})}
+    {descansa?<div role="status" aria-label={`Descanso de ${label}`} className="flex h-16 w-full max-w-10 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground"><BedDouble aria-hidden="true" className="size-5 sm:size-6" /><span className="sr-only">Descanso</span></div>:[...new Set([...tipos.filter(t=>t!=="Descanso"),...lista.map(a=>a.tipo)].map(tipoVisual))].filter(t=>t!=="Descanso").map(tipo=>{const activo=lista.some(a=>tipoVisual(a.tipo)===tipo),Icono=icono(tipo);return <Button key={tipo} type="button" variant="ghost" aria-label={`${tipo} de ${label}`} title={tipo} aria-pressed={activo} disabled={disabled||(!activo&&lista.length>=8)} className={`h-7 w-full max-w-10 shrink-0 sm:h-8 rounded-lg border p-0 transition-colors ${activo?"border-primary/35 bg-primary/10 text-primary":"border-border/70 bg-muted/25 text-muted-foreground/60 hover:bg-muted/50 hover:text-foreground"}`} onClick={()=>actualizar(activo?lista.filter(a=>tipoVisual(a.tipo)!==tipo):[...lista.filter(a=>a.tipo!=="Descanso"),{tipo}])}><Icono aria-hidden="true" className="size-5 sm:size-6" /></Button>;})}
    </div>
   </>}
   {mostrarRutina&&lista.map((a,i)=>!["Running","Descanso"].includes(a.tipo)&&(soloRutina&&["Fuerza","GYM"].includes(a.tipo)?<AsignarDiaDesdeModelo key={a.tipo+i} planId={planId} planSemanas={planSemanas} dia={label} numeroDia={sesiones.filter(s=>["Fuerza","GYM"].includes(s.tipo)).length+1} disabled={disabled} alAsignar={sesionId=>actualizar([...lista.filter(x=>!["Fuerza","GYM"].includes(x.tipo)),{tipo:"Fuerza",sesionId}])}/>:<select key={a.tipo+i} disabled={disabled} aria-label={`Rutina de ${tipoVisual(a.tipo)} para ${label}`} className={selector} value={a.sesionId??""} onChange={e=>{const sesion=sesiones.find(s=>s.id===e.target.value);cambiar(i,{tipo:sesion?.tipo??a.tipo,...(sesion?{sesionId:sesion.id}:{})});}}><option value="">Sin asignar</option>{sesiones.filter(s=>tipoVisual(s.tipo)===tipoVisual(a.tipo)).map((s,n)=><option key={s.id} value={s.id}>{nombreVisible(s.nombre)||`${tipoVisual(s.tipo)} - Día ${n+1}`}</option>)}</select>))}
   {error?<div role="alert" className="space-y-1 text-xs text-destructive"><p className={soloRutina?"break-words":"sr-only"}>{error}</p><Button size="sm" variant="outline" className="h-8 w-full px-0" aria-label="Reintentar asignación" title="Reintentar asignación" onClick={()=>setError("")}><RotateCcw aria-hidden="true" className="size-4" /></Button></div>:sucio||ocupado?<p role="status" className="sr-only">Guardando asignación…</p>:null}
  </div>;
-},(a,b)=>JSON.stringify(a.valor)===JSON.stringify(b.valor)&&a.sesiones===b.sesiones&&a.label===b.label&&a.onGuardar===b.onGuardar&&a.onCambiar===b.onCambiar&&a.onPendiente===b.onPendiente&&a.soloRutina===b.soloRutina&&a.mostrarRutina===b.mostrarRutina&&a.disabled===b.disabled&&a.hoy===b.hoy&&a.planId===b.planId&&a.planSemanas===b.planSemanas);
+},(a,b)=>JSON.stringify(a.valor)===JSON.stringify(b.valor)&&JSON.stringify(a.tipos)===JSON.stringify(b.tipos)&&a.sesiones===b.sesiones&&a.label===b.label&&a.onGuardar===b.onGuardar&&a.onCambiar===b.onCambiar&&a.onPendiente===b.onPendiente&&a.soloRutina===b.soloRutina&&a.mostrarRutina===b.mostrarRutina&&a.disabled===b.disabled&&a.hoy===b.hoy&&a.planId===b.planId&&a.planSemanas===b.planSemanas);
 
 export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
  const [hoy,setHoy]=useState(diaDeHoy);
  useEffect(()=>{const reloj=setInterval(()=>setHoy(diaDeHoy()),60000);return()=>clearInterval(reloj);},[]);
- const {api}=usePlanEditor();const {actividades,error:errorActividades}=useActividadesPlan(editable);
+ const {api}=usePlanEditor();
  const [distribucion,setDistribucion]=useState<Distribucion>(plan.distribucion??{}),[running,setRunning]=useState<Running>(plan.running??{});
  const [semana,setSemana]=useState(()=>plan.inicio?(semanaDelPlan(plan.inicio,hoyISO(),plan.semanas)??1):1);
  const [fuente,setFuente]=useState({distribucion:plan.distribucion,running:plan.running});
@@ -64,7 +63,7 @@ export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
  const edicionDist=useRef(false),edicionRunning=useRef(false);
  useEffect(()=>{if(edicionDist.current)avisarCambioDistribucion(plan.id,distribucion);},[plan.id,distribucion]);
  useEffect(()=>{if(edicionRunning.current)avisarCambioRunning(plan.id,running);},[plan.id,running]);
- const tipos=[...new Set([...actividades,...plan.sesiones.map(s=>s.tipo),"Descanso"])];
+ const tipos=[...new Set([plan.tipo,...plan.sesiones.map(s=>s.tipo),"Descanso"])];
  const actual=plan.inicio?semanaDelPlan(plan.inicio,hoyISO(),plan.semanas):null;
  const desde=Math.floor((semana-1)/4)*4+1,columnas=Array.from({length:Math.min(4,plan.semanas-desde+1)},(_,i)=>desde+i);
  const vista=Object.entries(anticipadas).reduce((d,[dia,actividades])=>actualizarDistribucion(d,{dia:Number(dia),actividades}),distribucion);
@@ -81,7 +80,6 @@ export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
  const abierta=plan.sesiones.find(s=>s.id===rutina?.id);
  return <section aria-label="Planificación unificada" className="min-w-0 space-y-5">
   <div className="space-y-3 rounded-xl border border-primary/20 p-3 sm:p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 aria-label="Actividades de la semana" className="text-base font-medium tracking-tight">Semana</h3></div></div>
-   {errorActividades&&editable&&<p role="alert" className="text-sm text-destructive">{errorActividades}</p>}
    <div className="grid min-w-0 max-w-full grid-cols-7 gap-1 sm:gap-2">{DIAS_PLAN.map((dia,i)=><section key={dia} aria-label={`Asignación de ${dia}`} aria-current={i===hoy?"date":undefined} className={`min-w-0 rounded-lg border p-0.5 py-2 sm:p-2 ${i===hoy?"border-primary/70 bg-primary/10 ring-1 ring-primary/20":"border-border/70"}`}>{!editable&&<h4 className="text-xs font-medium text-muted-foreground">{dia.slice(0,3)}</h4>}{editable?<Asignador hoy={i===hoy} mostrarRutina={false} planId={plan.id} planSemanas={plan.semanas} disabled={Boolean(pendientes["rutina:"+dia])||Object.entries(pendientes).some(([id,v])=>v&&id.endsWith(":"+DIAS_RUNNING[i]))} valor={vista.base?.[i+1]??actividadesDelDia({...plan,distribucion:{}},i+1,1)} tipos={tipos} sesiones={plan.sesiones} label={dia} onPendiente={onPendiente} onGuardar={guardarDias[i]} onCambiar={anticiparDias[i]} />:<p className="break-words text-sm text-muted-foreground">{actividadesDelDia(datos,i+1,semana).map(a=>a.tipo).join(" + ")||"Sin asignar"}</p>}{Object.values(distribucion.semanas??{}).some(d=>d[i+1]!==undefined)&&<p className="text-xs text-primary">Varía por semana</p>}</section>)}</div>
   </div>
   {pendiente&&<p role="status" className="sr-only">Hay cambios pendientes de guardar</p>}
@@ -95,7 +93,7 @@ export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
     </div>;}):<p className="py-2 text-sm text-muted-foreground">Sin asignar</p>}
 
    </div>;})}</div>)}
-   {(["volumen","sugerencias"] as const).map(campo=><div key={campo} className="border-t bg-muted/20 md:grid md:grid-cols-[160px_repeat(var(--semanas),minmax(0,1fr))]"><h4 className="min-w-0 break-words p-4 text-sm font-semibold">{campo==="volumen"?"Volumen":"Sugerencias"}</h4>{columnas.map(s=><div key={s} className={(s===semana?"block":"hidden md:block")+" min-w-0 p-3 md:border-l"}>{campo==="volumen"&&!DIAS_PLAN.some((_,i)=>actividadesGrilla(i+1,s).some(a=>a.tipo==="Running"))?<p className="py-2 text-sm text-muted-foreground">—</p>:editable?<CeldaRunning key={`${version}:${s}:${campo}`} soloTexto planId={plan.id} semana={s} campo={campo} valor={running[s]?.[campo]??""} onGuardado={alGuardarRunning} onPendiente={onPendiente} />:<p className="whitespace-pre-wrap break-words text-sm">{running[s]?.[campo]?(running[s]?.[campo]+(campo==="volumen"?" km":"")):"—"}</p>}</div>)}</div>)}
+   {plan.tipo === "Running" && <>{(["volumen", "sugerencias"] as const).map((campo) => <div key={campo} className="border-t bg-muted/20 md:grid md:grid-cols-[160px_repeat(var(--semanas),minmax(0,1fr))]"><h4 className="min-w-0 break-words p-4 text-sm font-semibold">{campo === "volumen" ? "Volumen" : "Sugerencias"}</h4>{columnas.map((s) => <div key={s} className={(s === semana ? "block" : "hidden md:block") + " min-w-0 p-3 md:border-l"}>{editable ? <CeldaRunning key={`${version}:${s}:${campo}`} soloTexto planId={plan.id} semana={s} campo={campo} valor={running[s]?.[campo] ?? ""} onGuardado={alGuardarRunning} onPendiente={onPendiente} /> : <p className="whitespace-pre-wrap break-words text-sm">{running[s]?.[campo] ? running[s]?.[campo] + (campo === "volumen" ? " km" : "") : "—"}</p>}</div>)}</div>)}</>}
   </div>
   {abierta&&rutina&&renderRutina(abierta,rutina.semana,()=>setRutina(null))}
  </section>;

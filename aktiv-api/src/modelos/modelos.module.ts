@@ -16,13 +16,13 @@ export class ModelosService {
   async listar(u: Usuario) {
     const modelos: PlanModelo[] = [];
     for (let desde=0; ; desde+=100) {
-      const r=await this.supa.delUsuario(u.token).from("planes_modelo").select("id,nombre,semanas,sesiones,revision,running,distribucion").order("nombre").order("id").range(desde,desde+99);
+      const r=await this.supa.delUsuario(u.token).from("planes_modelo").select("id,nombre,tipo,semanas,sesiones,revision,running,distribucion").order("nombre").order("id").range(desde,desde+99);
       lanzarSiError(r.error); modelos.push(...(r.data ?? []).map((p)=>planModeloSchema.parse(p)));
-      if ((r.data?.length ?? 0)<100) return modelos.map((p)=>({id:p.id,nombre:p.nombre,semanas:p.semanas,dias:p.sesiones.length,tipos:[...new Set([...p.sesiones.map((s)=>s.tipo),...(Object.keys(p.running??{}).length?["Running"]:[])])]}));
+      if ((r.data?.length ?? 0)<100) return modelos.map((p)=>({id:p.id,nombre:p.nombre,tipo:p.tipo,semanas:p.semanas,dias:p.sesiones.length}));
     }
   }
   async obtener(u: Usuario,id: string) {
-    const r=await this.supa.delUsuario(u.token).from("planes_modelo").select("id,nombre,semanas,sesiones,revision,running,distribucion").eq("id",id).maybeSingle();
+    const r=await this.supa.delUsuario(u.token).from("planes_modelo").select("id,nombre,tipo,semanas,sesiones,revision,running,distribucion").eq("id",id).maybeSingle();
     lanzarSiError(r.error); if(!r.data) throw noEncontrado("El modelo"); return planModeloSchema.parse(r.data);
   }
   private async insertar(u: Usuario,modelo: PlanModelo) {
@@ -41,7 +41,7 @@ export class ModelosService {
   private async modificar(u: Usuario,id: string,transformar:(p:PlanModelo)=>PlanModelo) {
     for(let intento=0;intento<5;intento++) {
       const anterior=await this.obtener(u,id), siguiente=validarOLanzar(planModeloSchema,transformar(anterior));
-      const r=await this.supa.delUsuario(u.token).from("planes_modelo").update({nombre:siguiente.nombre,semanas:siguiente.semanas,sesiones:siguiente.sesiones,running:siguiente.running ?? {},distribucion:siguiente.distribucion ?? {},revision:anterior.revision+1}).eq("id",id).eq("revision",anterior.revision).select("id").maybeSingle();
+      const r=await this.supa.delUsuario(u.token).from("planes_modelo").update({nombre:siguiente.nombre,tipo:siguiente.tipo,semanas:siguiente.semanas,sesiones:siguiente.sesiones,running:siguiente.running ?? {},distribucion:siguiente.distribucion ?? {},revision:anterior.revision+1}).eq("id",id).eq("revision",anterior.revision).select("id").maybeSingle();
       lanzarSiError(r.error); if(r.data) return {id};
     }
     throw new ErrorApi(409,"modelo_modificado","El modelo está recibiendo otros cambios. Reintentá; tu edición sigue en el formulario.");
@@ -60,12 +60,12 @@ export class ModelosService {
     const r=await this.supa.delUsuario(u.token).from("planes_mensuales").select("alumno_id").eq("id",id).maybeSingle();
     lanzarSiError(r.error); if(!r.data) throw noEncontrado("El plan");
     const p=(await this.mensuales.cargar(u,r.data.alumno_id)).find((p)=>p.id===id); if(!p) throw noEncontrado("El plan");
-    const sesiones=copiarSesiones(p.sesiones);return this.insertar(u,{...dto,semanas:p.semanas,revision:0,running:p.running ?? {},sesiones,distribucion:remapearDistribucion(p.distribucion,new Map(p.sesiones.map((s,i)=>[s.id,sesiones[i].id])))});
+    const sesiones=copiarSesiones(p.sesiones);return this.insertar(u,{...dto,tipo:p.tipo,semanas:p.semanas,revision:0,running:p.running ?? {},sesiones,distribucion:remapearDistribucion(p.distribucion,new Map(p.sesiones.map((s,i)=>[s.id,sesiones[i].id])))});
   }
   async asignar(u:Usuario,id:string,body:unknown) {
-    const dto=validarOLanzar(asignarModeloApi,body); await this.obtener(u,id);
+    const dto=validarOLanzar(asignarModeloApi,body), modelo=await this.obtener(u,id);
     const db=this.supa.delUsuario(u.token); await asegurarAlumno(db,dto.alumnoId);
-    const r=await db.rpc("asignar_plan_modelo",{p_modelo:id,p_id:dto.id,p_alumno:dto.alumnoId,p_nombre:dto.nombre,p_inicio:dto.inicio}); lanzarSiError(r.error); return {id:dto.id};
+    const r=await db.rpc("asignar_plan_modelo_duracion",{p_modelo:id,p_id:dto.id,p_alumno:dto.alumnoId,p_nombre:dto.nombre,p_inicio:dto.inicio,p_semanas:dto.semanas??modelo.semanas,p_asignaciones:dto.asignaciones}); lanzarSiError(r.error); return {id:dto.id};
   }
   async borrar(u:Usuario,id:string) { await borrarUno(this.supa.delUsuario(u.token),"planes_modelo",id,"El modelo"); }
 }

@@ -4,10 +4,10 @@ const p = (titulo: string, texto: string, imagen?: string, campos?: [string, str
 const g = (id: string, categoria: string, titulo: string, descripcion: string, destino: string, pasos: PasoManual[], nota: string): GuiaManual => ({ id, categoria, titulo, descripcion, destino, pasos, nota });
 
 export const guias: GuiaManual[] = [
-  g("planificacion-unificada", "Planes", "Planificar la semana desde la ficha del alumno", "Asignar fuerza, running y descanso y editar los días en un modal.", "/alumnos", [
+  g("planificacion-unificada", "Planes", "Planificar la semana desde la ficha del alumno", "Definir qué días entrena y asignar las sesiones del tipo de plan elegido.", "/alumnos", [
     p("Abrí la ficha", "Entrá en Alumnos y pulsá el nombre. Resumen muestra la planificación directamente. El icono de información junto al nombre abre los datos de contacto y acceso.", "planificacion-ficha"),
     p("Usá la barra del plan", "El nombre enmarcado abre su edición. Crear día crea una rutina y abre su modal. El switch activa o desactiva el plan; los iconos de copiar y papelera duplican o eliminan. Ver más planes permite elegir otro plan.", "planificacion-ficha"),
-    p("Elegí cuándo entrena", "En Semana, encendé el switch del día y marcá pesas para Fuerza, pies para Running o ambos. Podés dejarlo sin selección. Apagado significa descanso: se muestra la cama y se ocultan los botones de actividades.", "planificacion-actividades"),
+    p("Elegí qué días entrena", "Cada plan contiene un solo tipo de actividad. En Semana, el switch de cada día indica si entrena o descansa. Si entrena, asigná una sesión de ese plan; también podés dejar el día sin asignar mientras preparás la rutina. Apagado significa descanso y muestra la cama.", "planificacion-actividades"),
     p("Creá los días de fuerza", "Pulsá + Crear día en la barra. Se abre el mismo modal que se usa para editar. Cambiá su nombre arriba. No se asigna al calendario automáticamente.", "planificacion-crear"),
     p("Creá los bloques", "En el modal pulsá + Nuevo bloque, elegí Movilidad, Activación o Fuerza en Tipo de actividad y pulsá Crear. El + de cada bloque agrega un ejercicio. Buscalo o crealo desde su campo.", "planificacion-bloque"),
     p("Completá la semana", "El modal abre la semana actual; los botones Semana 1, Semana 2, etcétera permiten consultar las demás. Cargá series, repeticiones y descanso. Los ejercicios nuevos comienzan con 3×8 y 60 s. Podés escribir indicaciones libres en Repeticiones. Arrastrá el asa para mover ejercicios entre bloques; con las flechas del teclado podés ordenarlos. Indicaciones generales es opcional.", "planificacion-modal-profe"),
@@ -17,11 +17,11 @@ export const guias: GuiaManual[] = [
     p("Revisá la vista del alumno", "El alumno abre el mismo día en un modal de lectura. Puede marcarlo como realizado opcionalmente; si no lo hace no se muestra una advertencia ni se bloquea el plan.", "planificacion-modal-alumno"),
     p("Abrí la navegación móvil", "En celular, pulsá el botón de menú junto al logo. El panel lateral muestra los apartados con sus nombres. Elegí uno para navegar; se cierra al elegir una opción. También podés cerrarlo con la X o Escape.", "planificacion-menu-movil"),
     p("Desde el celular", "La grilla muestra una semana por vez. Usá el selector y las flechas para avanzar. En escritorio aparecen hasta cuatro semanas con sus rangos de fechas; los planes más largos se recorren por grupos.", "planificacion-movil"),
-  ], "Editar una rutina compartida actualiza todos los días donde está asignada. La asignación semanal se repite en todas las semanas. Las herramientas avanzadas que no forman parte del diseño actual están pendientes de una nueva ubicación."),
+  ], "Un alumno puede tener un plan activo por tipo, por ejemplo uno de Fuerza y otro de Running. La distribución semanal define qué sesión de ese plan corresponde a cada día."),
 
-  g("running", "Planes", "Cargar Running en la planificación unificada", "Texto libre, volumen y sugerencias junto a los días de fuerza.", "/alumnos", [
+  g("running", "Planes", "Cargar un plan de Running", "Texto libre, volumen y sugerencias para las semanas del plan.", "/alumnos", [
     p("Abrí el plan", "Entrá a Alumnos, abrí la ficha y elegí el plan desde Ver más planes si corresponde. La grilla está en Resumen.", "planificacion-ficha"),
-    p("Marcá los días de Running", "Encendé el switch del día y pulsá el icono de pies. Podés combinar Running y Fuerza el mismo día. Para descanso apagá el switch.", "planificacion-actividades"),
+    p("Marcá los días de Running", "En un plan de Running, encendé el switch de cada día que entrena. Apagalo si descansa. Running y Fuerza se planifican en planes separados; el alumno puede tener uno activo de cada tipo.", "planificacion-actividades"),
     p("Escribí cada sesión", "Buscá el cruce del día con la semana y pulsá la celda. Se abre un modal con ese día y esa semana. Cargá entrada en calor, pasadas, ritmos, pausas y afloje en el campo grande; conserva los saltos de línea. La vista previa queda a la altura del botón de Fuerza. Un campo vacío muestra Escribe aquí… y no significa descanso.", "planificacion-running-detalle"),
     p("Completá el resumen semanal", "Volumen permite ingresar los kilómetros totales y Sugerencias las indicaciones de esa semana. Ambos campos son manuales.", "planificacion-grilla"),
     p("Revisá el guardado", "Los cambios se guardan automáticamente. Si falla el pedido, el texto permanece y aparece Reintentar guardado. Cambiar una actividad no borra el texto de Running anterior.", "planificacion-grilla"),
@@ -90,35 +90,33 @@ export const guias: GuiaManual[] = [
   g("modelos", "Planes", "Crear y asignar un plan modelo", "Preparar una base completa desde Planes y entregar una copia a un alumno.", "/planes", [
     p("Andá a Planes", "Pulsá Planes en la navegación. Esta página es tu biblioteca de rutinas modelo, todavía sin alumno. Buscá por nombre o actividad para comprobar si ya tenés una base que sirva.", "modelos-lista"),
     p("Hacé clic en Nuevo plan", "El botón de la cabecera abre Nuevo plan modelo. Como es una base reutilizable, no te pide una persona ni una fecha de comienzo.", "modelos-lista"),
-    p("Cargá los datos del modelo", "Elegí un nombre que te ayude a reconocerlo y completá la duración y sus actividades.", "modelo-nuevo", [["Nombre", "Por ejemplo Fuerza inicial, Base 10K o Movilidad suave."], ["Duración en semanas", "Cantidad de semanas de la progresión."], ["Actividades", "Marcá una o varias: Fuerza, Running u otras que crees."], ["Días", "Cantidad inicial de entrenamientos de cada actividad seleccionada."]]),
+    p("Cargá los datos del modelo", "Elegí un nombre, una sola actividad y la cantidad de sesiones disponibles.", "modelo-nuevo", [["Nombre", "Por ejemplo Fuerza inicial, Base 10K o Movilidad suave."], ["Duración en semanas", "Cantidad de semanas de la progresión."], ["Actividad", "Cada modelo contiene un solo tipo. Creá modelos distintos para Fuerza, Running u otras actividades."], ["Sesiones", "Cantidad de entrenamientos disponibles para asignar manualmente a los días del alumno."]]),
     p("Confirmá Crear modelo", "Se abre el editor. Elegí la actividad y el Día que vas a cargar. Para volver a la biblioteca usá Todos los modelos, una vez que termine el guardado.", "modelo-editor"),
     p("Cargá movilidad y activación", "Primero completá Movilidad y después Activación. Agregá sus ejercicios con el botón de cada sección y escribí la Indicación al lado. La consigna común va en Indicaciones generales, debajo.", "editor-movilidad"),
     p("Creá los bloques del entrenamiento", "Bajá a Entrenamiento. Pulsá Crear bloque para agregar un grupo y Agregar ejercicio dentro de ese bloque para cargar una fila. Cada bloque puede contener uno o varios ejercicios.", "editor-bloques"),
     p("Completá los ejercicios y sus semanas", "Buscá o creá el ejercicio en el selector. Escribí sus indicaciones por semana y su descanso. Al final cargá Vuelta a la calma. Esperá Guardado automáticamente antes de salir.", "editor-bloques"),
     p("Hacé clic en Asignar a alumno", "En el editor usá Asignar a alumno; en la biblioteca también está Asignar en cada fila. Se abre el formulario para crear una copia para una persona.", "modelo-asignar"),
-    p("Elegí alumno, nombre y fecha", "Buscá a la persona por nombre o email y seleccionála. Revisá el nombre que tendrá su copia y elegí Fecha de inicio. Confirmá Asignar como borrador.", "modelo-asignar"),
-    p("Revisá y activá la copia", "Abrí Alumnos → ficha de esa persona → Resumen. Revisá los días, las actividades y las semanas. Adaptá lo necesario y activá el plan cuando esté listo. Asignar no modifica los demás planes de la persona.", "alumno-planes"),
+    p("Elegí alumno, nombre, fecha y duración", "Buscá a la persona por nombre o email y seleccionála. Revisá el nombre de la copia, la fecha de inicio y cuántas semanas durará; el rango de fechas se actualiza con esos valores.", "modelo-asignar"),
+    p("Asigná las sesiones a los días", "En el mismo formulario elegí qué sesión del modelo va en cada día. Una sesión solo se puede elegir una vez. Las que dejes sin asignar quedan disponibles en la copia, y un día sin sesión queda como Sin asignar. Confirmá Asignar como borrador.", "modelo-asignar"),
+    p("Revisá y activá la copia", "Abrí Alumnos → ficha de esa persona → Resumen. Podés seguir editando la distribución y el contenido. Al activar, si ya hay otro plan activo del mismo tipo, elegí Reemplazar plan o Cancelar; el anterior pasa a borrador y conserva sus sesiones y registros.", "alumno-planes"),
   ], "Modelo y copias son independientes. Editar o eliminar el modelo no modifica los planes ya asignados. No se copian pesos personales ni registros de entrenamiento completado."),
 
   g("crear-plan", "Planes", "Crear un plan directamente para un alumno", "Armar la rutina desde su ficha, asignar sus días y publicarla.", "/alumnos", [
     p("Andá a Alumnos y abrí la ficha", "Buscá a la persona, pulsá su nombre y quedate en Resumen. Confirmá que sea el alumno correcto.", "alumno-resumen"),
     p("Hacé clic en Nuevo plan", "El botón está en Plan de entrenamiento, dentro de Resumen. El formulario crea una rutina para esa persona, a diferencia de Nuevo plan en la biblioteca de modelos.", "alumno-planes"),
-    p("Completá el formulario", "Revisá comienzo y duración antes de crear.", "plan-nuevo", [["Nombre del plan", "Por ejemplo Base de fuerza · noviembre."], ["Duración en semanas", "Cantidad de semanas que tendrá la rutina."], ["Fecha de inicio", "Desde esa fecha se calculan sus semanas en el calendario."], ["Actividades y días", "Marcá las actividades y elegí cuántos entrenamientos iniciales tendrá cada una."]]),
-    p("Elegí qué días entrena", "Al crear el plan aparece Semana. Encendé el switch de los días de entrenamiento y elegí Fuerza, Running o ambas actividades. Si el día descansa, apagá el switch.", "planificacion-actividades"),
+    p("Completá el formulario", "Elegí el nombre, el tipo de actividad, cuántas sesiones tendrá el plan, la fecha de inicio y su duración. Un plan contiene un solo tipo; creá otro para una actividad distinta.", "plan-nuevo", [["Nombre del plan", "Por ejemplo Fuerza · noviembre."], ["Duración en semanas", "Cantidad de semanas que tendrá la rutina."], ["Fecha de inicio", "Desde esa fecha se calculan sus semanas en el calendario."], ["Tipo y sesiones", "Elegí una actividad y la cantidad de sesiones disponibles para distribuir en la semana."]]),
+    p("Asigná los días de entrenamiento", "En Semana encendé el switch de los días que entrena y elegí qué sesión corresponde a cada día. Apagalo si descansa. Podés dejar días sin asignar y conservar sesiones disponibles para distribuirlas después.", "planificacion-actividades"),
     p("Prepará los días de Fuerza", "Usá el chevrón junto al nombre del día para buscar un modelo de Planes y copiar una sesión, o pulsá Crear día en la barra para abrir una rutina nueva. En la grilla, pulsá el botón de la rutina para editar sus bloques y ejercicios.", "planificacion-rutina"),
     p("Cargá Running", "En los días con Running, pulsá la celda de cada semana y escribí la sesión en el modal. La grilla conserva una vista previa corta para que la tabla no se agrande.", "planificacion-running-detalle"),
-    p("Revisá el plan y su estado", "Los cambios se guardan automáticamente. El switch de la barra activa o desactiva el plan; confirmá que esté activo si querés que el alumno lo vea.", "planificacion-ficha"),
-  ], "Un alumno puede tener varios planes activos. Crear uno nuevo no debe usarse para borrar el historial: desactivá individualmente el que ya no corresponda."),
+    p("Revisá el plan y su estado", "Los cambios se guardan automáticamente. Al activar un plan, si ya existe otro activo del mismo tipo, aparece la confirmación Reemplazar o Cancelar. El plan anterior se conserva como borrador con sus registros.", "planificacion-ficha"),
+  ], "Cada plan tiene una sola actividad. Un alumno puede tener un plan activo de Fuerza y otro de Running, pero solo uno activo por cada tipo."),
 
-  g("actividades", "Planes", "Crear actividades y combinar planes", "Agregar Fuerza, Running, Movilidad u otras actividades y elegir si van juntas o separadas.", "/planes", [
-    p("Abrí Nuevo plan", "En Planes creás un modelo. En Alumnos → ficha → Resumen creás una rutina de esa persona. Los dos formularios permiten seleccionar actividades antes de confirmar.", "modelo-nuevo"),
-    p("Marcá una o varias actividades", "Seleccioná las casillas de las actividades que vas a incluir. Para una rutina mixta, marcá más de una. Para movilidad solamente, elegí esa actividad. Definí los días iniciales de cada una.", "modelo-nuevo"),
-    p("Para otra actividad, usá Agregar actividad", "Pulsá Agregar actividad, escribí un nombre claro y confirmá Crear actividad. Después seleccionála en el formulario y completá su cantidad de días.", "actividad-crear"),
-    p("Abrí cada actividad desde el editor", "En el plan creado pulsá Fuerza, Running o el nombre que corresponda. Running abre una grilla de lunes a domingo por semanas. En las otras actividades, Día 1 y Día 2 muestran sus entrenamientos y Crear Día agrega otra sesión.", "modelo-editor"),
-    p("Agregá lo que faltó sin recrear el plan", "Si creaste solo Fuerza y luego necesitás Running, usá + Agregar actividad junto a Fuerza y Running en ese editor. En Running completá la grilla por semanas; en las demás actividades incorporá sus días y ejercicios. No hace falta empezar otra vez.", "modelo-editor"),
-    p("Elegí si conviene un plan mixto o varios", "Podés reunir las actividades en una sola rutina o usar planes separados con nombre, inicio y duración propios. Cuando ambos están activos, el calendario del alumno muestra lo que corresponde de cada uno en esa fecha.", "alumno-mi-plan"),
-    p("Controlá lo que sigue activo", "Desde la ficha, revisá cada rutina. Activar una no desactiva las demás. Usá Desactivar plan en la que querés retirar, conservando el contenido.", "plan-activar"),
-  ], "Actividad y categoría no son lo mismo: la actividad organiza sesiones del plan y la categoría organiza ejercicios del catálogo. Dos sesiones del mismo día se muestran ambas; no se fusionan automáticamente."),
+  g("actividades", "Planes", "Crear planes de distintas actividades", "Separar las rutinas por tipo para que cada alumno tenga una planificación activa clara.", "/planes", [
+    p("Elegí el tipo al crear el plan", "Cada plan mensual o modelo contiene una actividad. Para Fuerza y Running creá un plan separado para cada tipo.", "modelo-nuevo"),
+    p("Para una actividad nueva, usá Agregar actividad", "Pulsá Agregar actividad, escribí un nombre claro y confirmá Crear actividad. Después podés crear un modelo o plan de ese tipo.", "actividad-crear"),
+    p("Asigná cada plan por separado", "Desde Planes o desde la ficha del alumno elegí un modelo y, en el formulario, seleccioná manualmente qué sesión va en cada día. Las sesiones que no elijas quedan disponibles en el borrador.", "modelo-asignar"),
+    p("Controlá los planes activos", "Puede haber un plan activo de Fuerza y otro de Running. Si activás un segundo plan del mismo tipo, Aktiv ofrece Reemplazar o Cancelar.", "plan-activar"),
+  ], "Actividad y categoría no son lo mismo: la actividad define el tipo del plan y la categoría organiza ejercicios del catálogo."),
 
   g("editar-plan-datos", "Planes", "Editar el nombre, inicio y duración del plan", "Modificar la cabecera sin confundirla con la edición de un entrenamiento.", "/alumnos", [
     p("Seleccioná la rutina", "Abrí Alumnos → ficha → Resumen. Si tiene varias, elegí el nombre de la que vas a modificar y comprobá la cabecera.", "alumno-planes"),
@@ -133,7 +131,7 @@ export const guias: GuiaManual[] = [
     p("Elegí la semana", "Al abrir se selecciona la semana actual. Pulsá otra semana para ver o editar sus indicaciones. Las series y repeticiones de los ejercicios del bloque se guardan en esa semana.", "planificacion-modal-profe"),
     p("Completá los bloques", "Nuevo bloque permite elegir Movilidad, Activación o Fuerza. El + de cada bloque agrega ejercicios; buscá el nombre en su campo. Cargá series, repeticiones y descanso.", "planificacion-bloque"),
     p("Guardá y cerrá", "El guardado es automático. Ante un error, el borrador permanece y podés reintentar. Cerrá con la X o Escape cuando finalice. Las indicaciones generales son opcionales.", "planificacion-modal-profe"),
-  ], "La misma rutina puede estar asignada a varios días. Los ejercicios de movilidad y activación anteriores conservan su configuración compartida; los nuevos bloques usan la progresión semanal."),
+  ], "Cada sesión asignada al plan es una copia editable. Cambiarla no modifica el modelo original."),
 
   g("bloques", "Planes", "Crear bloques y agregar uno o varios ejercicios", "Separar grupos de trabajo y completar sus filas sin salir del editor.", "/planes", [
     p("Bajá a Entrenamiento", "Abrí el modelo o el plan del alumno, elegí la actividad y el Día y bajá después de Movilidad, Activación e Indicaciones generales.", "editor-bloques"),
@@ -170,14 +168,20 @@ export const guias: GuiaManual[] = [
     p("Elegí el destino", "En el modal revisá Alumno de destino, Nombre del plan y fecha de inicio. Podés conservar la misma persona o buscar otra.", "plan-duplicar"),
     p("Confirmá la copia", "Pulsá Duplicar plan. La copia queda como borrador y no desactiva el plan anterior. Si hay un error, reintentá desde el mismo modal; Cancelar no hace cambios.", "plan-duplicar"),
     p("Revisá antes de activar", "Controlá nombre, fechas, semanas y asignaciones. La copia conserva la rutina y los tipos de bloque; no copia los pesos personales ni el seguimiento. Activala con el switch cuando corresponda.", "planificacion-ficha"),
-  ], "Duplicar un día y Guardar como modelo están pendientes de ubicación en el nuevo diseño; no aparecen en esta barra."),
+  ], "Guardar como modelo está disponible como icono de marcador en la barra del plan completo. La plantilla es independiente y no incluye los pesos personales ni el seguimiento."),
+
+  g("guardar-modelo", "Planes", "Guardar el plan de un alumno como modelo", "Crear una plantilla reutilizable a partir del plan completo.", "/alumnos", [
+    p("Abrí el plan del alumno", "Entrá en Alumnos → ficha → Resumen y seleccioná el plan que querés reutilizar.", "planificacion-ficha"),
+    p("Pulsá el icono de marcador con +", "En la barra del plan, el icono Guardar como modelo abre el formulario para crear una copia en Planes.", "planificacion-ficha"),
+    p("Revisá el nombre y guardá", "La plantilla incluye el plan completo y sus sesiones para reutilizarlas con otras personas. No copia pesos ni seguimiento personal, y queda en Planes aunque después elimines el plan original.", "plan-guardar-modelo"),
+  ], "Guardar como modelo crea una copia independiente; no convierte ni mueve el plan del alumno. No existe una acción para guardar una sesión individual como modelo. El chevrón de un día permite copiar una sesión desde un modelo existente al plan actual."),
 
   g("duplicar-modelo", "Planes", "Duplicar un modelo de la biblioteca", "Crear otra base reutilizable sin cambiar la original.", "/planes", [
     p("Buscá el modelo en Planes", "Usá nombre o filtros de actividad. Verificá el nombre y la duración de la base antes de copiarla.", "modelos-lista"),
     p("Pulsá su icono de dos hojas", "En la fila, el icono de copiar es Duplicar. Si abriste el modelo, usá Duplicar modelo en la cabecera. El lápiz edita y el tacho elimina.", "modelos-lista"),
     p("Escribí el nombre de la nueva base", "En Duplicar modelo revisá el nombre propuesto y poné uno identificable, por ejemplo Fuerza inicial adaptada. Confirmá Duplicar modelo.", "modelo-duplicar"),
     p("Adaptá y guardá la copia", "Modificá días, ejercicios e indicaciones en el editor. Esperá Guardado automáticamente. El modelo original se conserva.", "modelo-editor"),
-    p("Asignala si la vas a usar con un alumno", "Duplicar un modelo no lo asigna a nadie. Para usarlo elegí Asignar, seleccioná alumno y fecha y confirmá Asignar como borrador. Después revisá y activá desde su ficha.", "modelo-asignar"),
+    p("Asignala si la vas a usar con un alumno", "Duplicar un modelo no lo asigna a nadie. Para usarlo elegí Asignar, seleccioná alumno, nombre, fecha, duración y qué sesiones van en cada día. Las demás quedan disponibles. Confirmá Asignar como borrador y después revisá y activá desde su ficha.", "modelo-asignar"),
   ], "Duplicar modelo crea otra base de la biblioteca. Duplicar plan crea una rutina para un alumno. Cada copia se modifica de forma independiente."),
 
   g("editar-eliminar-modelo", "Planes", "Editar o eliminar un modelo", "Cambiar datos y contenido o quitar una base de la biblioteca.", "/planes", [
@@ -191,11 +195,11 @@ export const guias: GuiaManual[] = [
 
   g("desactivar-plan", "Planes", "Activar, desactivar o eliminar un plan", "Elegir qué ve el alumno y conservar los registros cuando solo querés retirarlo.", "/alumnos", [
     p("Seleccioná la rutina correcta", "Entrá en Alumnos → ficha → Resumen y elegí su nombre. Revisá estado, fecha de inicio y duración.", "alumno-planes"),
-    p("Para publicar un borrador, pulsá Activar plan", "Revisá antes días de semana, ejercicios e indicaciones. Activar este plan no desactiva los demás de la persona.", "plan-activar"),
+    p("Para publicar un borrador, pulsá Activar plan", "Revisá antes días de semana, ejercicios e indicaciones. Puede quedar activo un plan por tipo. Si ya existe otro del mismo tipo, Aktiv te permite Reemplazar plan o Cancelar.", "plan-activar"),
     p("Para retirarlo sin borrar, pulsá Desactivar plan", "Usá el botón de esa rutina y esperá el cambio. Deja de mostrarse como activa, pero conserva contenido y registros. Podés activarla otra vez más adelante.", "plan-activar"),
     p("Para eliminar definitivamente, usá su tacho", "Eliminar plan de entrenamiento abre una confirmación. Lee que se borran sesiones, ejercicios y registros de peso. No es la forma de terminar un período conservando historial.", "plan-eliminar"),
     p("Confirmá solo si querés borrar ese contenido", "Eliminar plan confirma la acción; Cancelar conserva la rutina. Si querías una versión nueva, usá Duplicar; si solo querías ocultarla, Desactivar.", "plan-eliminar"),
-  ], "No hay reemplazo automático entre planes activos. Si el alumno ve trabajo repetido, revisá qué rutinas siguen activas antes de borrar."),
+  ], "Reemplazar conserva el plan anterior como borrador, con su contenido y registros. Cancelar deja ambos estados sin cambios."),
 
   g("vista-alumno", "Planes", "Entender lo que ve el alumno en Mi plan", "Calendario, sesiones de varios planes, pesos y seguimiento opcional.", "/alumnos", [
     p("El alumno abre Mi plan", "Al entrar con su cuenta, consulta sus propias rutinas activas. No ve las fichas de las otras personas.", "alumno-mi-plan"),

@@ -67,13 +67,22 @@ jobs:
       - name: Preparar cliente PostgreSQL 17 y GPG
         run: |
           if [ ! -x /usr/lib/postgresql/17/bin/pg_dump ]; then
-            sudo apt-get update
-            sudo apt-get install -y curl ca-certificates gnupg lsb-release
+            apt_retry() {
+              local attempt=1
+              until sudo apt-get -o Acquire::Retries=3 "$@"; do
+                if [ "$attempt" -ge 5 ]; then return 1; fi
+                echo "APT falló (intento $attempt/5); reintentando en $((attempt * 10))s..."
+                sleep $((attempt * 10))
+                attempt=$((attempt + 1))
+              done
+            }
+            apt_retry update
+            apt_retry install -y curl ca-certificates gnupg lsb-release
             sudo install -d /usr/share/postgresql-common/pgdg
             sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
             echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y postgresql-client-17
+            apt_retry update
+            apt_retry install -y postgresql-client-17
           fi
           echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
           command -v gpg
@@ -190,9 +199,9 @@ jobs:
               exit 1
             fi
           done
-          # La edición desde Resumen se verifica en planificacion.browser.mjs.
-          # Estos recorridos conservan biblioteca, calendario, copias y carga de datos.
-          for modo in --calendario --duplicar-plan --carga --carreras --modelos; do
+          # La grilla unificada se prueba en planificacion.browser.mjs y los modelos en los e2e de API.
+          # Se mantienen aquí duplicación de planes, carga/error y carreras.
+          for modo in --duplicar-plan --carga --carreras; do
             echo "::group::Planes: ${modo:-principal}"
             if node scripts/mensual.browser.mjs $modo; then
               echo "::endgroup::"

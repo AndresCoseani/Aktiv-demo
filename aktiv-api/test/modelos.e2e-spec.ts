@@ -15,14 +15,14 @@ describe("Biblioteca de planes modelo",()=>{
     dbOtro=createClient(conf.SUPABASE_URL,conf.SUPABASE_ANON_KEY,{auth:{persistSession:false}});
     expect((await dbAlumno.auth.signInWithPassword({email:s.email,password:PASS})).error).toBeNull();
     expect((await dbOtro.auth.signInWithPassword({email:b.email,password:PASS})).error).toBeNull();
-    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`,{id:activo,nombre:"Plan activo",inicio:"2026-11-01",semanas:4,activo:true})).status).toBe(201);
+    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`,{id:activo,nombre:"Plan activo",tipo:"Fuerza",inicio:"2026-11-01",semanas:4,activo:true})).status).toBe(201);
   });
   afterAll(async()=>{await env.limpiar();if(app)await app.close();});
   const operar=(metodo:string,ruta:string,datos?:unknown)=>A.post(`/api/planes-modelo/${modelo}/contenido`,{metodo,ruta,datos});
-  it("crea un modelo mixto sin alumno, inicio ni estado activo",async()=>{
-    const r=await A.post("/api/planes-modelo",{id:modelo,nombre:"Base inicial",semanas:6,diasIniciales:{fuerza:1,running:1}});
-    expect(r.status).toBe(201);expect(r.body.sesiones).toHaveLength(2);expect(r.body).not.toHaveProperty("inicio");expect(r.body).not.toHaveProperty("alumnoId");expect(r.body).not.toHaveProperty("activo");
-    expect((await A.get("/api/planes-modelo")).body).toEqual([expect.objectContaining({id:modelo,semanas:6,dias:2,tipos:["Fuerza","Running"]})]);
+  it("crea un modelo de un solo tipo sin alumno, inicio ni estado activo",async()=>{
+    const r=await A.post("/api/planes-modelo",{id:modelo,nombre:"Base inicial",tipo:"Fuerza",semanas:6,diasIniciales:{tipo:"Fuerza",dias:1}});
+    expect(r.status).toBe(201);expect(r.body.sesiones).toHaveLength(1);expect(r.body).not.toHaveProperty("inicio");expect(r.body).not.toHaveProperty("alumnoId");expect(r.body).not.toHaveProperty("activo");
+    expect((await A.get("/api/planes-modelo")).body).toEqual([expect.objectContaining({id:modelo,tipo:"Fuerza",semanas:6,dias:1})]);
   });
   it("reutiliza el editor: días, movilidad, bloques vacíos, ejercicios y prescripciones",async()=>{
     expect((await operar("POST",`/planes-mensuales/${modelo}/sesiones`,{id:dia,tipo:"Fuerza",dia:1,nombre:"Fuerza inicial",calentamiento:"Una serie",enfriamiento:"Suave"})).status).toBe(201);

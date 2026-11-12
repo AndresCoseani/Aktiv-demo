@@ -23,10 +23,10 @@ export function useModelos(id: string | null) {
       setDatos((d)=>{
         if(!d.modelo?.sesiones.some((s)=>s.id===sesion.id))return d;
         const modelo={...d.modelo,sesiones:d.modelo.sesiones.map((s)=>s.id===sesion.id?sesion:s)};
-        return {...d,modelo,lista:d.lista.map((p)=>p.id===modelo.id?{...p,tipos:[...new Set(modelo.sesiones.map((s)=>s.tipo))]}:p)};
+        return {...d,modelo,lista:d.lista.map((p)=>p.id===modelo.id?{...p,dias:modelo.sesiones.length}:p)};
       });
     };
-    const alGuardarRunning=(e:Event)=>{const {planId,running}=(e as CustomEvent<{planId:string;running:Running}>).detail;runningConfirmado.current.set(planId,{version:++version.current,running});setDatos(d=>d.modelo?.id===planId?{...d,modelo:{...d.modelo,running},lista:d.lista.map(p=>p.id===planId?{...p,tipos:[...new Set([...p.tipos,"Running"])]}:p)}:d);};
+    const alGuardarRunning=(e:Event)=>{const {planId,running}=(e as CustomEvent<{planId:string;running:Running}>).detail;runningConfirmado.current.set(planId,{version:++version.current,running});setDatos(d=>d.modelo?.id===planId?{...d,modelo:{...d.modelo,running}}:d);};
     const alAsignar=(e:Event)=>{const {planId,distribucion}=(e as CustomEvent<{planId:string;distribucion:Distribucion}>).detail;distribucionConfirmada.current.set(planId,{version:++version.current,distribucion});setDatos(d=>d.modelo?.id===planId?{...d,modelo:{...d.modelo,distribucion}}:d);};
     window.addEventListener(EVENTO_DISTRIBUCION,alAsignar);
     window.addEventListener(EVENTO_RUNNING,alGuardarRunning);

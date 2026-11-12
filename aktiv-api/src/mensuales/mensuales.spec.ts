@@ -39,16 +39,16 @@ function entorno(filas: Record<string, Record<string, unknown>[]> = {}) {
 describe("Planes mensuales: servicio", () => {
   it("crea el plan con sus días usando una única operación como el usuario", async () => {
     const e = entorno({ alumnos: [{ id: id(2), coach_id: u.id, user_id: null }] });
-    const dto = { id: id(3), nombre: "Base", inicio: "2026-11-02", semanas: 6, activo: true, diasIniciales: { fuerza: 3, running: 2 } };
+    const dto = { id: id(3), nombre: "Base", tipo: "Fuerza", inicio: "2026-11-02", semanas: 6, activo: false, diasIniciales: { tipo: "Fuerza", dias: 3 } };
     await e.servicio.crear(u, "plan", id(2), dto);
     const { diasIniciales, ...campos } = dto;
-    expect(e.db.rpc).toHaveBeenCalledWith("crear_plan_con_dias", { p_plan: { ...campos, alumno_id: id(2), orden: 0 }, p_fuerza: diasIniciales.fuerza, p_running: diasIniciales.running });
+    expect(e.db.rpc).toHaveBeenCalledWith("crear_plan_con_actividades", { p_plan: { ...campos, alumno_id: id(2), orden: 0 }, p_actividades: [diasIniciales] });
     expect(e.supa.delUsuario).toHaveBeenCalledWith(u.token);
   });
   it.each([1, null])("mapea y ordena sesiones con día %s, grupos y pesos sin materializar herencia", async (dia) => {
     const e = entorno({
       alumnos: [{ id: id(2), coach_id: u.id, user_id: null }],
-      planes_mensuales: [{ id: id(3), alumno_id: id(2), nombre: "Mes", inicio: "2026-11-02", activo: true, orden: 0 }],
+      planes_mensuales: [{ id: id(3), alumno_id: id(2), nombre: "Mes", tipo: "Fuerza", inicio: "2026-11-02", activo: true, orden: 0 }],
       sesiones: [{ id: id(4), plan_id: id(3), dia, tipo: "Fuerza", nombre: "A", orden: 0, calentamiento: "Activación", enfriamiento: "Estirar" }],
       sesion_ejercicios: [2, 1].map((n) => ({ id: id(10 + n), sesion_id: id(4), nombre: `Ejercicio ${n}`, orden: n, grupo: n, descanso: "60 s" })),
       ejercicio_semanas: [{ ejercicio_id: id(11), semana: 1, prescripcion: "4×8", peso: null, peso_fecha: null }, { ejercicio_id: id(11), semana: 2, prescripcion: "", peso: "12,5", peso_fecha: "2026-01-01" }],
@@ -62,7 +62,7 @@ describe("Planes mensuales: servicio", () => {
   it("pagina más de 500 sesiones sin truncarlas", async () => {
     const e = entorno({
       alumnos: [{ id: id(2), coach_id: u.id, user_id: null }],
-      planes_mensuales: Array.from({ length: 20 }, (_, i) => ({ id: id(100 + i), alumno_id: id(2), nombre: "Mes", inicio: "2026-11-02", activo: i === 0, orden: i })),
+      planes_mensuales: Array.from({ length: 20 }, (_, i) => ({ id: id(100 + i), alumno_id: id(2), nombre: "Mes", tipo: "Running", inicio: "2026-11-02", activo: i === 0, orden: i })),
       sesiones: Array.from({ length: 520 }, (_, i) => ({ id: id(1000 + i), plan_id: id(100 + Math.floor(i / 26)), dia: i % 7 + 1, tipo: "Running", nombre: "Rodaje", orden: i, calentamiento: "", enfriamiento: "" })),
     });
     const r = await e.servicio.cargar(u, id(2));

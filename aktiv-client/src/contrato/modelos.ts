@@ -5,9 +5,11 @@ import { actividadPlanSchema, cantidadSemanasSchema, diasInicialesSchema, duplic
 
 const nombre = z.string().trim().min(1, "Escribí un nombre").max(120);
 export const planModeloSchema = z.object({
-  id: z.uuid(), nombre, semanas: cantidadSemanasSchema, running: runningSchema.optional(), distribucion: distribucionSchema.optional(),
+  id: z.uuid(), nombre, tipo: actividadPlanSchema, semanas: cantidadSemanasSchema, running: runningSchema.optional(), distribucion: distribucionSchema.optional(),
   sesiones: z.array(sesionEntrenamientoSchema).max(28), revision: z.number().int().nonnegative(),
 }).superRefine((modelo, ctx) => {
+  if (modelo.sesiones.some((s) => s.tipo !== modelo.tipo)) ctx.addIssue({ code: "custom", message: "Un modelo solo puede contener una actividad" });
+  if (modelo.tipo !== "Running" && modelo.running && Object.keys(modelo.running).length) ctx.addIssue({ code: "custom", message: "Los datos de running solo pertenecen a modelos de Running" });
   const ids = new Set<string>();
   for (const s of modelo.sesiones) {
     for (const id of [s.id, ...s.ejercicios.map((e) => e.id), ...s.activacion.map((e) => e.id)]) {
@@ -21,11 +23,18 @@ export const planModeloSchema = z.object({
   }
 });
 export const nombreModeloApi = z.object({ id: z.uuid(), nombre }).strict();
-export const crearModeloApi = nombreModeloApi.extend({ semanas: cantidadSemanasSchema, diasIniciales: diasInicialesSchema }).strict();
+export const crearModeloApi = nombreModeloApi.extend({ tipo: actividadPlanSchema, semanas: cantidadSemanasSchema, diasIniciales: diasInicialesSchema }).strict().superRefine((modelo, ctx) => {
+  if (modelo.tipo !== modelo.diasIniciales.tipo) ctx.addIssue({ code: "custom", path: ["diasIniciales", "tipo"], message: "Las sesiones deben ser del tipo del modelo" });
+});
 export const editarModeloApi = z.object({ nombre: nombre.optional(), semanas: cantidadSemanasSchema.optional() }).strict().refine((v) => Object.keys(v).length > 0, "No hay cambios");
-export const asignarModeloApi = duplicarPlanApi;
+export const asignacionModeloSchema = z.object({ dia: z.number().int().min(1).max(7), sesionId: z.uuid() }).strict();
+export const asignarModeloApi = duplicarPlanApi.extend({ semanas: cantidadSemanasSchema.optional(), asignaciones: z.array(asignacionModeloSchema).max(7).default([]) })
+  .superRefine((dto, ctx) => {
+    if (new Set(dto.asignaciones.map((a) => a.dia)).size !== dto.asignaciones.length) ctx.addIssue({ code: "custom", path: ["asignaciones"], message: "Elegí una sesión por día" });
+    if (new Set(dto.asignaciones.map((a) => a.sesionId)).size !== dto.asignaciones.length) ctx.addIssue({ code: "custom", path: ["asignaciones"], message: "Una sesión no se puede asignar a varios días" });
+  });
 export const operacionModeloApi = z.object({ metodo: z.enum(["POST", "PATCH", "DELETE"]), ruta: z.string().min(1).max(180), datos: z.unknown().optional() }).strict();
 export type PlanModelo = z.infer<typeof planModeloSchema>;
-export const resumenModeloSchema = z.object({ id: z.uuid(), nombre, semanas: cantidadSemanasSchema, dias: z.number().int().nonnegative(), tipos: z.array(actividadPlanSchema) });
+export const resumenModeloSchema = z.object({ id: z.uuid(), nombre, tipo: actividadPlanSchema, semanas: cantidadSemanasSchema, dias: z.number().int().nonnegative() });
 export type ResumenModelo = z.infer<typeof resumenModeloSchema>;
 export type OperacionModelo = z.infer<typeof operacionModeloApi>;

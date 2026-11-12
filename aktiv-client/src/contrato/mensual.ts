@@ -42,29 +42,29 @@ export const sesionEntrenamientoSchema = z.object({
   actividadesBloques: actividadesBloquesSchema.optional(),
   activacion: activacionSesionSchema.default([]),
 });
-export const planMensualSchema = z.object({
-  id, nombre: textoOpcional(120), inicio, activo: z.boolean(), orden: z.number().int(),
+const planMensualBaseSchema = z.object({
+  id, nombre: textoOpcional(120), tipo: actividadPlanSchema, inicio, activo: z.boolean(), orden: z.number().int(),
   semanas: cantidadSemanasSchema.default(4),
   sesiones: z.array(sesionEntrenamientoSchema),
   running: runningSchema.optional(), distribucion: distribucionSchema.optional(),
 });
+export const planMensualSchema = planMensualBaseSchema.superRefine((plan, ctx) => {
+  if (plan.sesiones.some((s) => s.tipo !== plan.tipo)) ctx.addIssue({ code: "custom", message: "Un plan solo puede contener una actividad" });
+  if (plan.tipo !== "Running" && plan.running && Object.keys(plan.running).length) ctx.addIssue({ code: "custom", message: "Los datos de running solo pertenecen a planes de Running" });
+});
 export const planesMensualesRespuesta = z.array(planMensualSchema);
 const noVacio = <S extends z.ZodRawShape>(shape: S) => z.object(shape).partial().strict()
   .refine((v) => Object.keys(v).length > 0, "No hay cambios para guardar");
-const diasClasicosSchema = z.object({
-  fuerza: z.number().int().min(0).max(7),
-  running: z.number().int().min(0).max(7),
-}).strict().refine((d) => d.fuerza + d.running > 0, "Elegí al menos un día de entrenamiento");
-export const diasInicialesSchema = z.union([diasClasicosSchema, z.array(z.object({ tipo: actividadPlanSchema, dias: z.number().int().min(1).max(7) }).strict()).min(1, "Elegí al menos una actividad").max(28)
-  .refine((a) => a.reduce((n, v) => n + v.dias, 0) <= 28, "Máximo 28 entrenamientos por plan")
-  .refine((a) => new Set(a.map((v) => v.tipo.toLocaleLowerCase("es"))).size === a.length, "Actividad repetida")], { error: "Revisá las actividades y la cantidad de días" });
+export const diasInicialesSchema = z.object({ tipo: actividadPlanSchema, dias: z.number().int().min(1).max(7) }).strict();
 export function actividadesIniciales(dias: z.infer<typeof diasInicialesSchema>) {
-  return Array.isArray(dias) ? dias : [{ tipo: "Fuerza", dias: dias.fuerza }, { tipo: "Running", dias: dias.running }].filter((v) => v.dias > 0);
+  return [dias];
 }
-export const altaMensualApi = planMensualSchema.pick({ id: true, nombre: true, inicio: true, activo: true, semanas: true })
-  .extend({ diasIniciales: diasInicialesSchema.optional() }).strict();
+export const altaMensualApi = planMensualBaseSchema.pick({ id: true, nombre: true, inicio: true, activo: true, semanas: true })
+  .extend({ tipo: actividadPlanSchema, diasIniciales: diasInicialesSchema.optional() }).strict().superRefine((plan, ctx) => {
+    if (plan.diasIniciales && plan.tipo !== plan.diasIniciales.tipo) ctx.addIssue({ code: "custom", path: ["diasIniciales", "tipo"], message: "Las sesiones deben ser del tipo del plan" });
+  });
 // No heredar el default en un PATCH: no mandar duración nunca debe cambiarla.
-export const parcheMensualApi = noVacio({ nombre: textoOpcional(120), inicio, activo: z.boolean(), semanas: cantidadSemanasSchema });
+export const parcheMensualApi = noVacio({ nombre: textoOpcional(120), inicio, semanas: cantidadSemanasSchema, activo: z.literal(false) });
 export const altaSesionApi = sesionEntrenamientoSchema.omit({ ejercicios: true, orden: true }).strict();
 export const duplicarSesionApi = z.object({
   id, nombre: z.string().trim().min(1, "Escribí un nombre para la copia").max(60),

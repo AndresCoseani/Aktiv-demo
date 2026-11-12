@@ -12,7 +12,7 @@ describe("Una sesión en varios días", () => {
     const a = await env.usuario("dias-profe", "coach"), b = await env.usuario("dias-ajeno", "coach"), s = await env.usuario("dias-alumno", "alumno");
     alumno = await env.alumno(a, "Alumno de prueba", s);
     A = await new Sesion(app).entrar(a.email); B = await new Sesion(app).entrar(b.email); S = await new Sesion(app).entrar(s.email);
-    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: plan, nombre: "Varios días", inicio: "2026-11-01", semanas: 4, activo: true, diasIniciales: { fuerza: 1, running: 0 } })).status).toBe(201);
+    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: plan, nombre: "Varios días", tipo: "Fuerza", inicio: "2026-11-01", semanas: 4, activo: true, diasIniciales: { tipo: "Fuerza", dias: 1 } })).status).toBe(201);
     sesion = (await leer()).sesiones[0].id;
   });
   afterAll(async () => { await env.limpiar(); if (app) await app.close(); });

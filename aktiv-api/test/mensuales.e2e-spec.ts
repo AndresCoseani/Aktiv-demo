@@ -30,14 +30,12 @@ describe("Planes mensuales (Supabase local)", () => {
   afterAll(async () => { await env.limpiar(); if (app) await app.close(); });
 
   it("crea un plan, sesiones con calendario opcional y cuatro celdas por ejercicio", async () => {
-    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: plan, nombre: "Noviembre", inicio: "2026-11-02", activo: true })).status).toBe(201);
-    for (const [id, tipo] of [[sesion, "Fuerza"], [uuid(), "Running"]]) {
-      expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id, dia: tipo === "Fuerza" ? null : 1, tipo, nombre: tipo, calentamiento: "1. Activación\n2. Movilidad", enfriamiento: "Estirar" })).status).toBe(201);
-    }
+    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: plan, nombre: "Noviembre", tipo: "Fuerza", inicio: "2026-11-02", activo: true })).status).toBe(201);
+    expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id: sesion, dia: null, tipo: "Fuerza", nombre: "Fuerza", calentamiento: "1. Activación\n2. Movilidad", enfriamiento: "Estirar" })).status).toBe(201);
     expect((await A.post(`/api/sesiones/${sesion}/ejercicios`, { id: ejercicio, nombre: "Zumo", grupo: 1, descanso: "60 s" })).status).toBe(201);
     const r = await A.get(`/api/alumnos/${alumno}/planes-mensuales`);
     expect(r.status).toBe(200);
-    expect(r.body[0].sesiones).toHaveLength(2);
+    expect(r.body[0].sesiones).toHaveLength(1);
     expect(r.body[0].sesiones.find((s: { id: string }) => s.id === sesion).dia).toBeNull();
     expect(r.body[0].sesiones.find((s: { id: string }) => s.id === sesion).ejercicios[0].semanas).toHaveLength(4);
   });
@@ -68,8 +66,10 @@ describe("Planes mensuales (Supabase local)", () => {
   it("RLS y trigger protegen la prescripción incluso sin pasar por la API", async () => {
     const r = await dbAlumno.from("ejercicio_semanas").update({ prescripcion: "99×99" }).eq("ejercicio_id", ejercicio).eq("semana", 1);
     expect(r.error?.code).toBe("42501");
-    const crear = await dbAlumno.from("sesiones").insert({ plan_id: plan, dia: 2, tipo: "Fuerza" });
-    expect(crear.error?.code).toBe("42501");
+    const id = uuid();
+    const crear = await dbAlumno.from("sesiones").insert({ id, plan_id: plan, dia: 2, tipo: "Fuerza", nombre: "No autorizada", orden: 99 });
+    expect(crear.error).toBeTruthy();
+    expect((await env.admin.from("sesiones").select("id").eq("id", id)).data).toEqual([]);
     const rango = await env.admin.from("ejercicio_semanas").update({ semana: 5 }).eq("ejercicio_id", ejercicio).eq("semana", 1);
     expect(rango.error?.code).toBe("23514");
   });
@@ -121,7 +121,7 @@ describe("Planes mensuales (Supabase local)", () => {
   });
   it("copia también días vacíos y rechaza superar el límite sin dejar una copia parcial", async () => {
     const vacio = uuid(), copia = uuid();
-    expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id: vacio, tipo: "Running", dia: null, nombre: "Vacío", calentamiento: "", enfriamiento: "", bloques: [4] })).status).toBe(201);
+    expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id: vacio, tipo: "Fuerza", dia: null, nombre: "Vacío", calentamiento: "", enfriamiento: "", bloques: [4] })).status).toBe(201);
     expect((await A.post(`/api/sesiones/${vacio}/duplicar`, { id: copia, nombre: "Otro vacío", dia: null })).status).toBe(201);
     const dias = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body[0].sesiones;
     expect(dias.find((s: { id: string }) => s.id === copia)).toMatchObject({ dia: null, bloques: [4], ejercicios: [] });
@@ -135,7 +135,7 @@ describe("Planes mensuales (Supabase local)", () => {
   it("copia el plan entero al mismo alumno y a otro sin reemplazar activos ni copiar pesos", async () => {
     const original: PlanMensual = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body.find((p: PlanMensual) => p.id === plan);
     const activoDestino = uuid();
-    expect((await A.post(`/api/alumnos/${destino}/planes-mensuales`, { id: activoDestino, nombre: "Activo destino", inicio: "2026-11-02", activo: true })).status).toBe(201);
+    expect((await A.post(`/api/alumnos/${destino}/planes-mensuales`, { id: activoDestino, nombre: "Activo destino", tipo: "Fuerza", inicio: "2026-11-02", activo: true })).status).toBe(201);
     for (const alumnoId of [alumno, destino]) {
       const id = uuid(); const dto = { id, alumnoId, nombre: "Copia completa", inicio: "2026-12-07" };
       const respuesta = await A.post(`/api/planes-mensuales/${plan}/duplicar`, dto);
@@ -178,7 +178,7 @@ describe("Planes mensuales (Supabase local)", () => {
     expect((await env.admin.from("planes_mensuales").select("id").eq("id", dto.id)).data).toEqual([]);
     // Un plan vacío también se copia y queda borrador aunque el destino no tenga activos.
     const vacio = uuid();
-    expect((await A.post(`/api/alumnos/${destino}/planes-mensuales`, { id: vacio, nombre: "Vacío", inicio: dto.inicio, activo: false })).status).toBe(201);
+    expect((await A.post(`/api/alumnos/${destino}/planes-mensuales`, { id: vacio, nombre: "Vacío", tipo: "Fuerza", inicio: dto.inicio, activo: false })).status).toBe(201);
     expect((await A.post(`/api/planes-mensuales/${vacio}/duplicar`, { ...dto, alumnoId: destino })).status).toBe(201);
     expect((await A.get(`/api/alumnos/${destino}/planes-mensuales`)).body.find((p: PlanMensual) => p.id === dto.id)).toMatchObject({ activo: false, sesiones: [] });
     const existentes = (await A.get(`/api/alumnos/${destino}/planes-mensuales`)).body.length;
@@ -188,9 +188,9 @@ describe("Planes mensuales (Supabase local)", () => {
     expect((await A.post(`/api/planes-mensuales/${plan}/duplicar`, { ...dto, id: rechazada, alumnoId: destino })).status).toBe(422);
     expect((await env.admin.from("planes_mensuales").select("id").eq("id", rechazada)).data).toEqual([]);
   });
-  it("activar otro mes conserva el anterior; borrar sesión borra sus ejercicios y pesos", async () => {
+  it("mantiene otro tipo activo en paralelo; borrar sesión borra sus ejercicios y pesos", async () => {
     const siguiente = uuid();
-    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: siguiente, nombre: "Diciembre", inicio: "2026-12-01", activo: true })).status).toBe(201);
+    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: siguiente, nombre: "Diciembre running", tipo: "Running", inicio: "2026-12-01", activo: true })).status).toBe(201);
     const r = await A.get(`/api/alumnos/${alumno}/planes-mensuales`);
     expect(r.body.filter((p: { activo: boolean }) => p.activo)).toHaveLength(2);
     expect(r.body.find((p: { id: string }) => p.id === siguiente).activo).toBe(true);
