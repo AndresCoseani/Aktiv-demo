@@ -189,13 +189,14 @@ describe("Planes mensuales (Supabase local)", () => {
     expect((await env.admin.from("planes_mensuales").select("id").eq("id", rechazada)).data).toEqual([]);
   });
   it("mantiene otro tipo activo en paralelo; borrar sesión borra sus ejercicios y pesos", async () => {
-    const siguiente = uuid();
-    expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: siguiente, nombre: "Diciembre running", tipo: "Running", inicio: "2026-12-01", activo: true })).status).toBe(201);
+    expect((await A.patch(`/api/planes-mensuales/${plan}/distribucion`, { dia: 2, actividades: [{ tipo: "Running" }] })).status).toBe(200);
+    expect((await A.patch(`/api/planes-mensuales/${plan}/running`, { semana: 1, campo: "martes", texto: "Rodaje suave" })).status).toBe(200);
     const r = await A.get(`/api/alumnos/${alumno}/planes-mensuales`);
-    expect(r.body.filter((p: { activo: boolean }) => p.activo)).toHaveLength(2);
-    expect(r.body.find((p: { id: string }) => p.id === siguiente).activo).toBe(true);
+    expect(r.body.filter((p: { activo: boolean }) => p.activo)).toHaveLength(1);
+    expect(r.body.find((p: { id: string }) => p.id === plan)).toMatchObject({ tipo: "Fuerza", distribucion: { base: { 2: [{ tipo: "Running" }] } }, running: { 1: { martes: "Rodaje suave" } } });
     expect((await A.delete(`/api/sesiones/${sesion}`)).status).toBe(204);
     const c = await env.admin.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejercicio);
     expect(c.error).toBeNull(); expect(c.data).toEqual([]);
   });
 });
+
