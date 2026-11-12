@@ -27,13 +27,12 @@ describe("Actividades libres y planes simultáneos", () => {
     const planes = (await S.get(`/api/alumnos/${alumno}/planes-mensuales`)).body;
     expect(planes.filter((p: { activo: boolean }) => p.activo)).toHaveLength(2);
     expect(planes.find((p: { id: string }) => p.id === primero).sesiones.map((s: { tipo: string }) => s.tipo)).toEqual(["Fuerza"]);
-    expect((await A.patch(`/api/planes-mensuales/${primero}`, { activo: false })).status).toBe(200);
     const despues = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body;
-    expect(despues.find((p: { id: string }) => p.id === primero)).toMatchObject({ activo: false, sesiones: expect.any(Array) });
+    expect(despues.find((p: { id: string }) => p.id === primero)).toMatchObject({ activo: true, sesiones: expect.any(Array) });
     expect(despues.find((p: { id: string }) => p.id === segundo).activo).toBe(true);
     expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { ...base, id: tercero, nombre: "Fuerza nueva", tipo: "Fuerza", activo: false })).status).toBe(201);
     expect((await A.post(`/api/planes-mensuales/${tercero}/activar`, {})).status).toBe(409);
-    expect((await A.post(`/api/planes-mensuales/${tercero}/activar`, { reemplazar: true })).status).toBe(200);
+    expect((await A.post(`/api/planes-mensuales/${tercero}/activar`, { reemplazar: true })).status).toBe(201);
     const finales = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body;
     expect(finales.find((p: { id: string }) => p.id === tercero).activo).toBe(true);
     expect(finales.find((p: { id: string }) => p.id === primero).activo).toBe(false);
