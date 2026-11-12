@@ -1,7 +1,7 @@
 # Plan para mejorar la creación y asignación de planes de fuerza
 
-**Estado:** decisiones aprobadas e implementación en curso. La migración nueva todavía debe aplicarse y verificarse en una base antes de desplegar.
-**Alcance inicial:** modelos y planes de fuerza. Running queda fuera de este flujo hasta definir sus reglas particulares.
+**Estado:** flujo implementado y documentación alineada. La migración incluida todavía debe aplicarse y verificarse en una base antes de desplegar.
+**Alcance:** los planes y modelos ya tienen un solo tipo; Running conserva su editor semanal de texto, volumen y sugerencias.
 
 ## Objetivo
 
@@ -14,14 +14,14 @@ La grilla semanal debe responder sin ambigüedad: **qué plan está siguiendo es
 Aktiv tiene tres niveles que la interfaz llama, en distintos lugares, “plan” o “día”:
 
 1. **Modelo de Planes:** plantilla reutilizable, independiente de alumnos y fechas. Puede contener varias sesiones, semanas de prescripción y una distribución semanal.
-2. **Plan del alumno:** copia con nombre, actividad, fecha de inicio, duración y estado (borrador/activo). Al asignar un modelo se copian todas sus sesiones; la distribución queda vacía para que el entrenador elija manualmente los días. Modelo y copia quedan independientes.
+2. **Plan del alumno:** copia con nombre, actividad, fecha de inicio, duración y estado (borrador/activo). Al asignar un modelo, el entrenador elige en el mismo formulario qué sesión va en cada día. Las sesiones que no asigna quedan visibles como disponibles. Modelo y copia quedan independientes.
 3. **Sesión o rutina:** por ejemplo, “Fuerza - Día 1”, con sus ejercicios, bloques y prescripciones. La grilla asigna una sesión a un día de la semana.
 
 El flujo actual está dividido:
 
 - En **Planes**, se crea y edita el modelo. Desde allí se puede asignar el modelo completo a un alumno, con fecha de inicio y nombre; se crea como borrador.
-- En la ficha del alumno, **Nuevo plan** crea una planificación directamente para esa persona y **Asignar modelo** abre la biblioteca para copiar una base existente.
-- La grilla de ese plan permite activar Fuerza en ciertos días, elegir una sesión para cada uno y crear sesiones nuevas. El chevrón junto al día solo copia una sesión de fuerza desde un modelo; no asigna el modelo completo.
+- En la ficha del alumno, **Nuevo plan** crea una planificación directamente para esa persona y **Asignar modelo** abre la biblioteca para copiar una base existente. También se puede iniciar la asignación desde **Planes**.
+- La grilla de cada plan permite marcar días de entrenamiento o descanso, elegir la sesión para cada día y crear sesiones nuevas. Un día activo puede quedar temporalmente **Sin asignar**. El chevrón junto al día copia una sesión de fuerza desde un modelo; no asigna el modelo completo.
 - El encabezado nuevo de planificación unificada incluye un icono **Guardar como modelo** para guardar una copia del plan completo.
 - Duplicar un modelo crea otro modelo. Duplicar un plan de alumno crea una copia para el alumno actual u otro, permite cambiar nombre y fecha, conserva duración y queda como borrador.
 
@@ -29,15 +29,13 @@ Un modelo, un plan asignado y un duplicado guardan copias independientes de sus 
 
 **Regla acordada para el flujo nuevo:** cada modelo y cada plan del alumno contiene una sola actividad. Un alumno puede tener un plan activo de Fuerza y otro de Running, pero solo uno activo por tipo. La implementación agrega el tipo al modelo y al plan, prepara una migración para separar los registros mixtos existentes, y activa mediante una operación atómica con confirmación explícita de reemplazo. La migración requiere revisión y ejecución en una base de prueba antes del despliegue.
 
-Referencias de implementación: [biblioteca de Planes](../aktiv-client/src/app/%28app%29/planes/page.tsx), [encabezado y acciones de planes del alumno](../aktiv-client/src/components/plan-mensual.tsx), [copia de modelo a alumno](../aktiv-api/supabase/migrations/20261124000000_actividades_bloques.sql), [asignación de una sesión desde un modelo](../aktiv-client/src/components/asignar-dia-modelo.tsx), [distribución semanal](../aktiv-api/contrato/src/planificacion.ts).
+Referencias de implementación: [biblioteca de Planes](../aktiv-client/src/app/%28app%29/planes/page.tsx), [encabezado y acciones de planes del alumno](../aktiv-client/src/components/plan-mensual.tsx), [copia de modelo a alumno](../aktiv-api/src/modelos/modelos.module.ts), [migración de tipos y planes activos](../aktiv-api/supabase/migrations/20261125000000_planes_un_tipo_y_activos_por_tipo.sql), [asignación de una sesión desde un modelo](../aktiv-client/src/components/asignar-dia-modelo.tsx), [distribución semanal](../aktiv-api/contrato/src/planificacion.ts).
 
 ## Qué pasa con un modelo de cuatro sesiones y un alumno que entrena dos días
 
-La asignación del modelo copia sus cuatro sesiones. No elimina las dos que no se usan. La distribución copiada conserva las referencias a sesiones y crea identificadores independientes para el alumno.
+La asignación copia las cuatro sesiones con identificadores independientes y muestra los siete días en el formulario. El entrenador elige manualmente qué sesiones van en sus días de entrenamiento. Cada sesión puede elegirse una sola vez en ese formulario y Aktiv lista explícitamente las que quedan disponibles. No hay rotación automática.
 
-Si luego la distribución del alumno deja Fuerza solo en dos días, las otras sesiones **no se asignan automáticamente** a esos días ni se borran: permanecen en el plan, pero sin aparecer en la grilla semanal mientras ningún día las referencie. Se pueden volver a elegir al agregar Fuerza en otro día y abrir su selector. La pantalla no presenta hoy una lista clara de “sesiones sin asignar”, así que el entrenador puede creer que se perdieron.
-
-La regla acordada es: **nunca descartar ni reasignar sesiones en silencio**. El entrenador selecciona manualmente qué sesiones del modelo asigna a los días que entrena cada alumno. Si la frecuencia semanal difiere de la cantidad de sesiones del modelo, mostrar la diferencia antes de confirmar y dejar visible qué sesiones quedan programadas y cuáles disponibles sin asignar. No rotar sesiones automáticamente.
+Si el modelo tiene cuatro sesiones y el alumno entrena dos días, se asignan dos sesiones elegidas por el entrenador; las otras dos permanecen en la copia como sesiones disponibles, sin día. Si hay más días que sesiones, los días sin selección quedan **Sin asignar**. No se borra ni se asigna contenido en silencio.
 
 Ejemplo que la interfaz debería explicar:
 
@@ -46,7 +44,7 @@ Ejemplo que la interfaz debería explicar:
 | Fuerza A, B, C y D | Lunes y miércoles | El entrenador elige qué dos sesiones van esos días. C y D quedan guardadas como sesiones disponibles, sin asignación semanal. |
 | Fuerza A, B y C | Lunes, miércoles y viernes | Cada sesión queda asignada una vez a su día. |
 
-Queda pendiente decidir si a futuro habrá un modo de rotación (por ejemplo A/B una semana y C/D la siguiente). No conviene inferirlo ni aplicarlo por defecto: es distinto de asignar sesiones fijas a días de la semana.
+Una rotación entre semanas (por ejemplo A/B una semana y C/D la siguiente) queda fuera del comportamiento actual; las asignaciones se hacen manualmente.
 
 ## Qué muestran las referencias de mercado
 
@@ -58,25 +56,23 @@ ABC EVO presenta públicamente biblioteca/prescripción de entrenamientos y segu
 
 Fuentes: [ABC EVO](https://softwareparagimnasio.com/software-para-gimnasios/), [Mynter](https://mynter.app/).
 
-## Propuesta de flujo para fuerza
+## Flujo implementado para fuerza
 
 ### Crear la base una vez
 
-1. En **Planes**, crear un **Modelo de fuerza** con nombre, duración y sesiones (Día A, Día B, etc.).
+1. En **Planes**, crear un modelo con nombre, tipo de actividad, duración y cantidad de sesiones (Día 1, Día 2, etc.).
 2. Cargar ejercicios y prescripciones. La plantilla describe las sesiones disponibles; su distribución semanal es una propuesta inicial, no una obligación para cada alumno.
 3. Mantener una acción clara para editar, duplicar, asignar y borrar el modelo.
 
 ### Asignar y adaptar desde la ficha del alumno
 
-1. En el encabezado del plan del alumno, ofrecer **Asignar modelo** junto a **Crear plan**. Así se puede empezar desde el alumno sin navegar a Planes y volver a buscarlo. También debe poder iniciarse la asignación desde Planes; ambos puntos de entrada comparten el mismo flujo.
-2. Abrir un modal con buscador, filtros de fuerza, vista previa del modelo y cantidad de sesiones disponibles.
-3. Elegir fecha de inicio y duración propuesta. Crear una copia independiente en borrador; nunca cambiar el modelo original.
-4. Mostrar los días semanales propuestos y preguntar qué días entrena este alumno. Para cada día, elegir manualmente la sesión correspondiente.
-5. Si las cantidades no coinciden, mostrar un resumen explícito: “El modelo tiene 4 sesiones y elegiste 2 días. Elegí las 2 sesiones para esta semana; las otras 2 quedarán disponibles, sin asignar”. No borrar contenido y no cambiar la frecuencia por cuenta propia.
-6. Permitir cambiar nombre, fecha de inicio y duración en este mismo modal. Mostrar el rango de fechas que resulta de la fecha y duración elegidas.
-7. Confirmar y abrir el nuevo plan del alumno como borrador. Si el alumno ya tiene un plan activo del mismo tipo, ofrecer **Reemplazar plan activo**; confirmar debe desactivar el plan anterior y activar el nuevo en una operación atómica, conservando el contenido e historial del anterior. Si no se reemplaza, la copia queda como borrador.
+1. Desde **Planes → Asignar** o desde la ficha del alumno, buscar y elegir un modelo existente.
+2. En el mismo modal indicar alumno, nombre de la copia, fecha de inicio y duración. El rango de fechas se actualiza con esos valores.
+3. Elegir manualmente una sesión distinta para cada día de entrenamiento. Las sesiones no seleccionadas se listan como disponibles; las celdas vacías quedan sin asignar.
+4. Confirmar **Asignar como borrador**. La copia no cambia el modelo ni otros planes.
+5. Revisar y adaptar la distribución o las sesiones desde la ficha. Al activar, si ya hay un plan activo del mismo tipo, confirmar **Reemplazar plan** o **Cancelar**. Reemplazar deja el anterior como borrador y conserva sus sesiones e historial.
 
-El mismo selector puede abrirse desde **Planes → Asignar**, pero debe usar el mismo modal y las mismas reglas. Así se admiten los dos puntos de entrada que documenta Trainingym sin duplicar comportamiento.
+Los dos puntos de entrada usan las mismas reglas. La acción de guardar un plan de alumno como modelo está disponible como icono en la barra del plan completo.
 
 ### Guardar el trabajo del alumno como modelo
 
@@ -84,23 +80,22 @@ En la barra de acciones del **plan completo** del alumno, mostrar un icono de ma
 
 No ubicar “Guardar como modelo” dentro del modal de una rutina sin distinguir el alcance: guardar el plan completo y guardar solo una sesión son operaciones distintas. Si más adelante se quiere guardar una sola sesión, nombrarla como acción separada (“Guardar esta sesión como modelo”).
 
-Al guardar el plan completo como modelo, copiar las sesiones y prescripciones, excluir pesos y seguimiento personal, y conservar una distribución semanal editable. El nombre del modelo se puede proponer desde el nombre del plan, con edición antes de guardar. El modal debe explicarlo en una o dos frases, incluyendo que el modelo es una copia independiente y permanece aunque se borre el plan original.
+Al guardar el plan completo como modelo, se copian las sesiones, prescripciones y distribución semanal con identificadores propios; se excluyen pesos y seguimiento personal. El nombre se propone desde el plan y se puede editar antes de guardar. El modal explica que la plantilla es independiente y permanece aunque se borre el plan original.
 
-## Decisiones acordadas y trabajo pendiente
+## Decisiones acordadas e implementación
 
 1. **Resuelto:** el modal de asignación ofrece los siete días y permite elegir una sesión diferente por día. Las sesiones restantes se muestran como disponibles; no hay rotación automática.
-2. **Resuelto:** cada modelo y plan tiene una actividad. Se permite un plan activo por alumno y tipo; reemplazar deja el anterior como borrador y conserva su contenido e historial. El flujo actual ya tiene la confirmación en la activación; falta aplicar y probar la migración en una base.
+2. **Implementado:** cada modelo y plan tiene una actividad. Se permite un plan activo por alumno y tipo; reemplazar deja el anterior como borrador y conserva su contenido e historial. La activación requiere confirmación; falta aplicar y probar la migración en una base.
 3. **Resuelto:** “Guardar como modelo” guarda el plan completo; guardar una sesión individual queda fuera del alcance.
 4. **Resuelto:** fecha de inicio y duración se editan durante la asignación; el modal muestra hasta qué fecha cubre el plan. La copia conserva todas las sesiones y las que no se eligen quedan sin asignar.
 
-## Orden sugerido de trabajo
+## Pendientes operativos y límites conocidos
 
-1. **Probar el flujo de asignación en UI:** probar las siete opciones de día, cambios de duración, sesiones restantes y los dos puntos de entrada.
-2. **Validar Guardar como modelo:** la acción ya está en el encabezado del plan unificado; verificar que copie el plan completo y excluya datos personales.
-4. **Hacer la copia atómica y rápida:** hoy copiar una sesión desde el chevrón crea la sesión y luego manda solicitudes separadas para ejercicios y prescripciones. Pasar la copia completa al servidor en una sola operación reducirá esperas y evitará estados parciales.
-5. **Verificar en base de prueba:** separar modelos y planes mixtos existentes, preservar sesiones, distribución y datos de Running, y confirmar el índice único por alumno/tipo y la activación atómica.
-6. **Probar los casos:** modelo 4/alumno 2, modelo 2/alumno 4, sesión sin asignar visible y recuperable, reordenar días, duplicar a otro alumno, guardar como modelo, reintentos y reemplazar el plan activo sin perder su historial.
-7. Recién después definir si se reutiliza el patrón para Running; su planificación por día y semana necesita un análisis propio.
+1. Aplicar la migración en una base de prueba y verificar cómo separa los registros mixtos existentes antes del despliegue.
+2. Probar de punta a punta los dos puntos de asignación, los días sin asignar, la duración personalizada, la duplicación, Guardar como modelo y el reemplazo de un plan activo.
+3. La copia de una sesión desde el chevrón todavía crea la sesión y luego envía solicitudes separadas por ejercicios y prescripciones. Una operación de servidor única reduciría la espera y evitaría estados parciales; no forma parte de la asignación completa del modelo.
+4. La rotación automática de sesiones y la planificación de Running mediante sesiones de fuerza no forman parte del flujo: Running mantiene su plan de tipo propio con texto semanal.
+La migración y los casos de extremo a extremo están pendientes de validación en una base de prueba. La implementación de la interfaz y sus contratos ya está incluida; todavía no se afirma que la migración se haya aplicado a una base.
 
 ## Criterio de éxito
 
