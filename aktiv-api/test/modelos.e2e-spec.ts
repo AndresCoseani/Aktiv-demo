@@ -35,8 +35,6 @@ describe("Biblioteca de planes modelo",()=>{
     expect((await operar("PATCH",`/sesion-ejercicios/${ejercicio}/semanas/1`,{peso:"50"})).status).toBe(400);
   });
   it("asigna copia independiente, como borrador y con IDs nuevos; conserva el activo",async()=>{
-    const diagnostico=await db.rpc("asignar_plan_modelo_duracion",{p_modelo:modelo,p_id:uuid(),p_alumno:alumno,p_nombre:"Diagnóstico",p_inicio:"2026-12-01",p_semanas:6,p_asignaciones:[]});
-    if(diagnostico.error) console.log("ERROR CRUDO AL ASIGNAR MODELO",diagnostico.error);
     const r=await A.post(`/api/planes-modelo/${modelo}/asignar`,{id:asignado,alumnoId:alumno,nombre:"Base para alumno",inicio:"2026-12-01"});expect(r.status).toBe(201);
     const planes=(await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body;
     const copia=planes.find((p:{id:string})=>p.id===asignado);
