@@ -14,7 +14,7 @@ import { avisarCambioDistribucion, avisarCambioRunning, hayBorradoresMensuales, 
 import { diaDeHoy, formatFecha, hoyISO } from "@/lib/format";
 
 type Plan = Pick<PlanMensual,"id"|"tipo"|"semanas"|"sesiones"|"running"|"distribucion"> & {inicio?:string;nombre?:string};
-type Props = {plan:Plan;editable:boolean;renderRutina:(s:SesionEntrenamiento,semana:number,cerrar:()=>void)=>ReactNode};
+type Props = {plan:Plan;editable:boolean;mostrarVolumen?:boolean;renderRutina:(s:SesionEntrenamiento,semana:number,cerrar:()=>void)=>ReactNode};
 const textoError=(e:unknown)=>e instanceof Error?e.message:"No se pudo guardar. Reintentá.";
 const tipoVisual=(tipo:string)=>tipo.trim().toLocaleLowerCase("es")==="gym"?"Fuerza":tipo;
 const icono=(tipo:string)=>tipo==="Running"?Footprints:tipo==="Fuerza"||tipo==="GYM"?Dumbbell:tipo==="Descanso"?BedDouble:Activity;
@@ -49,7 +49,7 @@ const Asignador=memo(function Asignador({valor,tipos,sesiones,label,onGuardar,on
  </div>;
 },(a,b)=>JSON.stringify(a.valor)===JSON.stringify(b.valor)&&JSON.stringify(a.tipos)===JSON.stringify(b.tipos)&&a.sesiones===b.sesiones&&a.label===b.label&&a.onGuardar===b.onGuardar&&a.onCambiar===b.onCambiar&&a.onPendiente===b.onPendiente&&a.soloRutina===b.soloRutina&&a.mostrarRutina===b.mostrarRutina&&a.disabled===b.disabled&&a.hoy===b.hoy&&a.planId===b.planId&&a.planSemanas===b.planSemanas);
 
-export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
+export function PlanificacionUnificada({plan,editable,mostrarVolumen=false,renderRutina}:Props) {
  const [hoy,setHoy]=useState(diaDeHoy);
  useEffect(()=>{const reloj=setInterval(()=>setHoy(diaDeHoy()),60000);return()=>clearInterval(reloj);},[]);
  const {api}=usePlanEditor();
@@ -63,7 +63,7 @@ export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
  const edicionDist=useRef(false),edicionRunning=useRef(false);
  useEffect(()=>{if(edicionDist.current)avisarCambioDistribucion(plan.id,distribucion);},[plan.id,distribucion]);
  useEffect(()=>{if(edicionRunning.current)avisarCambioRunning(plan.id,running);},[plan.id,running]);
- const tipos=[...new Set([plan.tipo,...plan.sesiones.map(s=>s.tipo),"Descanso"])];
+ const tipos=[...new Set([plan.tipo,...plan.sesiones.map(s=>s.tipo),"Running","Descanso"])];
  const actual=plan.inicio?semanaDelPlan(plan.inicio,hoyISO(),plan.semanas):null;
  const desde=Math.floor((semana-1)/4)*4+1,columnas=Array.from({length:Math.min(4,plan.semanas-desde+1)},(_,i)=>desde+i);
  const vista=Object.entries(anticipadas).reduce((d,[dia,actividades])=>actualizarDistribucion(d,{dia:Number(dia),actividades}),distribucion);
@@ -93,8 +93,9 @@ export function PlanificacionUnificada({plan,editable,renderRutina}:Props) {
     </div>;}):<p className="py-2 text-sm text-muted-foreground">Sin asignar</p>}
 
    </div>;})}</div>)}
-   {plan.tipo === "Running" && <>{(["volumen", "sugerencias"] as const).map((campo) => <div key={campo} className="border-t bg-muted/20 md:grid md:grid-cols-[160px_repeat(var(--semanas),minmax(0,1fr))]"><h4 className="min-w-0 break-words p-4 text-sm font-semibold">{campo === "volumen" ? "Volumen" : "Sugerencias"}</h4>{columnas.map((s) => <div key={s} className={(s === semana ? "block" : "hidden md:block") + " min-w-0 p-3 md:border-l"}>{editable ? <CeldaRunning key={`${version}:${s}:${campo}`} soloTexto planId={plan.id} semana={s} campo={campo} valor={running[s]?.[campo] ?? ""} onGuardado={alGuardarRunning} onPendiente={onPendiente} /> : <p className="whitespace-pre-wrap break-words text-sm">{running[s]?.[campo] ? running[s]?.[campo] + (campo === "volumen" ? " km" : "") : "—"}</p>}</div>)}</div>)}</>}
+   {([...(mostrarVolumen||plan.tipo==="Running"||Object.values(vista.base??{}).some(d=>d.some(a=>a.tipo==="Running"))||Object.values(vista.semanas??{}).some(w=>Object.values(w).some(d=>d.some(a=>a.tipo==="Running")))?["volumen" as const]:[]),"sugerencias" as const]).map((campo) => <div key={campo} className="border-t bg-muted/20 md:grid md:grid-cols-[160px_repeat(var(--semanas),minmax(0,1fr))]"><h4 className="min-w-0 break-words p-4 text-sm font-semibold">{campo === "volumen" ? "Volumen" : "Sugerencias"}</h4>{columnas.map((s) => <div key={s} className={(s === semana ? "block" : "hidden md:block") + " min-w-0 p-3 md:border-l"}>{editable ? <CeldaRunning key={`${version}:${s}:${campo}`} soloTexto planId={plan.id} semana={s} campo={campo} valor={running[s]?.[campo] ?? ""} onGuardado={alGuardarRunning} onPendiente={onPendiente} /> : <p className="whitespace-pre-wrap break-words text-sm">{running[s]?.[campo] ? running[s]?.[campo] + (campo === "volumen" ? " km" : "") : "—"}</p>}</div>)}</div>)}
   </div>
   {abierta&&rutina&&renderRutina(abierta,rutina.semana,()=>setRutina(null))}
  </section>;
 }
+
