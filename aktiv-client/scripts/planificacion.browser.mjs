@@ -29,13 +29,14 @@ async function pagina(ancho){const page=await browser.newPage({viewport:{width:a
   else if(/^\/sesion-ejercicios\/[^/]+$/.test(path)){const e=plan.sesiones.flatMap(s=>s.ejercicios).find(e=>path.endsWith(e.id));if(req.method()==="DELETE"){for(const s of plan.sesiones)s.ejercicios=s.ejercicios.filter(v=>v.id!==e.id);}else Object.assign(e,req.postDataJSON());body={id:e.id};}
   else if(path.includes("/seguimiento/")){if(req.method()==="PATCH")seguimientos.set(path,{semana:Number(path.split("/").at(-1)),...req.postDataJSON(),fecha:"2026-11-02"});body={registro:seguimientos.get(path)??{semana:Number(path.split("/").at(-1)),completado:false,sensacion:null,nota:"",fecha:null},habilitado:rol==="alumno"};}
   else if(path==="/catalogo/ejercicios"&&req.method()==="POST"){const d=req.postDataJSON();catalogo.push(d);body={id:d.id};}
+  else if(/^\/sesiones\/[^/]+$/.test(path)&&req.method()==="DELETE"){const sesionId=path.split("/")[2];plan.sesiones=plan.sesiones.filter(s=>s.id!==sesionId);body={id:sesionId};}
   else if(/^\/sesiones\/[^/]+$/.test(path)&&req.method()==="PATCH"){const s=plan.sesiones.find(s=>path.endsWith(s.id));Object.assign(s,req.postDataJSON());body={id:s.id};}
   else if(path==="/agenda")body={horarios:[],clases:[]};else throw Error(`Ruta inesperada ${req.method()} ${path}`);
   await route.fulfill({status,contentType:"application/json",body:JSON.stringify(body)});
  });return page;}
 async function guardado(page){await page.waitForFunction(()=>![...document.querySelectorAll('section[aria-label="Planificación unificada"] p[role="status"]')].some(e=>/pendientes|Guardando/.test(e.textContent)));}
 async function cerrar(page){const modal=page.getByRole("dialog").first();await modal.getByRole("button",{name:"Close",exact:true}).click();await modal.waitFor({state:"hidden"});}
-async function asignarDesdeModelo(page,grid,dia){await grid.getByRole("button",{name:`Buscar un plan para ${dia}`,exact:true}).click();await page.getByRole("option",{name:/Modelo de fuerza ficticio/}).click();await page.getByRole("radio").first().check();await page.getByRole("button",{name:`Asignar a ${dia}`,exact:true}).click();}
+async function asignarDesdeModelo(page,grid,dia){await grid.getByRole("button",{name:`Buscar un plan para ${dia}`,exact:true}).click();await page.getByRole("option",{name:/Modelo de fuerza ficticio/}).click();await page.getByRole("radio").first().check();await page.getByRole("button",{name:`Asignar a ${dia}`,exact:true}).click();const modal=page.getByRole("dialog");try{await modal.waitFor({state:"hidden",timeout:6000});}catch{const error=await modal.getByRole("alert").allInnerTexts().catch(()=>[]);throw new Error(`No se pudo asignar ${dia}: ${error.join(" ")||await modal.innerText()}`);}}
 try {
  for(const ancho of [1440,390,320]) {
   reiniciar();rol="coach";const page=await pagina(ancho);await page.goto(base+"/alumnos/"+alumnoId);
