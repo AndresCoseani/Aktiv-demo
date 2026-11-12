@@ -4,6 +4,21 @@ begin;
 
 drop trigger if exists planes_mensuales_tipo_running on public.planes_mensuales;
 drop function if exists public.inferir_tipo_plan_running();
+-- Las sesiones de rutina siguen el tipo de su plan; Running se agenda en la semana.
+create or replace function public.validar_tipo_sesion_plan() returns trigger
+language plpgsql set search_path='' as $
+declare t text; hay_sesiones boolean;
+begin
+ select tipo into t from public.planes_mensuales where id=new.plan_id for update;
+ if not found then raise exception 'Plan inexistente' using errcode='23503'; end if;
+ if new.tipo='Running' and t<>'Running' then raise exception 'Running se asigna en la semana, no como sesión de rutina' using errcode='23514'; end if;
+ select exists(select 1 from public.sesiones where plan_id=new.plan_id and id<>new.id) into hay_sesiones;
+ if not hay_sesiones and t='Fuerza' and new.tipo not in ('Fuerza','Running') then
+  update public.planes_mensuales set tipo=new.tipo where id=new.plan_id;
+ elsif new.tipo<>t then raise exception 'La sesión debe ser del mismo tipo que el plan' using errcode='23514'; end if;
+ return new;
+end $;
+
 
 create or replace function public.validar_tipo_modelo() returns trigger
 language plpgsql set search_path='' as $$
