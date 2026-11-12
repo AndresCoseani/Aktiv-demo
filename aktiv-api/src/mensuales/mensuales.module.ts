@@ -95,9 +95,7 @@ export class MensualesService {
     const orden = (ultimo.data?.[0]?.orden ?? -1) + 1;
     const { diasIniciales, ...campos } = dto as typeof dto & { diasIniciales?: z.infer<typeof diasInicialesSchema> };
     const r = recurso === "plan" && diasIniciales
-      ? Array.isArray(diasIniciales)
-        ? await db.rpc("crear_plan_con_actividades", { p_plan: { ...campos, alumno_id: padreId, orden }, p_actividades: actividadesIniciales(diasIniciales) })
-        : await db.rpc("crear_plan_con_dias", { p_plan: { ...campos, alumno_id: padreId, orden }, p_fuerza: diasIniciales.fuerza, p_running: diasIniciales.running })
+      ? await db.rpc("crear_plan_con_actividades", { p_plan: { ...campos, alumno_id: padreId, orden }, p_actividades: actividadesIniciales(diasIniciales) })
       : await db.from(tabla).insert({ ...campos, [columna]: padreId, orden });
     lanzarSiError(r.error);
     return { id: dto.id };
@@ -108,6 +106,12 @@ export class MensualesService {
     if (recurso === "plan" && (dto as { activo?: boolean }).activo) await this.verificarActivacion(this.supa.delUsuario(u.token));
     await actualizarUno(this.supa.delUsuario(u.token), TABLAS[recurso], "id", recursoId, dto, "El recurso");
     return { id: recursoId };
+  }
+
+  async activar(u: Usuario, planId: string, reemplazar: boolean) {
+    const r = await this.supa.delUsuario(u.token).rpc("activar_plan_mensual", { p_plan: planId, p_reemplazar: reemplazar });
+    lanzarSiError(r.error);
+    return { id: planId };
   }
 
   async running(u:Usuario, planId:string, body:unknown, copiar=false) {
@@ -195,6 +199,8 @@ export class MensualesController {
   plan(@UsuarioActual() u: Usuario, @Param("id", id()) padre: string, @Body() body: unknown) { return this.servicio.crear(u, "plan", padre, body); }
   @Roles("coach") @Patch("planes-mensuales/:id")
   parchePlan(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string, @Body() body: unknown) { return this.servicio.parchear(u, "plan", recurso, body); }
+  @Roles("coach") @Post("planes-mensuales/:id/activar")
+  activarPlan(@UsuarioActual() u: Usuario, @Param("id", id()) plan: string, @Body() body: unknown) { const dto=z.object({reemplazar:z.boolean().default(false)}).strict().parse(body); return this.servicio.activar(u,plan,dto.reemplazar); }
   @Roles("coach") @Delete("planes-mensuales/:id") @HttpCode(204)
   borrarPlan(@UsuarioActual() u: Usuario, @Param("id", id()) recurso: string) { return this.servicio.eliminar(u, "plan", recurso); }
   @Roles("coach") @Post("planes-mensuales/:id/sesiones")

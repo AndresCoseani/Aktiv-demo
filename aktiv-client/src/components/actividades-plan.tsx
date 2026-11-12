@@ -36,10 +36,12 @@ export function NuevaActividad({ crear, onCreada }: { crear: (nombre: string) =>
 
 export function ActividadesIniciales() {
   const { actividades, crear, error } = useActividadesPlan();
-  const [elegidas, setElegidas] = useState<Record<string, number>>({ Fuerza: 3 });
-  return <section className="space-y-3"><p className="text-sm font-medium">Actividades del plan</p><p className="text-sm text-muted-foreground">Elegí una o varias. Podés agregar más después.</p>
-    <input type="hidden" name="actividadesIniciales" value={JSON.stringify(Object.entries(elegidas).map(([tipo, dias]) => ({ tipo, dias })))} />
-    <div className="grid gap-3 sm:grid-cols-2">{actividades.map((tipo) => <div key={tipo} className="min-w-0 space-y-2 rounded-lg border p-3"><label className="flex min-h-8 items-center gap-2 text-sm font-medium"><input type="checkbox" checked={Object.hasOwn(elegidas, tipo)} className="size-4 accent-primary" onChange={(e) => setElegidas((prev) => e.target.checked ? { ...prev, [tipo]: 3 } : Object.fromEntries(Object.entries(prev).filter(([nombre]) => nombre !== tipo)))} /><span className="break-words">{tipo}</span></label>{Object.hasOwn(elegidas, tipo) && <label className="block space-y-1 text-sm">Días<Input aria-label={`Días de ${tipo.toLowerCase()}`} type="number" min={1} max={7} required value={elegidas[tipo] || ""} onChange={(e) => setElegidas({ ...elegidas, [tipo]: Number(e.target.value) })} /></label>}</div>)}</div>
-    <NuevaActividad crear={crear} onCreada={(tipo) => setElegidas((prev) => ({ ...prev, [tipo]: 1 }))} />{error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+  const [tipo, setTipo] = useState("Fuerza");
+  const [dias, setDias] = useState(3);
+  return <section className="space-y-3"><p className="text-sm font-medium">Tipo del plan</p><p className="text-sm text-muted-foreground">Cada plan contiene una sola actividad. Podés crear otro plan para una actividad distinta.</p>
+    <input type="hidden" name="tipo" value={tipo} /><input type="hidden" name="actividadesIniciales" value={JSON.stringify({ tipo, dias })} />
+    <div role="radiogroup" aria-label="Tipo del plan" className="grid gap-2 sm:grid-cols-2">{actividades.map((actividad) => <button key={actividad} type="button" role="radio" aria-checked={tipo===actividad} className={`rounded-lg border p-3 text-left text-sm ${tipo===actividad?"border-primary bg-primary/10":"border-border"}`} onClick={()=>setTipo(actividad)}>{actividad}</button>)}</div>
+    <label className="block space-y-1 text-sm">Días disponibles en la semana<Input aria-label={`Días de ${tipo.toLowerCase()}`} type="number" min={1} max={7} required value={dias || ""} onChange={(e) => setDias(Number(e.target.value))} /></label>
+    <NuevaActividad crear={crear} onCreada={(actividad) => setTipo(actividad)} />{error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </section>;
 }

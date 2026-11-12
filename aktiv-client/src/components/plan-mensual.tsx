@@ -5,13 +5,13 @@ import { textoRunningPlanificado, textoDiaRunning } from "@aktiv/contrato";
 import { DiasSesion } from "@/components/dias-sesion";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2, BookmarkPlus, Power } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Copy, Pencil, Plus, Trash2, BookmarkPlus, Power, Search } from "lucide-react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 import {
   actividadesDelDia, diasDeSesion, DIAS_PLAN, MAX_SEMANAS_PLAN, semanasDelPlan, prescripcionEfectiva, semanaDelPlan,
   altaMensualApi, altaSesionApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi,
-  parcheCeldaAlumnoApi, parcheCeldaProfeApi, parcheMensualApi, type PlanMensual, type SesionEntrenamiento, type EjercicioMensual,
+  parcheCeldaAlumnoApi, parcheCeldaProfeApi, parcheMensualApi, resumenModeloSchema, type ResumenModelo, type PlanMensual, type SesionEntrenamiento, type EjercicioMensual,
 } from "@aktiv/contrato";
 import { RunningSemanal } from "./running-semanal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,6 +30,7 @@ import { api } from "@/lib/api";
 import { usePlanEditor } from "@/components/plan-editor-context";
 import { ActividadesIniciales, NuevaActividad, useActividadesPlan } from "@/components/actividades-plan";
 import { GuardarModeloDialog } from "@/components/guardar-modelo-dialog";
+import { ModeloDialog, type AccionModelo } from "@/components/modelo-dialog";
 import { avisarCambioMensual, usePlanesMensuales, hayBorradoresMensuales, registrarBorradorMensual } from "@/lib/mensual";
 import { formatFecha, hoyISO, nuevoId } from "@/lib/format";
 
@@ -46,23 +47,33 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
   const propios = usePlanesMensuales(datosExternos?undefined:alumnoId);const datos=datosExternos??propios;
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [crear, setCrear] = useState(false);
+  const [modelos, setModelos] = useState<ResumenModelo[]>([]);
+  const [filtroModelo, setFiltroModelo] = useState("");
+  const [buscarModelo, setBuscarModelo] = useState(false);
+  const [modeloSeleccionado, setModeloSeleccionado] = useState<AccionModelo | null>(null);
   const [vistaDiaria,setVistaDiaria]=useState(false);
   const [diaCreado,setDiaCreado]=useState<SesionEntrenamiento|null>(null);
 
   const [ocupado, setOcupado] = useState(false);
   const [borrar, setBorrar] = useState(false);
+  const [reemplazando, setReemplazando] = useState<PlanMensual | null>(null);
   const [editando, setEditando] = useState<PlanMensual | null>(null);
   const [guardandoModelo, setGuardandoModelo] = useState(false);
   const [duplicandoPlan, setDuplicandoPlan] = useState<PlanMensual | null>(null);
   const visibles = editable ? datos.planes : datos.planes.filter((p) => p.activo);
   const plan = visibles.find((p) => p.id === seleccion) ?? visibles.find((p) => p.activo && (editable || !unificado || p.inicio<=hoyISO())) ?? visibles.find((p)=>p.activo) ?? visibles.at(-1);
 
+  async function abrirModelos() {
+    try { setModelos(resumenModeloSchema.array().parse(await api.get<unknown>("/planes-modelo"))); setFiltroModelo(""); setBuscarModelo(true); }
+    catch (e) { toast.error(mensaje(e)); }
+  }
+
   async function nuevo(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setOcupado(true);
     try {
-      const dto = altaMensualApi.parse({ id: nuevoId(), nombre: String(f.get("nombre")).trim(), inicio: String(f.get("inicio")), semanas: Number(f.get("semanas")), activo: !datos.planes.some((p) => p.activo), diasIniciales: JSON.parse(String(f.get("actividadesIniciales"))) });
+      const dto = altaMensualApi.parse({ id: nuevoId(), nombre: String(f.get("nombre")).trim(), tipo: String(f.get("tipo")), inicio: String(f.get("inicio")), semanas: Number(f.get("semanas")), activo: false, diasIniciales: JSON.parse(String(f.get("actividadesIniciales"))) });
       await api.post(`/alumnos/${alumnoId}/planes-mensuales`, dto);
       avisarCambioMensual(); setSeleccion(dto.id); setCrear(false); toast.success("Plan creado");
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
@@ -78,21 +89,22 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
       avisarCambioMensual();
     } catch(e) { toast.error(mensaje(e)); } finally {setOcupado(false);}
   }
-  async function accion(tipo: "activar" | "desactivar" | "borrar") {
+  async function accion(tipo: "activar" | "desactivar" | "borrar", reemplazar=false) {
     if (!plan) return;
     setOcupado(true);
     try {
-      if (tipo !== "borrar") await api.patch(`/planes-mensuales/${plan.id}`, { activo: tipo === "activar" });
+      if (tipo === "activar") await api.post(`/planes-mensuales/${plan.id}/activar`, { reemplazar });
+      else if (tipo === "desactivar") await api.patch(`/planes-mensuales/${plan.id}`, { activo: false });
       else await api.delete(`/planes-mensuales/${plan.id}`);
       if (tipo !== "borrar") setSeleccion(plan.id);
-      avisarCambioMensual(); setBorrar(false); toast.success(tipo === "activar" ? "Plan activado" : tipo === "desactivar" ? "Plan desactivado. Su contenido y registros se conservan." : "Plan eliminado");
+      avisarCambioMensual(); setBorrar(false); setReemplazando(null); toast.success(tipo === "activar" ? (reemplazar ? "Plan reemplazado y activado" : "Plan activado") : tipo === "desactivar" ? "Plan desactivado. Su contenido y registros se conservan." : "Plan eliminado");
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
   }
   return <div className="min-w-0 space-y-5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div className="min-w-0"><h2 className="flex items-center gap-2 text-lg font-medium tracking-tight"><CalendarDays className="size-5 shrink-0 text-primary" />Plan de entrenamiento</h2>
         {!unificado&&<p className="mt-1 text-sm text-muted-foreground">Sesiones por día y progresión por semanas.</p>}</div>
-      {editable && <Button variant={unificado?"default":"outline"} size="sm" disabled={ocupado || datos.cargando || Boolean(datos.error)} onClick={() => navegar(() => { setCrear(true); })}><Plus />Nuevo plan</Button>}
+      {editable && <div className="flex flex-wrap gap-2"><Button variant={unificado?"default":"outline"} size="sm" disabled={ocupado || datos.cargando || Boolean(datos.error)} onClick={() => navegar(() => { setCrear(true); })}><Plus />Nuevo plan</Button><Button variant="outline" size="sm" disabled={ocupado || datos.cargando} onClick={()=>navegar(()=>void abrirModelos())}><Search />Asignar modelo</Button></div>}
     </div>
     {datos.cargando ? <p role="status" className="py-8 text-sm text-muted-foreground">Cargando planes…</p> : datos.error ?
       <div role="alert" className="rounded-xl border border-destructive/30 p-4 text-sm"><p>{datos.error}</p><Button variant="outline" size="sm" className="mt-2" onClick={datos.reintentar}>Reintentar</Button></div> : <>
@@ -105,14 +117,14 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
         {editable&&unificado?<div className="space-y-2">
           <div aria-label="Acciones del plan" role="group" className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 px-3 py-2">
             <Button variant="outline" className="h-auto min-h-9 min-w-0 max-w-[65%] justify-start whitespace-normal px-4 py-1.5 text-left font-medium" aria-label="Editar plan de entrenamiento" title="Editar nombre, inicio y duración" disabled={ocupado} onClick={()=>navegar(()=>setEditando(plan))}>{plan.nombre||"Sin nombre"}</Button>
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3"><Button size="sm" variant="outline" className="text-muted-foreground" disabled={ocupado} onClick={()=>navegar(()=>void nuevoDia())}><Plus />Crear día</Button><Switch aria-label={plan.activo?"Desactivar plan":"Activar plan"} title={plan.activo?"Desactivar plan":"Activar plan"} checked={plan.activo} disabled={ocupado} style={{backgroundColor:plan.activo?"var(--primary)":"var(--muted)"}} onCheckedChange={v=>navegar(()=>void accion(v?"activar":"desactivar"))} /><Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={()=>navegar(()=>setDuplicandoPlan(plan))}><Copy /></Button><Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" title="Eliminar plan" disabled={ocupado} onClick={()=>navegar(()=>setBorrar(true))}><Trash2 className="text-destructive" /></Button></div>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3"><Button size="sm" variant="outline" className="text-muted-foreground" disabled={ocupado} onClick={()=>navegar(()=>void nuevoDia())}><Plus />Crear día</Button><Switch aria-label={plan.activo?"Desactivar plan":"Activar plan"} title={plan.activo?"Desactivar plan":"Activar plan"} checked={plan.activo} disabled={ocupado} style={{backgroundColor:plan.activo?"var(--primary)":"var(--muted)"}} onCheckedChange={v=>navegar(()=>{if(v){const activo=datos.planes.find(p=>p.activo&&p.tipo===plan.tipo&&p.id!==plan.id);if(activo){setReemplazando(activo);return;}}void accion(v?"activar":"desactivar");})} /><Button size="icon-sm" variant="ghost" aria-label="Guardar plan como modelo" title="Guardar plan completo como modelo" disabled={ocupado} onClick={()=>navegar(()=>setGuardandoModelo(true))}><BookmarkPlus /></Button><Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={()=>navegar(()=>setDuplicandoPlan(plan))}><Copy /></Button><Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" title="Eliminar plan" disabled={ocupado} onClick={()=>navegar(()=>setBorrar(true))}><Trash2 className="text-destructive" /></Button></div>
           </div>
           <details className="group/otros-planes"><summary className="w-fit cursor-pointer rounded-md px-1 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">Ver más planes</summary><div className="mt-2 space-y-3 rounded-lg border border-border/60 p-3"><div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">{visibles.map(p=><Button key={p.id} variant={p.id===plan.id?"secondary":"outline"} size="sm" aria-pressed={p.id===plan.id} onClick={()=>navegar(()=>setSeleccion(p.id))}>{p.activo&&<Check className="size-3.5" />}{p.nombre||"Sin nombre"}</Button>)}</div></div></details>
         </div>:<>        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
           <div className="min-w-0 flex-1 basis-48"><p className="break-words text-lg font-medium tracking-tight">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
           {editable && <div className="flex flex-wrap items-center gap-1">
             {plan.activo && <Button size="icon" variant="ghost" aria-label="Desactivar plan" title="Desactivar plan" disabled={ocupado} onClick={() => navegar(() => void accion("desactivar"))}><Power className="text-primary" /></Button>}
-            {!plan.activo && <Button size="icon" variant="ghost" aria-label="Activar plan" title="Activar plan" disabled={ocupado} onClick={() => navegar(() => void accion("activar"))}><Power /></Button>}
+            {!plan.activo && <Button size="icon" variant="ghost" aria-label="Activar plan" title="Activar plan" disabled={ocupado} onClick={() => navegar(() => {const activo=datos.planes.find(p=>p.activo&&p.tipo===plan.tipo&&p.id!==plan.id);if(activo)setReemplazando(activo);else void accion("activar");})}><Power /></Button>}
             <Button variant="ghost" size="icon" aria-label="Guardar como modelo" title="Guardar como modelo" disabled={ocupado} onClick={() => navegar(() => setGuardandoModelo(true))}><BookmarkPlus /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={() => navegar(() => setDuplicandoPlan(plan))}><Copy /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Editar plan de entrenamiento" title="Editar plan" disabled={ocupado} onClick={() => navegar(() => setEditando(plan))}><Pencil /></Button>
@@ -131,7 +143,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
       avisarCambioMensual(); setDuplicandoPlan(null);
     }} />}
     <Dialog open={crear} onOpenChange={(v) => !ocupado && setCrear(v)}><DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md" showCloseButton={!ocupado}>
-      <form onSubmit={nuevo} className="space-y-4"><DialogHeader><DialogTitle>Nuevo plan de entrenamiento</DialogTitle><DialogDescription>Elegí los tipos y cuántos días tendrá cada uno. Se crean listos para cargar los ejercicios.</DialogDescription></DialogHeader>
+      <form onSubmit={nuevo} className="space-y-4"><DialogHeader><DialogTitle>Nuevo plan de entrenamiento</DialogTitle><DialogDescription>Elegí un tipo de entrenamiento y cuántas sesiones tendrá disponibles.</DialogDescription></DialogHeader>
         <fieldset disabled={ocupado} className="min-w-0 space-y-4">
         <label className="block space-y-1 text-sm">Nombre del plan<Input name="nombre" placeholder="Ej: Base para 10K" maxLength={120} required /></label>
         <label className="block space-y-1 text-sm">Duración en semanas<Input name="semanas" type="number" min={1} max={MAX_SEMANAS_PLAN} step={1} defaultValue={4} required /></label>
@@ -140,7 +152,10 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
         </fieldset>
         <DialogFooter><Button type="button" variant="ghost" disabled={ocupado} onClick={() => setCrear(false)}>Cancelar</Button><Button type="submit" disabled={ocupado}>{ocupado ? "Creando…" : "Crear plan"}</Button></DialogFooter>
       </form></DialogContent></Dialog>
+    <Dialog open={buscarModelo} onOpenChange={setBuscarModelo}><DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>Asignar un modelo</DialogTitle><DialogDescription>Elegí un modelo de la biblioteca. Se copiará como borrador independiente para este alumno.</DialogDescription></DialogHeader><Input aria-label="Buscar modelo" placeholder="Buscar por nombre o actividad" value={filtroModelo} onChange={e=>setFiltroModelo(e.target.value)} /><div className="max-h-80 space-y-2 overflow-y-auto">{modelos.filter(m=>`${m.nombre} ${m.tipo}`.toLocaleLowerCase("es").includes(filtroModelo.trim().toLocaleLowerCase("es"))).length?modelos.filter(m=>`${m.nombre} ${m.tipo}`.toLocaleLowerCase("es").includes(filtroModelo.trim().toLocaleLowerCase("es"))).map(m=><button key={m.id} type="button" className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-muted/50" onClick={()=>{setBuscarModelo(false);setModeloSeleccionado({tipo:"asignar",modelo:m});}}><span className="min-w-0"><span className="block truncate font-medium">{m.nombre}</span><span className="text-xs text-muted-foreground">{m.tipo} · {m.dias} sesiones · {m.semanas} semanas</span></span><span aria-hidden="true">→</span></button>):<p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">{modelos.length?"No hay modelos que coincidan.":"Todavía no hay modelos. Crealos desde Planes."}</p>}</div><DialogFooter><Button variant="outline" onClick={()=>setBuscarModelo(false)}>Cerrar</Button></DialogFooter></DialogContent></Dialog>
+    {modeloSeleccionado?.tipo==="asignar"&&<ModeloDialog key={modeloSeleccionado.modelo.id} accion={modeloSeleccionado} alumnoInicial={alumnoId} onCerrar={()=>setModeloSeleccionado(null)} />}
     <Dialog open={borrar} onOpenChange={(v) => !ocupado && setBorrar(v)}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Eliminar este plan?</DialogTitle><DialogDescription>Se borran sus sesiones, ejercicios y registros de peso. No se puede deshacer.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={ocupado} onClick={() => setBorrar(false)}>Cancelar</Button><Button variant="destructive" disabled={ocupado} onClick={() => void accion("borrar")}>Eliminar plan</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(reemplazando)} onOpenChange={(v)=>!ocupado&&!v&&setReemplazando(null)}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>¿Reemplazar el plan activo?</DialogTitle><DialogDescription>Ya hay un plan de {plan?.tipo} activo: «{reemplazando?.nombre}». Al reemplazarlo, quedará como borrador y conservará sus sesiones y registros.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={ocupado} onClick={()=>setReemplazando(null)}>Cancelar</Button><Button disabled={ocupado} onClick={()=>void accion("activar",true)}>{ocupado?"Reemplazando…":"Reemplazar plan"}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
 
