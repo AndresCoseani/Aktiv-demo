@@ -35,7 +35,7 @@ async function pagina(ancho){const page=await browser.newPage({viewport:{width:a
  });return page;}
 async function guardado(page){await page.waitForFunction(()=>![...document.querySelectorAll('section[aria-label="Planificación unificada"] p[role="status"]')].some(e=>/pendientes|Guardando/.test(e.textContent)));}
 async function cerrar(page){const modal=page.getByRole("dialog").first();await modal.getByRole("button",{name:"Close",exact:true}).click();await modal.waitFor({state:"hidden"});}
-async function asignarDesdeModelo(page,grid,dia){await grid.getByRole("button",{name:`Buscar un plan para ${dia}`,exact:true}).click();await page.getByRole("option",{name:"Modelo de fuerza ficticio",exact:true}).click();await page.getByRole("radio").first().check();await page.getByRole("button",{name:`Asignar a ${dia}`,exact:true}).click();}
+async function asignarDesdeModelo(page,grid,dia){await grid.getByRole("button",{name:`Buscar un plan para ${dia}`,exact:true}).click();await page.getByRole("option",{name:/Modelo de fuerza ficticio/}).click();await page.getByRole("radio").first().check();await page.getByRole("button",{name:`Asignar a ${dia}`,exact:true}).click();}
 try {
  for(const ancho of [1440,390,320]) {
   reiniciar();rol="coach";const page=await pagina(ancho);await page.goto(base+"/alumnos/"+alumnoId);
