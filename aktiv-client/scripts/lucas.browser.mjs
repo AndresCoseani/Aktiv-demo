@@ -14,8 +14,8 @@ const alumnoId = id(10), usuario = id(1), coachId = id(2), planId = id(20);
 const alumno = { id: alumnoId, userId: null, coachId, nombre: "Ana Pérez", email: "ana@example.test", dni: "", telefono: "", objetivo: "10K", nivel: "Intermedio", activo: true, proximoPago: null, altaEn: "2026-11-01", planes: [], semana: Array.from({length:7},()=>({correr:false,fuerza:false})), ficha: { fechaNacimiento: null, lugarNacimiento: "", enfermedades: "", lesiones: [], certificado: null, contacto: { nombre: "", parentesco: "", telefono: "" } }, marcas: [], notasProfe: "", notasAlumno: "", acceso: { estado: "sin_cuenta", expiraEn: null } };
 const alumnos = [alumno];
 const horarios = [], canceladas = [], confirmadas = [], cambios = [];
-const planes = [{ id: planId, nombre: "Preparación 10K", inicio: "2026-11-02", semanas: 6, activo: true, orden: 0, sesiones: [
-  ...["Fuerza", "Running", "Fuerza"].map((tipo, i) => ({ id: id(30+i), dia: 2, tipo, franja: i === 0 ? "Mañana" : i === 1 ? "Tarde" : "Noche", nombre: `Entrenamiento ${i+1}`, orden: i, calentamiento: "Una serie", activacion: [], enfriamiento: "Movilidad suave", bloques: [1], ejercicios: [{ id: id(40+i), nombre: tipo === "Running" ? "Rodaje" : "Zumo", grupo: 1, orden: 0, descanso: "60 s", semanas: Array.from({length:6},(_,s)=>({semana:s+1,prescripcion:s===0?"4x8":"",peso:null,pesoFecha:null})) }] })),
+const planes = [{ id: planId, nombre: "Preparación 10K", tipo: "Fuerza", inicio: "2026-11-02", semanas: 6, activo: true, orden: 0, sesiones: [
+  ...["Fuerza", "Fuerza", "Fuerza"].map((tipo, i) => ({ id: id(30+i), dia: 2, tipo, franja: i === 0 ? "Mañana" : i === 1 ? "Tarde" : "Noche", nombre: `Entrenamiento ${i+1}`, orden: i, calentamiento: "Una serie", activacion: [], enfriamiento: "Movilidad suave", bloques: [1], ejercicios: [{ id: id(40+i), nombre: "Zumo", grupo: 1, orden: 0, descanso: "60 s", semanas: Array.from({length:6},(_,s)=>({semana:s+1,prescripcion:s===0?"4x8":"",peso:null,pesoFecha:null})) }] })),
 ]}];
 let errorImportar = true, errorConfirmar = true, errorDatosAcceso = true, fallarDia = null, errorPeso = true, errorCambio = true;
 const errores = [], entregas = [], importaciones = [];

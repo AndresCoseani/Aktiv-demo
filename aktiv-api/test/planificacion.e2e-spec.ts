@@ -34,7 +34,7 @@ describe("Planificación unificada",()=>{
   await S.patch(`/api/sesion-ejercicios/${ejercicio}/semanas/3`,{peso:"20",pesoFecha:"2026-11-01"});
   expect((await A.patch(`/api/planes-mensuales/${plan}/running`,{semana:2,campo:"martes",texto:"Rodaje de prueba"})).status).toBe(422);
   expect((await A.post(`/api/planes-mensuales/${plan}/planificacion/copiar`,{origen:2,destino:3})).status).toBe(201);
-  let p=await leer();expect(p.distribucion!.semanas![3][1]).toEqual([{tipo:"Descanso"}]);expect(p.running).toBeUndefined();expect(p.sesiones[0].ejercicios[0].semanas[2].peso).toBe("20");
+  let p=await leer();expect(p.distribucion!.semanas![3][1]).toEqual([{tipo:"Descanso"}]);expect(p.running).toEqual({});expect(p.sesiones[0].ejercicios[0].semanas[2].peso).toBe("20");
   expect((await A.post(`/api/planes-mensuales/${plan}/planificacion/copiar`,{origen:1,destino:4})).status).toBe(201);p=await leer();expect(p.sesiones[0].ejercicios[0].semanas[3].prescripcion).toBe("3×8");
  });
  it("cambiar un día para todo el plan limpia solo sus excepciones",async()=>{
