@@ -316,7 +316,7 @@ try {
     await estudiante.page.getByText("Cargando planes…", { exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("7 días de running · 7 de fuerza", { exact: true }).count(), 0);
     await estudiante.page.getByRole("region",{name:"Planificación unificada",exact:true}).waitFor();
-    await estudiante.page.getByRole("button", { name: "Semana siguiente", exact: true }).waitFor();
+    await estudiante.page.getByRole("button", { name: "Semana siguiente de planificaci?n", exact: true }).waitFor();
     assert.equal(await estudiante.page.getByText("Mi semana", { exact: true }).count(), 0);
     await estudiante.ctx.close();
     assert.deepEqual(errores, []);
