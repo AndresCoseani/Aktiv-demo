@@ -9,7 +9,6 @@ import { AccesoAlumno, EliminarAlumno } from "@/components/acceso-card";
 import { CarrerasDeAlumno } from "@/components/carreras-view";
 import { FichaMedica } from "@/components/ficha-medica";
 import { MarcasPanel } from "@/components/marcas-panel";
-import { AlumnoResumen } from "@/components/alumno-resumen";
 import { PlanEditor } from "@/components/plan-editor";
 import { PlanMensualPanel } from "@/components/plan-mensual";
 import { usePlanesMensuales, hayBorradoresMensuales } from "@/lib/mensual";
@@ -140,7 +139,6 @@ export default function AlumnoDetallePage() {
 
       <PlanMensualPanel alumnoId={alumno.id} datosExternos={mensual} editable unificado>{alumno.planes.length > 0 && <PlanEditor alumno={alumno} />}</PlanMensualPanel>
 
-        <AlumnoResumen alumno={alumno} mensual={mensual} onAbrir={(vista) => { if (vista === "plan") { setTab("resumen"); document.getElementById("planificacion-alumno")?.scrollIntoView({behavior:"smooth",block:"start"}); } else setTab(vista); }} />
         </TabsContent>
 
         <TabsContent value="ficha">
