@@ -25,6 +25,12 @@ try {
       throw Error(`Pedido inesperado: ${path}`);
     });
     await page.goto(`${base}/login`);
+    const claveIngreso = page.locator("#clave");
+    await claveIngreso.fill("Clave-de-prueba");
+    await page.getByRole("button", { name: "Mostrar contraseña", exact: true }).click();
+    assert.equal(await claveIngreso.getAttribute("type"), "text");
+    await page.getByRole("button", { name: "Ocultar contraseña", exact: true }).click();
+    assert.equal(await claveIngreso.getAttribute("type"), "password");
     await page.getByRole("link", { name: "¿Olvidaste tu contraseña?" }).click();
     await page.waitForURL(`${base}/recuperar-clave`);
     await page.getByRole("heading", { name: "Recuperar contraseña", exact: true }).waitFor();
@@ -38,6 +44,9 @@ try {
     await page.goto(`${base}/login`);
     await page.goto(`${base}/restablecer-clave#type=recovery&access_token=token-ficticio-recuperacion-123456789&refresh_token=privado`);
     await page.getByLabel("Contraseña nueva", { exact: true }).fill("Nueva-Segura-2026!");
+    await page.getByRole("button", { name: "Mostrar contraseña", exact: true }).first().click();
+    assert.equal(await page.locator("#clave-nueva").getAttribute("type"), "text");
+    assert.equal(await page.locator("#clave-repetida").getAttribute("type"), "password");
     assert.equal(new URL(page.url()).hash, "");
     await page.getByLabel("Repetí la contraseña", { exact: true }).fill("Distinta-Segura!");
     await page.getByRole("button", { name: "Cambiar contraseña", exact: true }).click();
