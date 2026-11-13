@@ -30,6 +30,8 @@ export function DuplicarPlanDialog({ plan, alumnoId, onCerrar, onDuplicado }: {
   };
   async function duplicar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Enter en el buscador confirma la opción; no debe enviar el formulario.
+    if (document.activeElement?.id === "destino-plan") return;
     if (hayBorradoresMensuales()) { setError("Esperá a que se guarden los cambios del plan."); return; }
     const f = new FormData(e.currentTarget);
     const dto = duplicarPlanApi.safeParse({ id, alumnoId: destino, nombre: f.get("nombre"), inicio: f.get("inicio") });
