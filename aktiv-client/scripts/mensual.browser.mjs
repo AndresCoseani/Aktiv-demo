@@ -285,6 +285,8 @@ try {
       await page.getByRole("option", { name: /Otro alumno/ }).waitFor({ state: "visible" });
       await alumno.press("ArrowDown");
       await alumno.press("Enter");
+      assert.equal(planes.length, cantidad + 1);
+      await modal.getByLabel("Nombre del plan", { exact: true }).waitFor({ state: "visible" });
       await modal.getByLabel("Nombre del plan", { exact: true }).fill(`Destino ${ancho}`);
       await modal.getByRole("button", { name: "Duplicar plan", exact: true }).click();
       await modal.waitFor({ state: "hidden" });
