@@ -56,4 +56,3 @@ describe("Planificación unificada",()=>{
   const m=(await A.get(`/api/planes-modelo/${modelo}`)).body;const rutina=m.distribucion.base[1][0].sesionId;expect((await A.post(`/api/planes-modelo/${modelo}/contenido`,{metodo:"DELETE",ruta:`/sesiones/${rutina}`})).status).toBe(201);expect((await A.get(`/api/planes-modelo/${modelo}`)).body.distribucion.base[1]).toEqual([]);
  });
 });
-

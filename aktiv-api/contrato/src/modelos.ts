@@ -38,4 +38,3 @@ export type PlanModelo = z.infer<typeof planModeloSchema>;
 export const resumenModeloSchema = z.object({ id: z.uuid(), nombre, tipo: actividadPlanSchema, semanas: cantidadSemanasSchema, dias: z.number().int().nonnegative() });
 export type ResumenModelo = z.infer<typeof resumenModeloSchema>;
 export type OperacionModelo = z.infer<typeof operacionModeloApi>;
-

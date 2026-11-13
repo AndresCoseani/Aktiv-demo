@@ -23,4 +23,3 @@ describe("planes modelo", () => {
     expect(asignarModeloApi.safeParse({ ...base, asignaciones: [{ dia: 8, sesionId: uuid(3) }] }).success).toBe(false);
   });
 });
-

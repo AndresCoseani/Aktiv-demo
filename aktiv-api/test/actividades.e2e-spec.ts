@@ -1,7 +1,7 @@
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { Entorno, Sesion, levantarApi, uuid } from "./helpers";
 
-describe("Actividades libres y planes simultáneos", () => {
+describe("Actividades libres y planificación integrada", () => {
   const env = new Entorno(); let app: NestExpressApplication, A: Sesion, B: Sesion, S: Sesion, alumno: string, otro: string;
   const primero = uuid(), segundo = uuid(), tercero = uuid();
   beforeAll(async () => {
@@ -20,7 +20,7 @@ describe("Actividades libres y planes simultáneos", () => {
     expect((await S.post("/api/actividades-plan", { nombre: "No" })).status).toBe(403);
     expect((await A.post("/api/actividades-plan", { nombre: " " })).status).toBe(400);
   });
-  it("mantiene un plan activo por tipo y permite reemplazarlo explícitamente", async () => {
+  it("mantiene una planificación activa y permite reemplazarla explícitamente", async () => {
     const base = { inicio: "2026-11-01", semanas: 6, activo: true };
     expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { ...base, id: primero, nombre: "Fuerza", tipo: "Fuerza", diasIniciales: { tipo: "Fuerza", dias: 1 } })).status).toBe(201);
     expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { ...base, id: segundo, nombre: "Running", tipo: "Running", diasIniciales: { tipo: "Running", dias: 2 } })).status).toBe(400);
@@ -36,7 +36,6 @@ describe("Actividades libres y planes simultáneos", () => {
     expect((await A.post(`/api/planes-mensuales/${tercero}/activar`, { reemplazar: true })).status).toBe(201);
     const finales = (await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body;
     expect(finales.find((p: { id: string }) => p.id === tercero).activo).toBe(true);
-    expect(finales.find((p: { id: string }) => p.id === primero).activo).toBe(false);
     expect(finales.find((p: { id: string }) => p.id === primero).activo).toBe(false);
   });
   it("valida cantidades, actividades repetidas y propietario antes de crear", async () => {
@@ -56,6 +55,10 @@ describe("Actividades libres y planes simultáneos", () => {
     expect(planes.filter((p: { activo: boolean }) => p.activo)).toHaveLength(1);
     expect(planes.find((p: { id: string }) => p.id === tercero)).toMatchObject({ activo: true, tipo: "Fuerza" });
     expect(planes.find((p: { id: string }) => p.id === copia)).toMatchObject({ activo: false, sesiones: [expect.objectContaining({ tipo: "Movilidad suave" }), expect.objectContaining({ tipo: "Movilidad suave" })] });
+    expect((await A.post(`/api/planes-mensuales/${copia}/activar`, {})).status).toBe(409);
+    expect((await A.post(`/api/planes-mensuales/${copia}/activar`, { reemplazar: true })).status).toBe(201);
+    const reemplazados=(await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body;
+    expect(reemplazados.find((p: { id: string }) => p.id === tercero).activo).toBe(false);
+    expect(reemplazados.find((p: { id: string }) => p.id === copia).activo).toBe(true);
   });
 });
-

@@ -108,4 +108,3 @@ describe("actividades de los bloques",()=>{
   expect(parcheSesionApi.parse({nombre:"Anterior"})).toEqual({nombre:"Anterior"});
  });
 });
-

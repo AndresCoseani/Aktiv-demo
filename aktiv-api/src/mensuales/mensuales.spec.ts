@@ -37,6 +37,15 @@ function entorno(filas: Record<string, Record<string, unknown>[]> = {}) {
 }
 
 describe("Planes mensuales: servicio", () => {
+  it("acepta reintentar un ejercicio ya creado dentro de la misma sesión", async () => {
+    const e=entorno({sesiones:[{id:id(4)}],sesion_ejercicios:[{id:id(5),sesion_id:id(4),nombre:"Anterior",grupo:1,descanso:"60 s"}]});
+    await expect(e.servicio.crear(u,"ejercicio",id(4),{id:id(5),nombre:"Anterior",grupo:1,descanso:"60 s"})).resolves.toEqual({id:id(5)});
+    expect(e.db.from).toHaveBeenCalledWith("sesion_ejercicios");
+  });
+  it("rechaza un identificador existente con contenido distinto", async () => {
+    const e=entorno({sesiones:[{id:id(4)}],sesion_ejercicios:[{id:id(5),sesion_id:id(4),nombre:"Anterior",grupo:1,descanso:"60 s"}]});
+    await expect(e.servicio.crear(u,"ejercicio",id(4),{id:id(5),nombre:"Otro",grupo:1,descanso:"60 s"})).rejects.toMatchObject({status:409});
+  });
   it("crea el plan con sus días usando una única operación como el usuario", async () => {
     const e = entorno({ alumnos: [{ id: id(2), coach_id: u.id, user_id: null }] });
     const dto = { id: id(3), nombre: "Base", tipo: "Fuerza", inicio: "2026-11-02", semanas: 6, activo: false, diasIniciales: { tipo: "Fuerza", dias: 3 } };

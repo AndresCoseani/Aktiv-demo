@@ -177,6 +177,7 @@ jobs:
           export MENSUAL_ARTIFACTS="$RUNNER_TEMP/aktiv-browser-diagnosticos"
           export PGLITE_MODULE="$RUNNER_TEMP/checks/node_modules/@electric-sql/pglite/dist/index.js"
           node ../aktiv-api/scripts/probar-mensual-sql.mjs
+          node ../aktiv-api/scripts/probar-plan-integrado-sql.mjs
           node ../aktiv-api/scripts/probar-lucas-sql.mjs
           node ../aktiv-api/scripts/probar-bloques-sql.mjs
           node ../scripts/probar-restore-sql.mjs

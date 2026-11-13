@@ -10,7 +10,7 @@ import {
 } from "@aktiv/contrato";
 import { Roles } from "../auth/guards";
 import { UsuarioActual, asegurarAlumno, actualizarUno, borrarUno, parchePorRol } from "../common/bd";
-import { lanzarSiError, noEncontrado, reglaDeNegocio } from "../common/errores";
+import { ErrorApi, lanzarSiError, noEncontrado, reglaDeNegocio } from "../common/errores";
 import type { Usuario } from "../common/tipos";
 import { ZodPipe, validarOLanzar } from "../common/zod.pipe";
 import { SupabaseService } from "../supabase/supabase.service";
@@ -85,6 +85,19 @@ export class MensualesService {
     );
     if (recurso === "plan") await asegurarAlumno(db, padreId);
     else await this.existe(db, recurso === "sesion" ? TABLAS.plan : TABLAS.sesion, padreId);
+    // Un reintento puede llegar después de que la inserción se confirmó pero
+    // se perdió la respuesta. El identificador debe pertenecer a esta sesión.
+    const ejercicioYaCreado = async () => {
+      const r = await db.from("sesion_ejercicios").select("id,nombre,grupo,descanso").eq("id", dto.id).eq("sesion_id", padreId).maybeSingle();
+      lanzarSiError(r.error);
+      if (r.data) {
+        const ejercicio=dto as z.infer<typeof altaEjercicioMensualApi>;
+        if (r.data.nombre!==ejercicio.nombre || r.data.grupo!==ejercicio.grupo || r.data.descanso!==ejercicio.descanso)
+          throw new ErrorApi(409,"ejercicio_id_en_uso","El identificador corresponde a otro contenido. Revisá la rutina antes de reintentar.");
+      }
+      return Boolean(r.data);
+    };
+    if (recurso === "ejercicio" && await ejercicioYaCreado()) return { id: dto.id };
     if (recurso === "plan" && (dto as { activo?: boolean }).activo) await this.verificarActivacion(db);
     const conteo = await db.from(tabla).select("id", { count: "exact", head: true }).eq(columna, padreId);
     lanzarSiError(conteo.error);
@@ -97,6 +110,7 @@ export class MensualesService {
     const r = recurso === "plan" && diasIniciales
       ? await db.rpc("crear_plan_con_actividades", { p_plan: { ...campos, alumno_id: padreId, orden }, p_actividades: actividadesIniciales(diasIniciales) })
       : await db.from(tabla).insert({ ...campos, [columna]: padreId, orden });
+    if (recurso === "ejercicio" && r.error?.code === "23505" && await ejercicioYaCreado()) return { id: dto.id };
     lanzarSiError(r.error);
     return { id: dto.id };
   }

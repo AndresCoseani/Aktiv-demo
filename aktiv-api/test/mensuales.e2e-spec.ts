@@ -33,10 +33,12 @@ describe("Planes mensuales (Supabase local)", () => {
     expect((await A.post(`/api/alumnos/${alumno}/planes-mensuales`, { id: plan, nombre: "Noviembre", tipo: "Fuerza", inicio: "2026-11-02", activo: true })).status).toBe(201);
     expect((await A.post(`/api/planes-mensuales/${plan}/sesiones`, { id: sesion, dia: null, tipo: "Fuerza", nombre: "Fuerza", calentamiento: "1. Activación\n2. Movilidad", enfriamiento: "Estirar" })).status).toBe(201);
     expect((await A.post(`/api/sesiones/${sesion}/ejercicios`, { id: ejercicio, nombre: "Zumo", grupo: 1, descanso: "60 s" })).status).toBe(201);
+    expect((await A.post(`/api/sesiones/${sesion}/ejercicios`, { id: ejercicio, nombre: "Zumo", grupo: 1, descanso: "60 s" })).status).toBe(201);
     const r = await A.get(`/api/alumnos/${alumno}/planes-mensuales`);
     expect(r.status).toBe(200);
     expect(r.body[0].sesiones).toHaveLength(1);
     expect(r.body[0].sesiones.find((s: { id: string }) => s.id === sesion).dia).toBeNull();
+    expect(r.body[0].sesiones.find((s: { id: string }) => s.id === sesion).ejercicios).toHaveLength(1);
     expect(r.body[0].sesiones.find((s: { id: string }) => s.id === sesion).ejercicios[0].semanas).toHaveLength(4);
   });
   it("persiste progresión y pesos independientes y resuelve herencia", async () => {
@@ -199,4 +201,3 @@ describe("Planes mensuales (Supabase local)", () => {
     expect(c.error).toBeNull(); expect(c.data).toEqual([]);
   });
 });
-

@@ -99,4 +99,3 @@ export function semanaDelPlan(inicioPlan: string, fecha = hoyISO(), cantidadSema
 
 /** Compatibilidad con sesiones anteriores a la asignación múltiple. */
 export function diasDeSesion(s: { dia: number | null; dias?: number[] }): number[] { return s.dias ?? (s.dia === null ? [] : [s.dia]); }
-

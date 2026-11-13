@@ -46,4 +46,3 @@ export function ActividadesIniciales() {
     <NuevaActividad crear={crear} onCreada={(actividad) => setTipo(actividad)} />{error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </section>;
 }
-
