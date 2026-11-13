@@ -45,6 +45,9 @@ export function errorDeDb(e: ErrorDb): HttpException {
 }
 
 function traducirErrorDeDb(e: ErrorDb): HttpException {
+  if (e.code === "23514" && /La distribución debe usar solo la actividad del plan/.test(e.message)) {
+    return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "planificacion_running_migracion_pendiente", "Falta aplicar la migración 20261128000000 para permitir Running en la planificación semanal.");
+  }
   if (["PGRST202","PGRST205","42P01","42883"].includes(e.code??"") && /\b(solicitudes_alta|completar_registro_alumno|aprobar_registro_alumno)\b/.test(e.message)) return new ErrorApi(503,"registro_esquema_desactualizado","Falta aplicar la migración 49 para habilitar las solicitudes de alta.");
   if (["PGRST202", "PGRST205", "42P01", "42883"].includes(e.code ?? "") && /\b(actividades_plan|crear_plan_con_actividades)\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "actividades_esquema_desactualizado", "Falta aplicar la migración 48 para habilitar actividades libres y planes simultáneos.");
   if (["PGRST202", "PGRST205", "42P01", "42883"].includes(e.code ?? "") && /\b(planes_modelo|asignar_plan_modelo)\b/.test(e.message)) return new ErrorApi(HttpStatus.SERVICE_UNAVAILABLE, "modelos_esquema_desactualizado", "Para habilitar la biblioteca de planes falta aplicar la migración 47. Los planes de los alumnos siguen disponibles.");

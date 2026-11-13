@@ -1,4 +1,4 @@
-import { quitarSesionDistribucion, asignarDiaApi, actualizarDistribucion } from "@aktiv/contrato";
+import { quitarSesionDistribucion, asignarDiaApi, actualizarDistribucion, prescripcionEfectiva } from "@aktiv/contrato";
 import { randomUUID } from "node:crypto";
 import { actualizarRunning, guardarRunningApi, copiarSemanaRunningApi, altaSesionApi, altaEjercicioMensualApi, duplicarSesionApi, parcheSesionApi, parcheEjercicioMensualApi, parcheCeldaProfeApi, planModeloSchema, type PlanModelo, type OperacionModelo, type SesionEntrenamiento } from "@aktiv/contrato";
 import { ErrorApi, noEncontrado } from "../common/errores";
@@ -19,7 +19,9 @@ export function operarModelo(original: PlanModelo, op: OperacionModelo): PlanMod
     m.distribucion=actualizarDistribucion(m.distribucion??{},dto);
   } else if(recurso==="planes-mensuales"&&id===m.id&&accion==="planificacion"&&numero==="copiar"&&op.metodo==="POST") {
     const dto=validarOLanzar(copiarSemanaRunningApi,op.datos);if(Math.max(dto.origen,dto.destino)>m.semanas)throw noEncontrado("La semana");
-    for(const s of m.sesiones)for(const e of s.ejercicios){const texto=e.semanas.find(c=>c.semana===dto.origen)?.prescripcion??"";const destino=e.semanas.find(c=>c.semana===dto.destino);if(destino)destino.prescripcion=texto;}
+    if(m.sesiones.some(s=>s.ejercicios.some(e=>!prescripcionEfectiva(e.semanas,dto.origen)&&Boolean(prescripcionEfectiva(e.semanas,dto.destino-1)))))
+      throw new ErrorApi(422,"copia_semana_vacia","No se puede copiar una indicación vacía: la semana de destino heredaría una indicación anterior. Completá la semana de origen antes de duplicar.");
+    for(const s of m.sesiones)for(const e of s.ejercicios){const texto=prescripcionEfectiva(e.semanas,dto.origen);const destino=e.semanas.find(c=>c.semana===dto.destino);if(destino)destino.prescripcion=texto;}
     m.running={...m.running,[dto.destino]:structuredClone(m.running?.[dto.origen]??{})};m.distribucion={...m.distribucion,semanas:{...m.distribucion?.semanas,[dto.destino]:structuredClone(m.distribucion?.semanas?.[dto.origen]??{})}};
   } else if(recurso === "planes-mensuales" && id===m.id && accion==="running") {
     if(partes.length===3 && op.metodo==="PATCH") {

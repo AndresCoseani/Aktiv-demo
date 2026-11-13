@@ -518,10 +518,21 @@ async function main() {
   chequear("el alumno no borra el ejercicio mensual", vacio(await cS1.from("sesion_ejercicios").delete().eq("id", ejMes.data.id).select()));
   chequear("el día de sesión debe estar entre 1 y 7", Boolean((await cA.from("sesiones").insert({ plan_id: mes.data.id, dia: 0, tipo: "Running" })).error));
   chequear("no existe semana 5", Boolean((await cA.from("ejercicio_semanas").update({ semana: 5 }).eq("ejercicio_id", ejMes.data.id).eq("semana", 1)).error));
-  const otroMes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Siguiente", tipo: "Running", inicio: "2026-12-01", activo: true }).select().single();
+  const otroMes = await cA.from("planes_mensuales").insert({ alumno_id: A1.id, nombre: "Siguiente", tipo: "Running", inicio: "2026-12-01", activo: false }).select().single();
   if (otroMes.error) throw otroMes.error;
+  const activacionDirecta = await cA.from("planes_mensuales").update({ activo: true }).eq("id", otroMes.data.id);
+  chequear("la base impide dos planes mensuales activos", activacionDirecta.error?.code === "23505");
+  const sinReemplazo = await cA.rpc("activar_plan_mensual", { p_plan: otroMes.data.id, p_reemplazar: false });
+  chequear("activar otro plan exige confirmar el reemplazo", Boolean(sinReemplazo.error));
+  const alumnoActiva = await cS1.rpc("activar_plan_mensual", { p_plan: otroMes.data.id, p_reemplazar: true });
+  chequear("el alumno no puede reemplazar el plan activo", Boolean(alumnoActiva.error));
+  const otroProfeActiva = await cB.rpc("activar_plan_mensual", { p_plan: otroMes.data.id, p_reemplazar: true });
+  chequear("otro profe no puede reemplazar el plan activo", Boolean(otroProfeActiva.error));
+  const antesReemplazo = await cA.from("planes_mensuales").select("id").eq("alumno_id", A1.id).eq("activo", true);
+  chequear("sin autorización o confirmación se conserva el plan activo", antesReemplazo.data?.length === 1 && antesReemplazo.data[0].id === mes.data.id);
+  const reemplazo = await cA.rpc("activar_plan_mensual", { p_plan: otroMes.data.id, p_reemplazar: true });
   const activosMes = await cA.from("planes_mensuales").select("id").eq("alumno_id", A1.id).eq("activo", true);
-  chequear("un plan activo de Fuerza y otro de Running conviven", activosMes.data?.length === 2 && activosMes.data.some((p) => p.id === mes.data.id) && activosMes.data.some((p) => p.id === otroMes.data.id));
+  chequear("el reemplazo deja activo solo el nuevo plan", !reemplazo.error && activosMes.data?.length === 1 && activosMes.data[0].id === otroMes.data.id);
   await cA.from("planes_mensuales").delete().eq("id", mes.data.id);
   chequear("borrar el mes borra sus celdas semanales", vacio(await admin.from("ejercicio_semanas").select("*").eq("ejercicio_id", ejMes.data.id)));
 

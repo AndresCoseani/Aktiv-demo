@@ -257,9 +257,11 @@ try {
       await page.getByRole("region",{name:"Planificación unificada",exact:true}).waitFor();
       const cantidad = planes.length;
       await page.getByRole("button", { name: "Duplicar plan de entrenamiento", exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Planificación completa", exact: true }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Cancelar", exact: true }).click();
       assert.equal(planes.length, cantidad);
       await page.getByRole("button", { name: "Duplicar plan de entrenamiento", exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Planificación completa", exact: true }).click();
       const modal = page.getByRole("dialog");
       const nombre = `Plan copiado ${ancho}`;
       await modal.getByLabel("Nombre del plan", { exact: true }).fill(nombre);
@@ -277,9 +279,12 @@ try {
       assert.equal(planes.at(-1).semanas, 6);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.getByRole("button", { name: "Duplicar plan de entrenamiento", exact: true }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Planificación completa", exact: true }).click();
       const alumno = modal.getByRole("combobox", { name: "Alumno de destino", exact: true });
       await alumno.fill("Otro alumno");
-      await page.getByRole("option", { name: /Otro alumno/ }).click();
+      await page.getByRole("option", { name: /Otro alumno/ }).waitFor({ state: "visible" });
+      await alumno.press("ArrowDown");
+      await alumno.press("Enter");
       await modal.getByLabel("Nombre del plan", { exact: true }).fill(`Destino ${ancho}`);
       await modal.getByRole("button", { name: "Duplicar plan", exact: true }).click();
       await modal.waitFor({ state: "hidden" });

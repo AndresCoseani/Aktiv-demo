@@ -5,6 +5,11 @@ describe("diagnóstico seguro de errores de base", () => {
     expect(errorDeDb({ code: "PGRST204", message: "Could not find the 'objetivo' column of 'inscripciones'" }).message).toContain("46");
     expect(errorDeDb({ code: "23514", message: 'violates check constraint "sesiones_activacion_valida"', details: "fila privada" }).message).toContain("45");
   });
+  it("indica cuando falta permitir Running en la distribución semanal", () => {
+    const r = errorDeDb({ code: "23514", message: "La distribución debe usar solo la actividad del plan" });
+    expect(r.getStatus()).toBe(503);
+    expect(r.getResponse()).toMatchObject({ codigo: "planificacion_running_migracion_pendiente", mensaje: expect.stringContaining("20261128000000") });
+  });
   it("limita la migración 44 al alta de categorías sin bloquear el resto de la app", () => {
     expect(errorDeDb({ code: "PGRST202", message: "Could not find public.crear_categoria_ejercicio in the schema cache" }).getResponse()).toMatchObject({ codigo: "categorias_esquema_desactualizado", mensaje: expect.stringContaining("migración 44") });
   });

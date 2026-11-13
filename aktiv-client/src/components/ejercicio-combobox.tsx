@@ -21,10 +21,12 @@ export function EjercicioCombobox({
   value,
   onChange,
   id,
+  className,
 }: {
   value: string;
   onChange: (nombre: string) => void;
   id?: string;
+  className?: string;
 }) {
   const { ejerciciosCustom } = useStore();
   const [categoriaNueva, setCategoriaNueva] = useState("Fuerza");
@@ -67,7 +69,7 @@ export function EjercicioCombobox({
         id={id}
         placeholder="Elegí o creá un ejercicio"
         aria-label="Ejercicio"
-        className="w-full"
+        className={`w-full ${className ?? ""}`}
       />
       <ComboboxContent>
         <ComboboxEmpty>No se encontró el ejercicio.</ComboboxEmpty>

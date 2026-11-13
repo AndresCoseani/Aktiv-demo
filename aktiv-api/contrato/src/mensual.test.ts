@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actividadesBloquesSchema, diasDeSesion, diasSesionSchema, diasInicialesSchema, actividadesIniciales, prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, duplicarSesionApi, duplicarPlanApi, type CeldaSemanal } from "./mensual";
+import { actividadesBloquesSchema, diasDeSesion, diasSesionSchema, diasInicialesSchema, actividadesIniciales, prescripcionEfectiva, semanaDelPlan, semanasDelPlan, parcheCeldaAlumnoApi, parcheMensualApi, parcheSesionApi, altaMensualApi, altaSesionApi, duplicarSesionApi, duplicarPlanApi, planMensualSchema, type CeldaSemanal } from "./mensual";
 const celdas = ["4×8", "", "5×8", ""].map((prescripcion, i): CeldaSemanal => ({ semana: i + 1, prescripcion, peso: String(i + 10), pesoFecha: null }));
 describe("plan mensual", () => {
   it("copia planes con destino y fecha válidos sin permitir activar ni sobrescribir contenido", () => {
@@ -38,11 +38,15 @@ describe("plan mensual", () => {
   it("solo permite un tipo de entrenamiento por plan", () => {
     const base = { id: "a0000000-0000-4000-8000-000000000001", nombre: "Base", tipo: "Fuerza", inicio: "2026-11-02", activo: false, semanas: 6 };
     expect(altaMensualApi.parse({ ...base, diasIniciales: { tipo: "Fuerza", dias: 3 } }).tipo).toBe("Fuerza");
-    expect(altaMensualApi.safeParse({ ...base, tipo: "Running", diasIniciales: { tipo: "Running", dias: 3 } }).success).toBe(true);
+    expect(altaMensualApi.safeParse({ ...base, tipo: "Running", diasIniciales: { tipo: "Running", dias: 3 } }).success).toBe(false);
     expect(altaMensualApi.safeParse({ ...base, diasIniciales: { tipo: "Running", dias: 3 }, tipo: "Fuerza" }).success).toBe(false);
     for (const diasIniciales of [{ tipo: "Fuerza", dias: 0 }, { tipo: "Fuerza", dias: 8 }, { tipo: "Fuerza", dias: 1.5 }]) {
       expect(altaMensualApi.safeParse({ ...base, diasIniciales }).success).toBe(false);
     }
+  });
+  it("acepta Running semanal dentro de un plan de Fuerza existente", () => {
+    const id = "a0000000-0000-4000-8000-000000000001";
+    expect(planMensualSchema.safeParse({ id, nombre: "Base", tipo: "Fuerza", inicio: "2026-11-02", activo: false, orden: 0, semanas: 4, sesiones: [], distribucion: { base: { 2: [{ tipo: "Running" }] } }, running: { 1: { martes: "Series y afloje", sugerencias: "Hidratarse" } } }).success).toBe(true);
   });
   it("hereda la última prescripción sin mirar semanas futuras ni modificar pesos", () => {
     expect([1, 2, 3, 4].map((s) => prescripcionEfectiva(celdas, s))).toEqual(["4×8", "4×8", "5×8", "5×8"]);

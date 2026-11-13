@@ -60,6 +60,8 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
   const [editando, setEditando] = useState<PlanMensual | null>(null);
   const [guardandoModelo, setGuardandoModelo] = useState(false);
   const [duplicandoPlan, setDuplicandoPlan] = useState<PlanMensual | null>(null);
+  const [opcionCopia,setOpcionCopia]=useState<"menu"|"dia"|"semana"|null>(null),[sesionParaDuplicar,setSesionParaDuplicar]=useState<SesionEntrenamiento|null>(null);
+  const [origenCopia,setOrigenCopia]=useState(1),[destinoCopia,setDestinoCopia]=useState(2),[copiandoSemana,setCopiandoSemana]=useState(false),[errorCopia,setErrorCopia]=useState("");
   const visibles = editable ? datos.planes : datos.planes.filter((p) => p.activo);
   const plan = visibles.find((p) => p.id === seleccion) ?? visibles.find((p) => p.activo && (editable || !unificado || p.inicio<=hoyISO())) ?? visibles.find((p)=>p.activo) ?? visibles.at(-1);
 
@@ -80,13 +82,18 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
   }
   async function nuevoDia() {
     if (!plan || ocupado) return;
+    if (plan.tipo === "Running") {
+      toast.error("Running se carga desde las actividades de la semana, no como un día de rutina.");
+      return;
+    }
     setOcupado(true);
     try {
-      const numero=plan.sesiones.filter(s=>["Fuerza","GYM"].includes(s.tipo)).length+1;
-      const dto=altaSesionApi.parse({id:nuevoId(),tipo:"Fuerza",nombre:`Fuerza - Día ${numero}`,dia:null,calentamiento:"",enfriamiento:""});
+      const tipo=plan.tipo;
+      const numero=plan.sesiones.filter(s=>s.tipo===tipo).length+1;
+      const dto=altaSesionApi.parse({id:nuevoId(),tipo,nombre:`${tipo} - Día ${numero}`,dia:null,calentamiento:"",enfriamiento:""});
       await api.post(`/planes-mensuales/${plan.id}/sesiones`,dto);
       setDiaCreado({...dto,orden:plan.sesiones.length,ejercicios:[]});
-      avisarCambioMensual();
+      avisarCambioMensual(); toast.success(`${tipo} - Día ${numero} creado`);
     } catch(e) { toast.error(mensaje(e)); } finally {setOcupado(false);}
   }
   async function accion(tipo: "activar" | "desactivar" | "borrar", reemplazar=false) {
@@ -99,6 +106,11 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
       if (tipo !== "borrar") setSeleccion(plan.id);
       avisarCambioMensual(); setBorrar(false); setReemplazando(null); toast.success(tipo === "activar" ? (reemplazar ? "Plan reemplazado y activado" : "Plan activado") : tipo === "desactivar" ? "Plan desactivado. Su contenido y registros se conservan." : "Plan eliminado");
     } catch (e) { toast.error(mensaje(e)); } finally { setOcupado(false); }
+  }
+  async function copiarSemanaDesdeBarra(){
+    if(!plan||copiandoSemana)return;setCopiandoSemana(true);setErrorCopia("");
+    try{await api.post(`/planes-mensuales/${plan.id}/planificacion/copiar`,{origen:origenCopia,destino:destinoCopia});avisarCambioMensual();setOpcionCopia(null);toast.success("Semana copiada");}
+    catch(e){setErrorCopia(mensaje(e));}finally{setCopiandoSemana(false);}
   }
   return <div className="min-w-0 space-y-5">
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
@@ -117,26 +129,32 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
         {editable&&unificado?<div className="space-y-2">
           <div aria-label="Acciones del plan" role="group" className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 px-3 py-2">
             <Button variant="outline" className="h-auto min-h-9 min-w-0 max-w-[65%] justify-start whitespace-normal px-4 py-1.5 text-left font-medium" aria-label="Editar plan de entrenamiento" title="Editar nombre, inicio y duración" disabled={ocupado} onClick={()=>navegar(()=>setEditando(plan))}>{plan.nombre||"Sin nombre"}</Button>
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3"><Button size="sm" variant="outline" className="text-muted-foreground" disabled={ocupado} onClick={()=>navegar(()=>void nuevoDia())}><Plus />Crear día</Button><Switch aria-label={plan.activo?"Desactivar plan":"Activar plan"} title={plan.activo?"Desactivar plan":"Activar plan"} checked={plan.activo} disabled={ocupado} style={{backgroundColor:plan.activo?"var(--primary)":"var(--muted)"}} onCheckedChange={v=>navegar(()=>{if(v){const activo=datos.planes.find(p=>p.activo&&p.tipo===plan.tipo&&p.id!==plan.id);if(activo){setReemplazando(activo);return;}}void accion(v?"activar":"desactivar");})} /><Button size="icon-sm" variant="ghost" aria-label="Guardar plan como modelo" title="Guardar plan completo como modelo" disabled={ocupado} onClick={()=>navegar(()=>setGuardandoModelo(true))}><BookmarkPlus /></Button><Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={()=>navegar(()=>setDuplicandoPlan(plan))}><Copy /></Button><Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" title="Eliminar plan" disabled={ocupado} onClick={()=>navegar(()=>setBorrar(true))}><Trash2 className="text-destructive" /></Button></div>
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">{plan.tipo!=="Running"&&<Button size="sm" variant="outline" className="text-muted-foreground" disabled={ocupado} onClick={()=>navegar(()=>void nuevoDia())}><Plus />Crear día</Button>}<Switch aria-label={plan.activo?"Desactivar plan":"Activar plan"} title={plan.activo?"Desactivar plan":"Activar plan"} checked={plan.activo} disabled={ocupado} style={{backgroundColor:plan.activo?"var(--primary)":"var(--muted)"}} onCheckedChange={v=>navegar(()=>{if(v){const activo=datos.planes.find(p=>p.activo&&p.id!==plan.id);if(activo){setReemplazando(activo);return;}}void accion(v?"activar":"desactivar");})} /><Button size="icon-sm" variant="ghost" aria-label="Guardar plan como modelo" title="Guardar plan completo como modelo" disabled={ocupado} onClick={()=>navegar(()=>setGuardandoModelo(true))}><BookmarkPlus /></Button><Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={()=>navegar(()=>setOpcionCopia("menu"))}><Copy /></Button><Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" title="Eliminar plan" disabled={ocupado} onClick={()=>navegar(()=>setBorrar(true))}><Trash2 className="text-destructive" /></Button></div>
           </div>
           <details className="group/otros-planes"><summary className="w-fit cursor-pointer rounded-md px-1 py-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">Ver más planes</summary><div className="mt-2 space-y-3 rounded-lg border border-border/60 p-3"><div className="flex flex-wrap gap-2" aria-label="Planes de entrenamiento">{visibles.map(p=><Button key={p.id} variant={p.id===plan.id?"secondary":"outline"} size="sm" aria-pressed={p.id===plan.id} onClick={()=>navegar(()=>setSeleccion(p.id))}>{p.activo&&<Check className="size-3.5" />}{p.nombre||"Sin nombre"}</Button>)}</div></div></details>
         </div>:<>        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
           <div className="min-w-0 flex-1 basis-48"><p className="break-words text-lg font-medium tracking-tight">{plan.nombre || "Plan de entrenamiento"}</p><p className="text-xs text-muted-foreground">Inicio: {formatFecha(plan.inicio, { conAnio: true })} · {plan.semanas} semanas · {plan.activo ? "Activo" : "Borrador"}</p></div>
           {editable && <div className="flex flex-wrap items-center gap-1">
             {plan.activo && <Button size="icon" variant="ghost" aria-label="Desactivar plan" title="Desactivar plan" disabled={ocupado} onClick={() => navegar(() => void accion("desactivar"))}><Power className="text-primary" /></Button>}
-            {!plan.activo && <Button size="icon" variant="ghost" aria-label="Activar plan" title="Activar plan" disabled={ocupado} onClick={() => navegar(() => {const activo=datos.planes.find(p=>p.activo&&p.tipo===plan.tipo&&p.id!==plan.id);if(activo)setReemplazando(activo);else void accion("activar");})}><Power /></Button>}
+            {!plan.activo && <Button size="icon" variant="ghost" aria-label="Activar plan" title="Activar plan" disabled={ocupado} onClick={() => navegar(() => {const activo=datos.planes.find(p=>p.activo&&p.id!==plan.id);if(activo)setReemplazando(activo);else void accion("activar");})}><Power /></Button>}
             <Button variant="ghost" size="icon" aria-label="Guardar como modelo" title="Guardar como modelo" disabled={ocupado} onClick={() => navegar(() => setGuardandoModelo(true))}><BookmarkPlus /></Button>
-            <Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={() => navegar(() => setDuplicandoPlan(plan))}><Copy /></Button>
+            <Button size="icon-sm" variant="ghost" aria-label="Duplicar plan de entrenamiento" title="Duplicar plan" disabled={ocupado} onClick={() => navegar(() => setOpcionCopia("menu"))}><Copy /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Editar plan de entrenamiento" title="Editar plan" disabled={ocupado} onClick={() => navegar(() => setEditando(plan))}><Pencil /></Button>
             <Button size="icon-sm" variant="ghost" aria-label="Eliminar plan de entrenamiento" disabled={ocupado} onClick={() => navegar(() => setBorrar(true))}><Trash2 className="text-destructive" /></Button>
           </div>}
         </div></>}
-        <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} renderRutina={(s,semana,cerrar)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
+        <>{unificado&&!editable&&<div className="flex justify-end"><Button size="sm" variant="outline" onClick={()=>navegar(()=>setVistaDiaria(v=>!v))}>{vistaDiaria?"Ver grilla semanal":"Vista diaria"}</Button></div>}{unificado&&(!editable&&vistaDiaria)?<CalendarioPlanes planes={visibles} />:unificado&&!editable&&plan.inicio>hoyISO()?<p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">Tu plan empieza el {formatFecha(plan.inicio)}. Podés consultar las fechas desde Vista diaria.</p>:unificado?<PlanificacionUnificada key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} mostrarVolumen={datos.planes.some(p=>p.tipo==="Running"||Object.values(p.distribucion?.base??{}).some(d=>d.some(a=>a.tipo==="Running"))||Object.values(p.distribucion?.semanas??{}).some(w=>Object.values(w).some(d=>d.some(a=>a.tipo==="Running"))))} renderRutina={(s,semana,cerrar,soloLectura)=><RutinaPlanModal key={s.id} plan={plan} sesion={s} editable={editable&&!soloLectura} semanaInicial={semana} onCerrar={cerrar} />} />:<ContenidoMes key={`${plan.id}:${plan.semanas}`} plan={plan} editable={editable} />}</>
       </> : <p className="min-w-0 break-words rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{editable ? "Creá un plan, elegí su duración y agregá las sesiones." : "Tu profe todavía no activó un plan de entrenamiento."}</p>}
     </>}
     {children && <details className="rounded-xl border px-4 py-3"><summary className="cursor-pointer text-sm text-muted-foreground">Planes anteriores</summary><div className="mt-4">{children}</div></details>}
     {diaCreado && plan && <RutinaPlanModal plan={plan} sesion={plan.sesiones.find(s=>s.id===diaCreado.id)??diaCreado} editable semanaInicial={semanaDelPlan(plan.inicio,hoyISO(),plan.semanas)??1} onCerrar={()=>setDiaCreado(null)} />}
     {guardandoModelo && plan && <GuardarModeloDialog plan={plan} onCerrar={() => setGuardandoModelo(false)} />}
+    {sesionParaDuplicar&&<DuplicarSesionDialog asignarLuego sesion={sesionParaDuplicar} onCerrar={()=>setSesionParaDuplicar(null)} onDuplicada={()=>{setSesionParaDuplicar(null);avisarCambioMensual();}} />}
+    <Dialog open={Boolean(opcionCopia)} onOpenChange={v=>{if(!v&&!copiandoSemana)setOpcionCopia(null);}}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>{opcionCopia==="dia"?"Duplicar día":opcionCopia==="semana"?"Duplicar semana":"¿Qué querés duplicar?"}</DialogTitle><DialogDescription>{opcionCopia==="dia"?"Elegí una rutina de fuerza de este plan. Para copiar Running, abrí su detalle en la grilla.":opcionCopia==="semana"?"Elegí una semana de origen y una de destino. Se copiará la planificación completa, incluidas las sugerencias, y se reemplazará el contenido de destino. Los pesos se conservan; las semanas que heredan indicaciones podrían cambiar.":"Elegí si querés copiar un día, una semana o la planificación completa."}</DialogDescription></DialogHeader>
+      {opcionCopia==="menu"&&<div className="grid gap-2"><Button variant="outline" onClick={()=>setOpcionCopia("dia")}>Día</Button><Button variant="outline" disabled={!plan||plan.semanas<2} onClick={()=>{setOrigenCopia(1);setDestinoCopia(2);setErrorCopia("");setOpcionCopia("semana");}}>Semana</Button><Button variant="outline" onClick={()=>{if(plan){setOpcionCopia(null);setDuplicandoPlan(plan);}}}>Planificación completa</Button></div>}
+      {opcionCopia==="dia"&&<div className="space-y-2">{plan?.sesiones.filter(s=>["Fuerza","GYM"].includes(s.tipo)).map(s=><Button key={s.id} variant="outline" className="w-full min-w-0 justify-between" onClick={()=>{setOpcionCopia(null);setSesionParaDuplicar(s);}}><span className="min-w-0 truncate">{s.nombre||"Día de fuerza"}</span><span className="shrink-0 text-xs text-muted-foreground">{s.ejercicios.filter(e=>e.nombre.trim()).length} ejercicios de bloque</span></Button>)}{!plan?.sesiones.some(s=>["Fuerza","GYM"].includes(s.tipo))&&<p className="text-sm text-muted-foreground">Este plan todavía no tiene días de fuerza.</p>}</div>}
+      {opcionCopia==="semana"&&plan&&<><div className="grid gap-3">{([["Origen",origenCopia,setOrigenCopia],["Destino",destinoCopia,setDestinoCopia]] as const).map(([label,valor,cambiar])=><label key={label} className="space-y-1 text-sm"><span>{label}</span><select className="w-full rounded-lg border bg-background px-3 py-2" value={valor} onChange={e=>cambiar(Number(e.target.value))}>{semanasDelPlan(plan.semanas).map(s=><option key={s} value={s}>Semana {s}</option>)}</select></label>)}</div>{errorCopia&&<p role="alert" className="text-sm text-destructive">{errorCopia}</p>}<DialogFooter><Button variant="outline" disabled={copiandoSemana} onClick={()=>setOpcionCopia(null)}>Cancelar</Button><Button disabled={copiandoSemana||origenCopia===destinoCopia} onClick={()=>void copiarSemanaDesdeBarra()}>{copiandoSemana?"Copiando…":"Reemplazar semana"}</Button></DialogFooter></>}
+    </DialogContent></Dialog>
     {editando && <EditarPlanDialog plan={editando} onCerrar={() => setEditando(null)} />}
     {duplicandoPlan && <DuplicarPlanDialog plan={duplicandoPlan} alumnoId={alumnoId} onCerrar={() => setDuplicandoPlan(null)} onDuplicado={(id, destino) => {
       if (destino === alumnoId) setSeleccion(id);
@@ -155,7 +173,7 @@ export function PlanMensualPanel({ alumnoId, editable = false, children, unifica
     <Dialog open={buscarModelo} onOpenChange={setBuscarModelo}><DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>Asignar un modelo</DialogTitle><DialogDescription>Elegí un modelo de la biblioteca. Se copiará como borrador independiente para este alumno.</DialogDescription></DialogHeader><Input aria-label="Buscar modelo" placeholder="Buscar por nombre o actividad" value={filtroModelo} onChange={e=>setFiltroModelo(e.target.value)} /><div className="max-h-80 space-y-2 overflow-y-auto">{modelos.filter(m=>`${m.nombre} ${m.tipo}`.toLocaleLowerCase("es").includes(filtroModelo.trim().toLocaleLowerCase("es"))).length?modelos.filter(m=>`${m.nombre} ${m.tipo}`.toLocaleLowerCase("es").includes(filtroModelo.trim().toLocaleLowerCase("es"))).map(m=><button key={m.id} type="button" className="flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left hover:bg-muted/50" onClick={()=>{setBuscarModelo(false);setModeloSeleccionado({tipo:"asignar",modelo:m});}}><span className="min-w-0"><span className="block truncate font-medium">{m.nombre}</span><span className="text-xs text-muted-foreground">{m.tipo} · {m.dias} sesiones · {m.semanas} semanas</span></span><span aria-hidden="true">→</span></button>):<p className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">{modelos.length?"No hay modelos que coincidan.":"Todavía no hay modelos. Crealos desde Planes."}</p>}</div><DialogFooter><Button variant="outline" onClick={()=>setBuscarModelo(false)}>Cerrar</Button></DialogFooter></DialogContent></Dialog>
     {modeloSeleccionado?.tipo==="asignar"&&<ModeloDialog key={modeloSeleccionado.modelo.id} accion={modeloSeleccionado} alumnoInicial={alumnoId} onCerrar={()=>setModeloSeleccionado(null)} />}
     <Dialog open={borrar} onOpenChange={(v) => !ocupado && setBorrar(v)}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Eliminar este plan?</DialogTitle><DialogDescription>Se borran sus sesiones, ejercicios y registros de peso. No se puede deshacer.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={ocupado} onClick={() => setBorrar(false)}>Cancelar</Button><Button variant="destructive" disabled={ocupado} onClick={() => void accion("borrar")}>Eliminar plan</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={Boolean(reemplazando)} onOpenChange={(v)=>!ocupado&&!v&&setReemplazando(null)}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>¿Reemplazar el plan activo?</DialogTitle><DialogDescription>Ya hay un plan de {plan?.tipo} activo: «{reemplazando?.nombre}». Al reemplazarlo, quedará como borrador y conservará sus sesiones y registros.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={ocupado} onClick={()=>setReemplazando(null)}>Cancelar</Button><Button disabled={ocupado} onClick={()=>void accion("activar",true)}>{ocupado?"Reemplazando…":"Reemplazar plan"}</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(reemplazando)} onOpenChange={(v)=>!ocupado&&!v&&setReemplazando(null)}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>¿Reemplazar el plan activo?</DialogTitle><DialogDescription>Ya hay un plan activo: «{reemplazando?.nombre}». Al reemplazarlo, quedará como borrador y conservará sus sesiones y registros.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={ocupado} onClick={()=>setReemplazando(null)}>Cancelar</Button><Button disabled={ocupado} onClick={()=>void accion("activar",true)}>{ocupado?"Reemplazando…":"Reemplazar plan"}</Button></DialogFooter></DialogContent></Dialog>
   </div>;
 }
 
@@ -308,14 +326,14 @@ export function ContenidoMes({ plan, editable }: { plan: Pick<PlanMensual, "id" 
   </div>;
 }
 
-type PropsEditorSesion = { sesion: SesionEntrenamiento; numeroDia: number; semana: number; semanasVisibles: number[]; totalSemanas: number; enModal?:boolean; selectorSemana?:ReactNode; onDuplicar: () => void };
+type PropsEditorSesion = { sesion: SesionEntrenamiento; numeroDia: number; semana: number; semanasVisibles: number[]; totalSemanas: number; enModal?:boolean; selectorSemana?:ReactNode; onDuplicar: () => void; onEliminado?: () => void; onGuardado?: () => void; onFallo?: () => void; onOcupado?: (v:boolean) => void };
 
 function EditorSesion(props: PropsEditorSesion) {
   // Los formularios conservan su borrador durante las recargas de otras cards.
   return <FormularioSesion {...props} />;
 }
 
-function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: SesionEntrenamiento; onCerrar: () => void; onDuplicada: (id: string) => void }) {
+function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada, asignarLuego=false }: { sesion: SesionEntrenamiento; onCerrar: () => void; onDuplicada: (id: string) => void; asignarLuego?:boolean }) {
   const { api } = usePlanEditor();
   const [id] = useState(nuevoId);
   const [dias, setDias] = useState<number[]>([]);
@@ -340,8 +358,8 @@ function DuplicarSesionDialog({ sesion, onCerrar, onDuplicada }: { sesion: Sesio
         <DialogHeader><DialogTitle>Duplicar día</DialogTitle><DialogDescription>Copiá la rutina y las indicaciones de todas sus semanas dentro de este plan. Los pesos del alumno no se copian.</DialogDescription></DialogHeader>
         <fieldset disabled={ocupado} className="min-w-0 space-y-4">
           <label className="block space-y-1 text-sm">Nombre del día<Input name="nombre" defaultValue={`${(sesion.nombre || sesion.tipo).slice(0, 52)} (copia)`} maxLength={60} required autoFocus /></label>
-          <div className="space-y-2"><p className="text-sm">Días de la semana</p><DiasSesion value={dias} onChange={setDias} disabled={ocupado} /></div>
-          <p className="text-xs text-muted-foreground">La copia se agrega al final de los días de {sesion.tipo.toLowerCase()}. Después podés editarla de forma independiente.</p>
+          {!asignarLuego&&<div className="space-y-2"><p className="text-sm">Días de la semana</p><DiasSesion value={dias} onChange={setDias} disabled={ocupado} /></div>}
+          <p className="text-xs text-muted-foreground">{asignarLuego?"La copia quedará disponible en Días de fuerza de este plan. Podés asignarla a la semana desde el chevrón de la grilla.":`La copia se agrega al final de los días de ${sesion.tipo.toLowerCase()}. Después podés editarla de forma independiente.`}</p>
         </fieldset>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button type="button" variant="ghost" disabled={ocupado} onClick={onCerrar}>Cancelar</Button><Button type="submit" disabled={ocupado}>{ocupado ? "Duplicando…" : "Duplicar día"}</Button></DialogFooter>
@@ -384,22 +402,21 @@ function EditarSesionDialog({ sesion, onGuardar, onCerrar, soloNombre=false }: {
   </Dialog>;
 }
 
-function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas, onDuplicar, enModal=false, selectorSemana }: PropsEditorSesion) {
+function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSemanas, onDuplicar, onEliminado, enModal=false, selectorSemana, onGuardado, onFallo, onOcupado }: PropsEditorSesion) {
   const { api, modelo } = usePlanEditor();
   const [borrador, setBorrador] = useState(sesion);
   const [guardado, setGuardado] = useState(sesion);
-  const [altaPendiente, setAltaPendiente] = useState<EjercicioMensual | null>(null);
   const guardando = useRef(false);
-  const continuarGuardado = useRef(false);
+  const altasPendientes = useRef(new Map<string, { id: string; nombre: string; descanso: string; grupo: number }>());
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState("");
   const [confirmar, setConfirmar] = useState(false);
   const [editando, setEditando] = useState(false);
   const [quitar, setQuitar] = useState<string | null>(null);
   const sucio = JSON.stringify(borrador) !== JSON.stringify(guardado);
-  useEffect(() => registrarBorradorMensual(sesion.id, sucio), [sesion.id, sucio]);
+  useEffect(() => registrarBorradorMensual(sesion.id, sucio || ocupado), [sesion.id, sucio, ocupado]);
   useEffect(() => {
-    if (!sucio) return;
+    if (!sucio && !ocupado) return;
     const avisar = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
     const alNavegar = (e: MouseEvent) => {
       if (e.target instanceof Element && e.target.closest("a[href], [role=tab]")) {
@@ -409,13 +426,13 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
     window.addEventListener("beforeunload", avisar);
     document.addEventListener("click", alNavegar, true);
     return () => { window.removeEventListener("beforeunload", avisar); document.removeEventListener("click", alNavegar, true); };
-  }, [sucio]);
+  }, [sucio, ocupado]);
   function ejercicio(id: string, campos: Partial<EjercicioMensual>) { setBorrador((b) => ({ ...b, ejercicios: b.ejercicios.map((e) => e.id === id ? { ...e, ...campos } : e) })); }
 
   const guardar = useCallback(async () => {
     if (guardando.current) return false;
     guardando.current = true;
-    setOcupado(true); setError("");
+    setOcupado(true); onOcupado?.(true); setError("");
     try {
       const cabecera = (s: SesionEntrenamiento) => ({ nombre: s.nombre, tipo: s.tipo, dia: s.dia, ...(s.dias ? {dias:s.dias} : {}), calentamiento: s.calentamiento, activacion: s.activacion, enfriamiento: s.enfriamiento, orden: s.orden, bloques: s.bloques, ...(s.actividadesBloques?{actividadesBloques:s.actividadesBloques}:{}) });
       const c = cambio(cabecera(guardado), cabecera(borrador));
@@ -424,21 +441,24 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
       if (Object.keys(c).length) operaciones.push({ ruta: `/sesiones/${sesion.id}`, datos: parcheSesionApi.parse(c) });
       // El alta crea celdas vacías en el servidor; los valores iniciales también deben guardarse.
       for (const ej of borrador.ejercicios) {
-        const previo = guardado.ejercicios.find((p) => p.id === ej.id) ?? (altaPendiente ? { ...altaPendiente, semanas: altaPendiente.semanas.map((c) => ({ ...c, prescripcion: "" })) } : null);
-        if (!previo) throw new Error("No pudimos identificar el ejercicio pendiente.");
+        const existente = guardado.ejercicios.find((p) => p.id === ej.id);
+        const previo = existente ?? { ...ej, semanas: ej.semanas.map((c) => ({ ...c, prescripcion: "" })) };
         const campos = (v: EjercicioMensual) => ({ nombre: v.nombre, descanso: v.descanso, grupo: v.grupo, orden: v.orden });
         const ce = cambio(campos(previo), campos(ej));
+        if (!existente) Object.assign(ce, campos(ej));
         if (Object.keys(ce).length) operaciones.push({ ruta: `/sesion-ejercicios/${ej.id}`, datos: parcheEjercicioMensualApi.parse(ce) });
         for (const celda of ej.semanas) {
           const anterior = previo.semanas.find((s) => s.semana === celda.semana);
           if (anterior?.prescripcion !== celda.prescripcion) operaciones.push({ ruta: `/sesion-ejercicios/${ej.id}/semanas/${celda.semana}`, datos: parcheCeldaProfeApi.parse({ prescripcion: celda.prescripcion }) });
         }
       }
-      if (altaPendiente) {
-        const { id, nombre, descanso, grupo } = altaPendiente;
-        await api.post(`/sesiones/${sesion.id}/ejercicios`, { id, nombre, descanso, grupo });
-        setGuardado((anterior) => ({ ...anterior, ejercicios: [...anterior.ejercicios, { ...altaPendiente, semanas: altaPendiente.semanas.map((c) => ({ ...c, prescripcion: "" })) }] }));
-        setAltaPendiente(null);
+      for (const nuevo of borrador.ejercicios.filter(e => !guardado.ejercicios.some(g => g.id === e.id))) {
+        const { id, nombre, descanso, grupo } = nuevo;
+        const alta = altasPendientes.current.get(id) ?? { id, nombre, descanso, grupo };
+        altasPendientes.current.set(id, alta);
+        await api.post(`/sesiones/${sesion.id}/ejercicios`, alta);
+        altasPendientes.current.delete(id);
+        setGuardado((anterior) => ({ ...anterior, ejercicios: [...anterior.ejercicios, { ...nuevo, nombre: "\u0000", descanso: "\u0000", grupo: -1, orden: -1, semanas: nuevo.semanas.map((c) => ({ ...c, prescripcion: "" })) }] }));
       }
       // El alta anterior es una dependencia; estos parches ya son independientes.
       // Esperar el lote completo incluso si falla uno, antes de ofrecer reintento.
@@ -447,18 +467,13 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
         const fallo = resultados.find((r) => r.status === "rejected");
         if (fallo?.status === "rejected") throw fallo.reason;
       }
-      continuarGuardado.current = true;
+      for (const quitado of guardado.ejercicios.filter(e => !borrador.ejercicios.some(b => b.id === e.id))) {
+        await api.delete(`/sesion-ejercicios/${quitado.id}`);
+        setGuardado(anterior => ({...anterior, ejercicios: anterior.ejercicios.filter(e => e.id !== quitado.id)}));
+      }
       setGuardado(borrador); avisarCambioMensual(borrador); return true;
-    } catch (e) { setError(mensaje(e)); return false; } finally { guardando.current = false; setOcupado(false); }
-  }, [api, borrador, guardado, sesion.id, altaPendiente]);
-  useEffect(() => {
-    if (!sucio) { continuarGuardado.current = false; return; }
-    if (ocupado || error) return;
-    const espera = altaPendiente || continuarGuardado.current ? 0 : 300;
-    continuarGuardado.current = false;
-    const timer = setTimeout(() => void guardar(), espera);
-    return () => clearTimeout(timer);
-  }, [sucio, ocupado, error, guardar, altaPendiente]);
+    } catch (e) { setError(`${mensaje(e)} Algunos cambios podrían haberse guardado. Reintentá para completar la rutina.`); return false; } finally { guardando.current = false; setOcupado(false); onOcupado?.(false); }
+  }, [api, borrador, guardado, sesion.id, onOcupado]);
   function crearBloque() {
     setBorrador((anterior) => {
       const grupo = primerBloqueLibre(anterior.ejercicios, anterior.bloques);
@@ -466,39 +481,38 @@ function FormularioSesion({ sesion, numeroDia, semana, semanasVisibles, totalSem
     });
   }
   function agregarEjercicio(grupo: number) {
-    if (altaPendiente) return;
     const nuevo: EjercicioMensual = { id: nuevoId(), nombre: "", descanso: "60 s", grupo, orden: Math.max(-1, ...borrador.ejercicios.map((e) => e.orden)) + 1, semanas: semanasDelPlan(totalSemanas).map((semana) => ({ semana, prescripcion: "3×8", peso: null, pesoFecha: null })) };
     setBorrador((anterior) => ({ ...anterior, ejercicios: [...anterior.ejercicios, nuevo] }));
-    setAltaPendiente(nuevo); setError("");
+    setError("");
   }
   async function eliminar() {
-    setOcupado(true); setError("");
+    setOcupado(true); onOcupado?.(true); setError("");
     try {
-      await api.delete(quitar ? `/sesion-ejercicios/${quitar}` : `/sesiones/${sesion.id}`);
+      if (!quitar) await api.delete(`/sesiones/${sesion.id}`);
       if (quitar) {
         setBorrador((anterior) => ({ ...anterior, ejercicios: anterior.ejercicios.filter((e) => e.id !== quitar) }));
-        setGuardado((anterior) => ({ ...anterior, ejercicios: anterior.ejercicios.filter((e) => e.id !== quitar) }));
       }
-      avisarCambioMensual(); setConfirmar(false); setQuitar(null);
-    } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); }
+      if (!quitar) { registrarBorradorMensual(sesion.id, false); avisarCambioMensual(); onEliminado?.(); }
+      setConfirmar(false); setQuitar(null);
+    } catch (e) { setError(mensaje(e)); } finally { setOcupado(false); onOcupado?.(false); }
   }
-  return <Card className={enModal?"gap-4 bg-transparent py-0 shadow-none ring-0":"gap-6 shadow-none ring-border/60"}>{enModal?<CardHeader className="px-0"><Input aria-label="Nombre del día" maxLength={60} value={borrador.nombre} onChange={e=>setBorrador(b=>({...b,nombre:e.target.value}))} className="border-transparent bg-transparent text-center text-lg font-medium shadow-none" /></CardHeader>:<CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle>{!enModal&&<div className="mt-2"><DiasSesion value={diasDeSesion(borrador)} onChange={(dias)=>setBorrador(b=>({...b,dias,dia:dias[0]??null}))} /></div>}</div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>}
+  return <Card className={enModal?"gap-4 bg-transparent py-0 shadow-none ring-0":"gap-6 shadow-none ring-border/60"}>{enModal?<CardHeader className="px-0"><Input aria-label="Nombre del día" maxLength={60} disabled={ocupado} value={borrador.nombre} onChange={e=>setBorrador(b=>({...b,nombre:e.target.value}))} className="mx-auto w-[calc(100%-2.5rem)] border-transparent bg-transparent text-center text-lg font-medium shadow-none" /></CardHeader>:<CardHeader><div className="flex items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-lg">{borrador.nombre || `${sesion.tipo} · Día ${numeroDia}`}</CardTitle>{!enModal&&<div className="mt-2"><DiasSesion value={diasDeSesion(borrador)} onChange={(dias)=>setBorrador(b=>({...b,dias,dia:dias[0]??null}))} /></div>}</div><div className="flex shrink-0 gap-1"><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Duplicar día de entrenamiento" title="Duplicar día" disabled={ocupado || sucio} onClick={onDuplicar}><Copy /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Editar entrenamiento" title="Editar entrenamiento" disabled={ocupado || sucio} onClick={() => setEditando(true)}><Pencil /></Button><Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="Eliminar sesión" disabled={ocupado || sucio} onClick={() => setConfirmar(true)}><Trash2 /></Button></div></div></CardHeader>}
     {editando && <EditarSesionDialog soloNombre={enModal} sesion={borrador} onCerrar={() => setEditando(false)} onGuardar={(actualizada) => { setBorrador(actualizada); setGuardado(actualizada); }} />}
-    <CardContent className={enModal?"px-0":undefined}><form onSubmit={(e) => { e.preventDefault(); void guardar(); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50">
+    <CardContent className={enModal?"px-0":undefined}><form id={`rutina-${sesion.id}`} onSubmit={(e) => { e.preventDefault(); void guardar().then(ok => { if (ok) { toast.success("Cambios guardados"); onGuardado?.(); } else onFallo?.(); }); }} className="space-y-6 [&_input[data-slot=input]]:border-border/50 [&_textarea]:border-border/50"><fieldset disabled={ocupado} className="min-w-0 space-y-6">
       {selectorSemana}
-      {enModal?<EditorDia sesion={borrador} semana={semana} editable bloqueado={ocupado||sucio||Boolean(altaPendiente)} onSesion={setBorrador} onEjercicio={ejercicio} onAgregar={agregarEjercicio} onQuitar={setQuitar} />:<>      <fieldset className="min-w-0 space-y-8">
+      {enModal?<EditorDia sesion={borrador} semana={semana} editable bloqueado={ocupado} onDuplicar={onDuplicar} duplicarBloqueado={sucio} onEliminarDia={()=>{setError("");setConfirmar(true);}} onSesion={setBorrador} onEjercicio={ejercicio} onAgregar={agregarEjercicio} onQuitar={setQuitar} />:<>      <fieldset className="min-w-0 space-y-8">
         <EntradaEnCalorEditor texto={borrador.calentamiento} ejercicios={borrador.activacion} onTexto={(calentamiento) => setBorrador((anterior) => ({ ...anterior, calentamiento }))} onEjercicios={(activacion) => setBorrador((anterior) => ({ ...anterior, activacion }))} />
         <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-semibold">Entrenamiento</h3><div className="flex flex-wrap gap-2">
           {semana > 1 && <Button type="button" variant="ghost" size="sm" onClick={() => setBorrador((b) => ({ ...b, ejercicios: b.ejercicios.map((e) => ({ ...e, semanas: e.semanas.map((c) => c.semana === semana ? { ...c, prescripcion: c.prescripcion.trim() ? c.prescripcion : prescripcionEfectiva(e.semanas, semana - 1) } : c) })) }))}>Completar vacíos de S{semana} con S{semana - 1}</Button>}
           </div></div>
-          <EditorEjerciciosPlan maxColumnas={enModal?4:undefined} ejercicios={borrador.ejercicios} bloques={borrador.bloques} tipo={borrador.tipo} semana={semana} semanasVisibles={semanasVisibles} ocupado={ocupado || Boolean(altaPendiente)} altaPendiente={Boolean(altaPendiente)} sucio={sucio} onCambiar={ejercicio} onCrearBloque={crearBloque} onQuitarBloque={(grupo) => setBorrador((anterior) => ({ ...anterior, bloques: anterior.bloques.filter((g) => g !== grupo) }))} onAgregar={agregarEjercicio} onQuitar={setQuitar} />
+          <EditorEjerciciosPlan maxColumnas={enModal?4:undefined} ejercicios={borrador.ejercicios} bloques={borrador.bloques} tipo={borrador.tipo} semana={semana} semanasVisibles={semanasVisibles} ocupado={ocupado} altaPendiente={false} sucio={false} onCambiar={ejercicio} onCrearBloque={crearBloque} onQuitarBloque={(grupo) => setBorrador((anterior) => ({ ...anterior, bloques: anterior.bloques.filter((g) => g !== grupo) }))} onAgregar={agregarEjercicio} onQuitar={setQuitar} />
         </div>
         <label className="block space-y-2 text-sm font-medium">Vuelta a la calma<Textarea className="min-h-20 font-normal" maxLength={4000} value={borrador.enfriamiento} onChange={(e) => setBorrador({ ...borrador, enfriamiento: e.target.value })} placeholder="Estiramientos, movilidad suave…" /></label>
       </fieldset></>}
       {error && <p role="alert" className="text-sm text-destructive">{error} Los cambios sin guardar siguen en el formulario.</p>}
-      <div className="flex flex-wrap items-center justify-between gap-2"><p role="status" className={enModal&&!sucio&&!error?"sr-only":"text-xs text-muted-foreground"}>{ocupado ? "Guardando…" : error ? "No se pudieron guardar los cambios" : sucio ? "Cambios pendientes…" : "Guardado automáticamente"}</p>{error && <Button type="submit" disabled={ocupado}>Reintentar guardado</Button>}</div>
-    </form>{!modelo && <div className="mt-6"><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} lectura compacto={enModal} /></div>}</CardContent>
-    <Dialog open={confirmar || Boolean(quitar)} onOpenChange={(v) => { if (!v && !ocupado) { setConfirmar(false); setQuitar(null); } }}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Eliminar {quitar ? "este ejercicio" : "esta sesión"}?</DialogTitle><DialogDescription>También se borran sus registros de peso. No se puede deshacer.</DialogDescription></DialogHeader><DialogFooter><Button variant="ghost" disabled={ocupado} onClick={() => { setConfirmar(false); setQuitar(null); }}>Cancelar</Button><Button variant="destructive" disabled={ocupado} onClick={() => void eliminar()}>Eliminar</Button></DialogFooter></DialogContent></Dialog>
+      <div className="flex flex-wrap items-center justify-between gap-2"><p role="status" className="text-xs text-muted-foreground">{ocupado ? "Guardando…" : error ? "No se pudieron guardar todos los cambios" : sucio ? "Cambios sin guardar" : "Sin cambios pendientes"}</p><Button type="submit" disabled={ocupado||!sucio}>{ocupado?"Guardando…":error?"Reintentar guardado":"Guardar cambios"}</Button></div>
+    </fieldset></form>{!modelo && <div className="mt-6"><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} lectura compacto={enModal} /></div>}</CardContent>
+    <Dialog open={confirmar || Boolean(quitar)} onOpenChange={(v) => { if (!v && !ocupado) { setConfirmar(false); setQuitar(null); } }}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Eliminar {quitar ? "este ejercicio" : "este día"}?</DialogTitle><DialogDescription>{quitar?"Al guardar la rutina también se borrarán sus registros de peso.":"Se borra el día completo, con sus ejercicios, todas las semanas, asignaciones y registros de peso y seguimiento. Los cambios sin guardar se descartan. No se puede deshacer."}</DialogDescription></DialogHeader>{error&&<p role="alert" className="text-sm text-destructive">{error}</p>}<DialogFooter><Button variant="ghost" disabled={ocupado} onClick={() => { setConfirmar(false); setQuitar(null); }}>Cancelar</Button><Button variant="destructive" disabled={ocupado} onClick={() => void eliminar()}>Eliminar</Button></DialogFooter></DialogContent></Dialog>
   </Card>;
 }
 
@@ -549,12 +563,16 @@ function CalendarioPlanes({ planes }: { planes: PlanMensual[] }) {
 
 export function RutinaPlanModal({plan,sesion,editable,semanaInicial,onCerrar}:{plan:Pick<PlanMensual,"sesiones"|"semanas">&{inicio?:string};sesion:SesionEntrenamiento;editable:boolean;semanaInicial:number;onCerrar:()=>void}) {
  const [semana,setSemana]=useState(()=>plan.inicio?(semanaDelPlan(plan.inicio,hoyISO(),plan.semanas)??semanaInicial):semanaInicial);
+ const [confirmarSalida,setConfirmarSalida]=useState(false),[guardandoModal,setGuardandoModal]=useState(false),[duplicandoDia,setDuplicandoDia]=useState(false);
+ const cerrarAlGuardar=useRef(false);
  const numero=plan.sesiones.filter(s=>s.tipo===sesion.tipo).findIndex(s=>s.id===sesion.id)+1;
- const cerrar=()=>{if(!hayBorradoresMensuales(sesion.id))onCerrar();};
+ const cerrar=()=>{if(guardandoModal)return;if(hayBorradoresMensuales(sesion.id))setConfirmarSalida(true);else onCerrar();};
  return <Dialog open onOpenChange={v=>!v&&cerrar()}><DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] gap-5 overflow-y-auto sm:max-w-[1080px]">
   <DialogHeader className={editable?"sr-only":"border-b pb-3 text-center"}><DialogTitle>{sesion.nombre||`${sesion.tipo} – Día ${numero}`}</DialogTitle><DialogDescription className="sr-only">Día de entrenamiento</DialogDescription></DialogHeader>
 
-  {editable?<FormularioSesion key={sesion.id} enModal sesion={sesion} numeroDia={numero} semana={semana} semanasVisibles={[semana]} totalSemanas={plan.semanas} selectorSemana={<div role="group" aria-label="Semanas del día" className="mx-auto flex w-fit max-w-full overflow-x-auto justify-start gap-1 rounded-xl border p-1">{semanasDelPlan(plan.semanas).map(s=><Button key={s} size="sm" variant={s===semana?"default":"ghost"} aria-pressed={s===semana} onClick={()=>navegar(()=>setSemana(s))}>Semana {s}</Button>)}</div>} onDuplicar={()=>{}} />:<><div role="group" aria-label="Semanas del día" className="mx-auto flex max-w-full overflow-x-auto justify-start gap-1 rounded-xl border p-1">{semanasDelPlan(plan.semanas).map(s=><Button key={s} size="sm" variant={s===semana?"default":"ghost"} aria-pressed={s===semana} onClick={()=>navegar(()=>setSemana(s))}>Semana {s}</Button>)}</div><EditorDia sesion={sesion} semana={semana} editable={false} /><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} compacto /></>}
+  {editable?<FormularioSesion key={sesion.id} enModal sesion={sesion} numeroDia={numero} semana={semana} semanasVisibles={[semana]} totalSemanas={plan.semanas} selectorSemana={<div role="group" aria-label="Semanas del día" className="mx-auto flex w-fit max-w-full overflow-x-auto justify-start gap-1 rounded-xl border p-1">{semanasDelPlan(plan.semanas).map(s=><Button key={s} type="button" size="sm" variant={s===semana?"default":"ghost"} aria-pressed={s===semana} onClick={()=>setSemana(s)}>Semana {s}</Button>)}</div>} onDuplicar={()=>{if(hayBorradoresMensuales(sesion.id))toast.error("Guardá los cambios antes de duplicar el día.");else setDuplicandoDia(true);}} onEliminado={onCerrar} onOcupado={setGuardandoModal} onGuardado={()=>{if(cerrarAlGuardar.current){cerrarAlGuardar.current=false;onCerrar();}}} onFallo={()=>{cerrarAlGuardar.current=false;}} />:<><div role="group" aria-label="Semanas del día" className="mx-auto flex max-w-full overflow-x-auto justify-start gap-1 rounded-xl border p-1">{semanasDelPlan(plan.semanas).map(s=><Button key={s} size="sm" variant={s===semana?"default":"ghost"} aria-pressed={s===semana} onClick={()=>navegar(()=>setSemana(s))}>Semana {s}</Button>)}</div><EditorDia sesion={sesion} semana={semana} editable={false} /><SeguimientoSesion key={`${sesion.id}:${semana}`} sesionId={sesion.id} semana={semana} compacto /></>}
+  <Dialog open={confirmarSalida} onOpenChange={setConfirmarSalida}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>¿Guardar los cambios?</DialogTitle><DialogDescription>Tenés cambios sin guardar en este día. Si hubo un error al guardar, algunos cambios podrían haberse guardado.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="ghost" onClick={()=>setConfirmarSalida(false)}>Seguir editando</Button><Button type="button" variant="outline" onClick={()=>{setConfirmarSalida(false);onCerrar();avisarCambioMensual();}}>Descartar</Button><Button type="button" onClick={()=>{cerrarAlGuardar.current=true;setConfirmarSalida(false);document.getElementById(`rutina-${sesion.id}`)?.dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}));}}>Guardar y salir</Button></DialogFooter></DialogContent></Dialog>
+  {duplicandoDia&&<DuplicarSesionDialog asignarLuego sesion={sesion} onCerrar={()=>setDuplicandoDia(false)} onDuplicada={()=>{setDuplicandoDia(false);avisarCambioMensual();}} />}
  </DialogContent></Dialog>;
 }
 

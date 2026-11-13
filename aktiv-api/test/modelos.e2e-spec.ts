@@ -88,3 +88,4 @@ describe("Biblioteca de planes modelo",()=>{
     expect((await A.get(`/api/alumnos/${alumno}/planes-mensuales`)).body.some((p:{id:string})=>p.id===asignado)).toBe(true);
   });
 });
+
